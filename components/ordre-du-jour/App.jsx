@@ -3389,7 +3389,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
             <RefreshCw size={14} /> Actualiser
           </button>
           {boutonRequete && (
-            <button onClick={boutonRequete} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: "1.5px solid #E4022E", background: "#E4022E", color: "#fff", cursor: "pointer" }}>
+            <button onClick={() => boutonRequete()} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: "1.5px solid #E4022E", background: "#E4022E", color: "#fff", cursor: "pointer" }}>
               + Nouvelle requête
             </button>
           )}
