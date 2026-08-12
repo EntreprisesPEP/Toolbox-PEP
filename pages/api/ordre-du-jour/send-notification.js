@@ -7,7 +7,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const LOGO_URL = "https://toolbox-pep.vercel.app/_static/ordre-du-jour/logo-pep.png";
+const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
 
 // Liste des destinataires — ajouter d'autres personnes ici plus tard.
 // "slug" sert à vérifier la préférence courriel (Menu ☰ → Notification PUSH).

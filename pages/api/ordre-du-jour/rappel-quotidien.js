@@ -83,7 +83,7 @@ export default async function handler(req, res) {
       );
 
       if (process.env.RESEND_API_KEY) {
-        const LOGO_URL = "https://toolbox-pep.vercel.app/_static/ordre-du-jour/logo-pep.png";
+        const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
         await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
