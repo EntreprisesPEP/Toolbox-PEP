@@ -16,18 +16,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Champ 'title' manquant" });
   }
 
-  const { ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY, ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY } = process.env;
+  const { ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY } = process.env;
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!ORDREDUJOUR_VAPID_PUBLIC_KEY || !ORDREDUJOUR_VAPID_PRIVATE_KEY) {
     return res.status(500).json({ error: "Clés VAPID non configurées sur le serveur." });
   }
-  if (!ORDREDUJOUR_SUPABASE_URL || !ORDREDUJOUR_SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     return res.status(500).json({ error: "Configuration Supabase manquante sur le serveur." });
   }
 
   webpush.setVapidDetails("mailto:wdubreuil@pep2000.com", ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY);
 
-  const supabase = createClient(ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    db: { schema: "ordre_du_jour" },
+  });
 
   try {
     const { data, error } = await supabase
