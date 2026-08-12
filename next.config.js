@@ -22,6 +22,11 @@ const nextConfig = {
       // Toolbox = page d'accueil, sur le domaine racine
       { source: '/', destination: '/_static/toolbox/index.html' },
       { source: '/toolbox/:path*', destination: '/_static/toolbox/:path*' },
+      // Fichiers references de facon relative (sans /toolbox/ devant)
+      // par le Toolbox lui-meme, puisqu'il croit etre a la racine
+      { source: '/icon-192.png', destination: '/_static/toolbox/icon-192.png' },
+      { source: '/icon-512.png', destination: '/_static/toolbox/icon-512.png' },
+      { source: '/manifest.json', destination: '/_static/toolbox/manifest.json' },
 
       // Redirection de secours si quelqu'un tape /accueil
       { source: '/accueil', destination: '/_static/toolbox/index.html' },
