@@ -2,6 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // IMPORTANT: force le slash final sur toutes les routes. Sans ca, Next.js
+  // retire le slash final par defaut, ce qui casse les liens relatifs
+  // internes des apps statiques (icon-192.png, manifest.json, etc.)
+  // deviennent introuvables) car ces liens sont resolus par rapport au
+  // dernier segment de l'URL affichee dans le navigateur.
+  trailingSlash: true,
+
   // Chaque ancienne app statique (Toolbox, To-do-list, Couts-de-projets)
   // vit dans public/_static/<nom>/ et est exposee via une "rewrite" ici.
   // Le chemin source DOIT avoir un slash final pour que les liens relatifs
@@ -18,6 +25,11 @@ const nextConfig = {
 
       // Redirection de secours si quelqu'un tape /accueil
       { source: '/accueil', destination: '/_static/toolbox/index.html' },
+      { source: '/accueil/', destination: '/_static/toolbox/index.html' },
+
+      // To-do-list (ex Carnet de taches)
+      { source: '/to-do-list/', destination: '/_static/to-do-list/index.html' },
+      { source: '/to-do-list/:path*', destination: '/_static/to-do-list/:path*' },
     ];
   },
 };
