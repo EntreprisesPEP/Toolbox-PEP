@@ -30,6 +30,10 @@ const nextConfig = {
       // To-do-list (ex Carnet de taches)
       { source: '/to-do-list/', destination: '/_static/to-do-list/index.html' },
       { source: '/to-do-list/:path*', destination: '/_static/to-do-list/:path*' },
+
+      // Couts-de-projets (ex Fichier Cost)
+      { source: '/couts-de-projets/', destination: '/_static/couts-de-projets/index.html' },
+      { source: '/couts-de-projets/:path*', destination: '/_static/couts-de-projets/:path*' },
     ];
   },
 };
