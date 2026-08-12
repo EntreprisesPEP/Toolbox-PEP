@@ -255,7 +255,7 @@ function emptyLignes(list) {
 // Clé publique VAPID — sert à identifier l'app auprès des navigateurs pour
 // les notifications push. Pas un secret (contrairement à la clé privée,
 // gardée uniquement côté serveur).
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_ORDREDUJOUR_VAPID_PUBLIC_KEY || "";
 
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);

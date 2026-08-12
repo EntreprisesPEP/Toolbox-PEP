@@ -43,18 +43,18 @@ function demainMontreal(joursFeries = []) {
 }
 
 export default async function handler(req, res) {
-  const { VAPID_PUBLIC_KEY: pub, VITE_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY } = process.env;
-  const VAPID_PUBLIC_KEY = VITE_VAPID_PUBLIC_KEY || pub;
+  const { VAPID_PUBLIC_KEY: pub, ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY, ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY } = process.env;
+  const VAPID_PUBLIC_KEY = ORDREDUJOUR_VAPID_PUBLIC_KEY || pub;
 
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+  if (!VAPID_PUBLIC_KEY || !ORDREDUJOUR_VAPID_PRIVATE_KEY) {
     return res.status(500).json({ error: "Clés VAPID non configurées sur le serveur." });
   }
-  if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY) {
+  if (!ORDREDUJOUR_SUPABASE_URL || !ORDREDUJOUR_SUPABASE_ANON_KEY) {
     return res.status(500).json({ error: "Configuration Supabase manquante sur le serveur." });
   }
 
-  webpush.setVapidDetails("mailto:wdubreuil@pep2000.com", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-  const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY);
+  webpush.setVapidDetails("mailto:wdubreuil@pep2000.com", VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY);
+  const supabase = createClient(ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY);
 
   const estTest = req.method === "POST" && req.body?.test === true;
 

@@ -14,10 +14,10 @@ const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
 const DESTINATAIRES = [{ slug: "william-dubreuil", email: "wdubreuil@pep2000.com" }];
 
 async function destinatairesActifs() {
-  const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY } = process.env;
-  if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY) return DESTINATAIRES.map((d) => d.email);
+  const { ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY } = process.env;
+  if (!ORDREDUJOUR_SUPABASE_URL || !ORDREDUJOUR_SUPABASE_ANON_KEY) return DESTINATAIRES.map((d) => d.email);
   try {
-    const supabase = createClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY);
+    const supabase = createClient(ORDREDUJOUR_SUPABASE_URL, ORDREDUJOUR_SUPABASE_ANON_KEY);
     const emails = [];
     for (const d of DESTINATAIRES) {
       const { data } = await supabase.from("kv_store").select("value").eq("key", `pref-courriel:${d.slug}`).maybeSingle();
