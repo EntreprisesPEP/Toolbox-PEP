@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/ordre-du-jour/rappel-quotidien/", "schedule": "0 16 * * *" },
+    { "path": "/api/ordre-du-jour/rappel-quotidien/", "schedule": "0 20 * * *" }
+  ]
+}
