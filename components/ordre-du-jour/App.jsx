@@ -1273,12 +1273,14 @@ function TopBar({ profil, date, setDate, onSwitchProfile, masquerDate, onMenuSel
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: "0.02em" }}>PEP2000 — ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 12 }}>{profil.nom} · {ROLES.find((r) => r.value === profil.role)?.label}</div>
+              <a href="/" style={{ color: "#8a93a0", fontSize: 11, textDecoration: "none" }}>Retour au Toolbox PEP</a>
             </div>
           )}
           {isPhone && (
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "0.02em" }}>ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 11 }}>{profil.nom}</div>
+              <a href="/" style={{ color: "#8a93a0", fontSize: 10, textDecoration: "none" }}>Retour au Toolbox PEP</a>
             </div>
           )}
         </div>

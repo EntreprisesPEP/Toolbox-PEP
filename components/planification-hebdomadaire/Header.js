@@ -37,11 +37,14 @@ export default function Header({ prefs, updatePrefs }) {
       <div className="header">
         <div className="header-left">
           <div className="logo">
-            <img src="/_static/planification-hebdomadaire/logo-pep.png" alt="Les Entreprises PEP2000" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            <a href="/" title="Retour au Toolbox PEP">
+              <img src="/_static/planification-hebdomadaire/logo-pep.png" alt="Les Entreprises PEP2000" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            </a>
           </div>
           <div>
             <p className="h-title">PLANIFICATION HEBDOMADAIRE</p>
             <p className="h-sub">Besoins et attribution des equipes</p>
+            <a href="/" style={{ fontSize: 11, color: '#9aa3b5', textDecoration: 'none' }}>Retour au Toolbox PEP</a>
           </div>
         </div>
         <div className="header-right">

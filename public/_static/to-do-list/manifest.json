@@ -1,6 +1,6 @@
 {
-  "name": "Carnet de tâches",
-  "short_name": "Carnet de tâches",
+  "name": "To do list",
+  "short_name": "To do list",
   "description": "Liste de tâches professionnelle — Les Entreprises PEP2000",
   "start_url": "/to-do-list/",
   "display": "standalone",
