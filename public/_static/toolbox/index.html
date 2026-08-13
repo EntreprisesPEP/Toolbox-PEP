@@ -470,19 +470,21 @@
     <h1>Toolbox PEP</h1>
     <p class="sub">Connexion à l'environnement d'outils PEP2000</p>
     <div class="login-error" id="loginError"></div>
-    <span class="field-label">Courriel</span>
-    <input type="email" id="loginEmail" autocomplete="username">
-    <span class="field-label">Mot de passe</span>
-    <span class="password-field-wrap">
-      <input type="password" id="loginPassword" autocomplete="current-password">
-      <button type="button" class="password-toggle-btn" id="passwordToggleBtn" title="Afficher le mot de passe" aria-label="Afficher le mot de passe">
-        <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
-          <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-      </button>
-    </span>
-    <button class="login-btn" id="loginBtn">Se connecter</button>
+    <form id="loginForm" autocomplete="on">
+      <span class="field-label">Courriel</span>
+      <input type="email" id="loginEmail" name="email" autocomplete="username">
+      <span class="field-label">Mot de passe</span>
+      <span class="password-field-wrap">
+        <input type="password" id="loginPassword" name="password" autocomplete="current-password">
+        <button type="button" class="password-toggle-btn" id="passwordToggleBtn" title="Afficher le mot de passe" aria-label="Afficher le mot de passe">
+          <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </button>
+      </span>
+      <button class="login-btn" id="loginBtn" type="submit">Se connecter</button>
+    </form>
   </div>
 </div>
 
@@ -559,8 +561,7 @@ const FUTURE_APP_NAMES = [
   'Gain imposable',
   'FlotteAccès Martin Potvin',
   'Civalgo interne (BETA)',
-  'Chatbot AI PEP (BETA)',
-  'Administration'
+  'Chatbot AI PEP (BETA)'
 ];
 
 const PLACEHOLDER_APPS = FUTURE_APP_NAMES.map((name, i) => ({
@@ -624,6 +625,20 @@ const APPS = [
     name: 'Planification hebdomadaire',
     desc: 'Réunion hebdomadaire de suivi de projets et attribution des contremaîtres, en temps réel.',
     url: '/planification-hebdomadaire/',
+    status: 'live'
+  },
+  {
+    icon: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="46" fill="#14213D"/>
+      <circle cx="50" cy="38" r="14" fill="#FFFFFF"/>
+      <path d="M22 80 C22 60 78 60 78 80 Z" fill="#FFFFFF"/>
+      <circle cx="72" cy="30" r="16" fill="#C41230"/>
+      <rect x="65" y="27" width="14" height="6" rx="2" fill="#FFFFFF"/>
+      <rect x="69" y="23" width="6" height="14" rx="2" fill="#FFFFFF"/>
+    </svg>`,
+    name: 'Administration',
+    desc: 'Gestion des membres, invitations et droits d\u2019acces.',
+    url: '/administration/',
     status: 'live'
   },
   ...PLACEHOLDER_APPS
@@ -832,7 +847,8 @@ function hideLoginError(){
   document.getElementById('loginError').classList.remove('show');
 }
 
-document.getElementById('loginBtn').addEventListener('click', async ()=>{
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
   hideLoginError();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
@@ -851,10 +867,6 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
     return;
   }
   showHub(data.user);
-});
-
-document.getElementById('loginPassword').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') document.getElementById('loginBtn').click();
 });
 
 document.getElementById('passwordToggleBtn').addEventListener('click', ()=>{

@@ -253,19 +253,21 @@
     <h1>Fichier Cost</h1>
     <p class="sub">Connexion — Les Entreprises PEP2000</p>
     <div id="loginError" class="login-error"></div>
-    <span class="field-label">Courriel</span>
-    <input type="email" id="loginEmail" autocomplete="username">
-    <span class="field-label">Mot de passe</span>
-    <div style="position:relative;">
-      <input type="password" id="loginPassword" autocomplete="current-password" style="padding-right:40px;">
-      <button type="button" onclick="togglePwVisibility()" style="position:absolute; right:8px; top:8px; background:none; border:none; cursor:pointer; padding:4px;" aria-label="Afficher le mot de passe">
-        <svg id="pwEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--login-text-dim)" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>
-    </div>
-    <button class="login-btn" id="loginBtn" onclick="handleLogin()">Se connecter</button>
-    <div class="login-forgot">
-      <a href="#" onclick="handleForgotPassword(); return false;">Mot de passe oublié?</a>
-    </div>
+    <form id="loginForm" autocomplete="on">
+      <span class="field-label">Courriel</span>
+      <input type="email" id="loginEmail" name="email" autocomplete="username">
+      <span class="field-label">Mot de passe</span>
+      <div style="position:relative;">
+        <input type="password" id="loginPassword" name="password" autocomplete="current-password" style="padding-right:40px;">
+        <button type="button" onclick="togglePwVisibility()" style="position:absolute; right:8px; top:8px; background:none; border:none; cursor:pointer; padding:4px;" aria-label="Afficher le mot de passe">
+          <svg id="pwEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--login-text-dim)" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <button class="login-btn" id="loginBtn" type="submit">Se connecter</button>
+      <div class="login-forgot">
+        <a href="#" onclick="handleForgotPassword(); return false;">Mot de passe oublié?</a>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -2620,6 +2622,10 @@ async function handleLogin(){
   session = data.session;
   await bootAfterAuth();
 }
+document.getElementById('loginForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  handleLogin();
+});
 async function handleLogout(){
   await sb.auth.signOut();
   session = null;

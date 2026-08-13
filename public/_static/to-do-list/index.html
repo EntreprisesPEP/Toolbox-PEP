@@ -1272,11 +1272,13 @@
     <h1>TO DO LIST</h1>
     <p class="sub">Connexion — Les Entreprises PEP2000</p>
     <div class="login-error" id="loginError"></div>
-    <span class="field-label">Courriel</span>
-    <input type="email" id="loginEmail" autocomplete="username">
-    <span class="field-label">Mot de passe</span>
-    <input type="password" id="loginPassword" autocomplete="current-password">
-    <button class="login-btn" id="loginBtn">Se connecter</button>
+    <form id="loginForm" autocomplete="on">
+      <span class="field-label">Courriel</span>
+      <input type="email" id="loginEmail" name="email" autocomplete="username">
+      <span class="field-label">Mot de passe</span>
+      <input type="password" id="loginPassword" name="password" autocomplete="current-password">
+      <button class="login-btn" id="loginBtn" type="submit">Se connecter</button>
+    </form>
   </div>
 </div>
 
@@ -1502,7 +1504,8 @@ function hideLoginError(){
   document.getElementById('loginError').classList.remove('show');
 }
 
-document.getElementById('loginBtn').addEventListener('click', async ()=>{
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
   hideLoginError();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
@@ -1523,9 +1526,6 @@ document.getElementById('loginBtn').addEventListener('click', async ()=>{
   currentUser = data.user;
   showApp();
   loadState();
-});
-document.getElementById('loginPassword').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') document.getElementById('loginBtn').click();
 });
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   await sb.auth.signOut();
