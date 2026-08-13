@@ -44,7 +44,7 @@ export default function Header({ prefs, updatePrefs }) {
           <div>
             <p className="h-title">PLANIFICATION HEBDOMADAIRE</p>
             <p className="h-sub">Besoins et attribution des equipes</p>
-            <a href="/" style={{ fontSize: 11, color: '#9aa3b5', textDecoration: 'none' }}>Retour au Toolbox PEP</a>
+            <a href="/" style={{ fontSize: 11, color: '#4a7cf6', textDecoration: 'underline' }}>→ Retour au Toolbox PEP</a>
           </div>
         </div>
         <div className="header-right">

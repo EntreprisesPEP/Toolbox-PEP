@@ -629,6 +629,7 @@ function ProfileGate({ onDone, onAdmin }) {
             <div style={{ color: "#AEC0F5", fontFamily: "'Oswald',sans-serif", fontSize: 12, letterSpacing: "0.14em", fontWeight: 600 }}>LES ENTREPRISES</div>
             <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "0.02em" }}>PEP2000 INC.</div>
             <div style={{ color: "#B9C2CC", fontSize: 13, marginTop: 2 }}>Ordre du jour — coordination chantiers</div>
+            <a href="/" style={{ color: "#AEC0F5", fontSize: 12, textDecoration: "underline", marginTop: 6, display: "inline-block" }}>→ Retour au Toolbox PEP</a>
           </div>
           <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: 110, width: "auto", flexShrink: 0 }} />
         </div>
@@ -1273,14 +1274,14 @@ function TopBar({ profil, date, setDate, onSwitchProfile, masquerDate, onMenuSel
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: "0.02em" }}>PEP2000 — ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 12 }}>{profil.nom} · {ROLES.find((r) => r.value === profil.role)?.label}</div>
-              <a href="/" style={{ color: "#8a93a0", fontSize: 11, textDecoration: "none" }}>Retour au Toolbox PEP</a>
+              <a href="/" style={{ color: "#AEC0F5", fontSize: 11, textDecoration: "underline" }}>→ Retour au Toolbox PEP</a>
             </div>
           )}
           {isPhone && (
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "0.02em" }}>ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 11 }}>{profil.nom}</div>
-              <a href="/" style={{ color: "#8a93a0", fontSize: 10, textDecoration: "none" }}>Retour au Toolbox PEP</a>
+              <a href="/" style={{ color: "#AEC0F5", fontSize: 10, textDecoration: "underline" }}>→ Retour au Toolbox PEP</a>
             </div>
           )}
         </div>
