@@ -488,6 +488,19 @@
   </div>
 </div>
 
+<div class="login-wrap" id="setPasswordWrap" style="display:none;">
+  <div class="login-card">
+    <h1>Bienvenue!</h1>
+    <p class="sub">Crée ton mot de passe pour accéder au Toolbox PEP</p>
+    <div class="login-error" id="setPasswordError"></div>
+    <span class="field-label">Nouveau mot de passe (6 caractères minimum)</span>
+    <input type="password" id="newPasswordInput" autocomplete="new-password">
+    <span class="field-label">Confirme le mot de passe</span>
+    <input type="password" id="confirmPasswordInput" autocomplete="new-password">
+    <button class="login-btn" id="setPasswordBtn">Créer mon mot de passe</button>
+  </div>
+</div>
+
 <div class="hub-wrap" id="hubWrap">
   <header class="hub-header">
     <div class="hub-brand">
@@ -888,8 +901,59 @@ document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   showLogin();
 });
 
+function showSetPassword(){
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('hubWrap').style.display = 'none';
+  document.getElementById('setPasswordWrap').style.display = 'flex';
+}
+
+function showSetPasswordError(msg){
+  const el = document.getElementById('setPasswordError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
+  const errEl = document.getElementById('setPasswordError');
+  errEl.classList.remove('show');
+  const pw = document.getElementById('newPasswordInput').value;
+  const confirmPw = document.getElementById('confirmPasswordInput').value;
+  if(!pw || pw.length < 6){
+    showSetPasswordError('Le mot de passe doit avoir au moins 6 caractères.');
+    return;
+  }
+  if(pw !== confirmPw){
+    showSetPasswordError('Les deux mots de passe ne correspondent pas.');
+    return;
+  }
+  const btn = document.getElementById('setPasswordBtn');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement...';
+  const { data, error } = await sb.auth.updateUser({ password: pw });
+  btn.disabled = false;
+  btn.textContent = 'Créer mon mot de passe';
+  if(error){
+    showSetPasswordError("Erreur: " + error.message);
+    return;
+  }
+  showHub(data.user);
+});
+
 (async function init(){
+  // Detecte un lien d'invitation ou de reinitialisation de mot de passe
+  // (Supabase met le type dans le fragment #... de l'adresse)
+  const hash = window.location.hash || '';
+  const isInviteOrRecovery = hash.includes('type=invite') || hash.includes('type=recovery');
+
   const { data } = await sb.auth.getSession();
+
+  if(isInviteOrRecovery && data.session && data.session.user){
+    // Nettoie l'adresse pour ne pas garder le jeton visible
+    history.replaceState(null, '', window.location.pathname);
+    showSetPassword();
+    return;
+  }
+
   if(data.session && data.session.user){
     showHub(data.session.user);
   } else {
