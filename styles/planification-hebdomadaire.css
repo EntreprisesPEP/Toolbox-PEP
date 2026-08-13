@@ -74,6 +74,8 @@ body {
 }
 .ph-scope tbody td { padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
 .ph-scope tbody tr:last-child td { border-bottom: none; }
+.ph-scope tbody tr:nth-child(odd) { background: var(--panel); }
+.ph-scope tbody tr:nth-child(even) { background: var(--panel-2); }
 .ph-scope .scrollx { overflow-x: auto; border-radius: 8px; border: 1px solid var(--line); }
 .ph-scope .projtable { table-layout: auto; }
 .ph-scope .jobline { font-weight: 700; white-space: nowrap; display: block; }

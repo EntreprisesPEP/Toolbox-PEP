@@ -47,6 +47,14 @@ export default function Meeting1View({ board, editable, theme }) {
         emptyLabel="Aucun projet actif. Ajoute-les dans Admin projets."
       />
 
+      <div style={{ textAlign: 'center', marginTop: 14 }}>
+        <button
+          className="btn ghost"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          title="Retour en haut de la page"
+        >&#8593; Retour en haut</button>
+      </div>
+
       <ConfirmModal
         open={!!notice}
         message={notice}
