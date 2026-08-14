@@ -2,33 +2,40 @@
 // Resend (RESEND_API_KEY) reste toujours privée.
 //
 // Envoie une notification par courriel à chaque fois qu'une fiche est
-// soumise (nouvelle ou modifiée). Pour l'instant, un seul destinataire —
-// on en ajoutera d'autres quand l'app sera déployée à toute l'équipe.
+// soumise (nouvelle ou modifiée). Phase 3 : la liste des destinataires
+// n'est plus codée en dur — ce sont tous les membres de ordre_du_jour.profils
+// dont le rôle n'est pas "contremaitre" (mêmes destinataires que les
+// notifications internes de l'app, voir notifierNouvelleRequete dans
+// components/ordre-du-jour/App.jsx), qui ont un courriel enregistré, et qui
+// n'ont pas désactivé les courriels (préférence stockée par user_id).
 
 import { createClient } from "@supabase/supabase-js";
 
 const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
 
-// Liste des destinataires — ajouter d'autres personnes ici plus tard.
-// "slug" sert à vérifier la préférence courriel (Menu ☰ → Notification PUSH).
-const DESTINATAIRES = [{ slug: "william-dubreuil", email: "wdubreuil@pep2000.com" }];
-
 async function destinatairesActifs() {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return DESTINATAIRES.map((d) => d.email);
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [];
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       db: { schema: "ordre_du_jour" },
     });
+    const { data: membres, error } = await supabase
+      .from("profils")
+      .select("user_id, email")
+      .neq("role", "contremaitre")
+      .not("email", "is", null);
+    if (error) throw error;
+
     const emails = [];
-    for (const d of DESTINATAIRES) {
-      const { data } = await supabase.from("kv_store").select("value").eq("key", `pref-courriel:${d.slug}`).maybeSingle();
-      if (data?.value !== "inactif") emails.push(d.email); // actif par défaut si aucune préférence
+    for (const m of membres || []) {
+      const { data } = await supabase.from("kv_store").select("value").eq("key", `pref-courriel:${m.user_id}`).maybeSingle();
+      if (data?.value !== "inactif") emails.push(m.email); // actif par défaut si aucune préférence
     }
     return emails;
   } catch (e) {
-    return DESTINATAIRES.map((d) => d.email); // en cas d'erreur, on envoie quand même (sécuritaire)
+    return []; // en cas d'erreur, on n'envoie à personne plutôt que de deviner
   }
 }
 

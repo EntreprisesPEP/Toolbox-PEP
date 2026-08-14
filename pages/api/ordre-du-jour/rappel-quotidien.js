@@ -3,26 +3,17 @@
 // les contremaîtres qui n'ont pas encore soumis (ou marqué "Aucun travaux")
 // leur requête pour le lendemain.
 //
+// Phase 3 : la liste des contremaîtres n'est plus codée en dur — elle vient
+// de ordre_du_jour.profils (remplie via /administration/ du Toolbox). Les
+// clés de stockage (fiche:, push:) utilisent maintenant le user_id Supabase
+// de chaque personne plutôt qu'un slug dérivé de son nom.
+//
 // ⚠️ Rappel par courriel PAS encore inclus ici — on n'a pas encore les
 // adresses courriel individuelles de chaque contremaître (voir point 21 du
 // backlog). Seul le push est envoyé pour l'instant.
 
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
-
-// Liste des contremaîtres — à garder synchronisée avec USERS dans src/App.jsx.
-const CONTREMAITRES = [
-  "Biagio Pirro", "Brian Labelle", "Claude Cyr", "Daniel Boudreault",
-  "Françis Jobin", "François Gosselin", "Jérémy Juneau", "Jocelyn Denicolai",
-  "Jonathan Baulne", "Marco Chiovetti", "Michel Coulombe", "Martin Guillemette",
-  "Patrick Courteau", "Patrick Desmeules", "Dominic Hamel",
-];
-
-function slugify(s) {
-  return (s || "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
 
 // Date de demain au format YYYY-MM-DD, en heure de l'Est.
 function demainMontreal(joursFeries = []) {
@@ -63,6 +54,11 @@ export default async function handler(req, res) {
   const estTest = req.method === "POST" && req.body?.test === true;
 
   if (estTest) {
+    // Mode test : envoie un aperçu au compte dont le nom est fourni dans le
+    // corps de la requête (par défaut "William Dubreuil", pour garder le
+    // même comportement qu'avant). On cherche son user_id dynamiquement —
+    // les clés push: ne sont plus indexées par nom.
+    const nomTest = req.body?.nom || "William Dubreuil";
     const payloadTest = JSON.stringify({
       title: "PEP2000 — Ordre du jour (TEST)",
       body: "Ceci est un aperçu du rappel — N'oublie pas de soumettre ta requête pour demain (ou signale « Aucun travaux »).",
@@ -70,7 +66,11 @@ export default async function handler(req, res) {
     let envoyesTest = 0;
     const erreursPush = [];
     try {
-      const { data: pushData } = await supabase.from("kv_store").select("key, value").like("key", "push:william-dubreuil:%");
+      const { data: profilTest } = await supabase.from("profils").select("user_id").ilike("nom", nomTest).maybeSingle();
+      if (!profilTest) {
+        return res.status(404).json({ error: `Aucun profil trouvé pour "${nomTest}".` });
+      }
+      const { data: pushData } = await supabase.from("kv_store").select("key, value").like("key", `push:${profilTest.user_id}:%`);
       await Promise.all(
         (pushData || []).map(async (row) => {
           try {
@@ -136,7 +136,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         success: true,
         test: true,
-        abonnementsTrouves: (await supabase.from("kv_store").select("key").like("key", "push:william-dubreuil:%")).data?.length || 0,
+        abonnementsTrouves: (await supabase.from("kv_store").select("key").like("key", `push:${profilTest.user_id}:%`)).data?.length || 0,
         pushEnvoyes: envoyesTest,
         erreursPush,
       });
@@ -146,6 +146,18 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Liste des contremaîtres — vient maintenant de la base (profils
+    // configurés dans /administration/) plutôt que d'un tableau codé en dur.
+    const { data: contremaitres, error: erreurContremaitres } = await supabase
+      .from("profils")
+      .select("user_id, nom")
+      .eq("role", "contremaitre");
+    if (erreurContremaitres) throw erreurContremaitres;
+
+    if (!contremaitres || contremaitres.length === 0) {
+      return res.status(200).json({ success: true, message: "Aucun contremaître configuré dans profils.", envoyes: 0 });
+    }
+
     let joursFeries = [];
     try {
       const { data: feriesData } = await supabase.from("kv_store").select("value").eq("key", "jours-feries").maybeSingle();
@@ -161,14 +173,14 @@ export default async function handler(req, res) {
       .like("key", `fiche:${demain}:%`);
     if (erreurFiches) throw erreurFiches;
 
-    const slugsRepondu = new Set(
+    const idsRepondu = new Set(
       (fichesData || []).map((row) => {
-        const parts = row.key.split(":"); // fiche:DATE:slug ou fiche:DATE:slug::n
+        const parts = row.key.split(":"); // fiche:DATE:userId ou fiche:DATE:userId::n
         return (parts[2] || "").split("::")[0];
       })
     );
 
-    const enAttente = CONTREMAITRES.filter((nom) => !slugsRepondu.has(slugify(nom)));
+    const enAttente = contremaitres.filter((c) => !idsRepondu.has(c.user_id));
 
     if (enAttente.length === 0) {
       return res.status(200).json({ success: true, message: "Tout le monde a déjà répondu.", envoyes: 0 });
@@ -188,12 +200,13 @@ export default async function handler(req, res) {
 
     let envoyes = 0;
     const expirees = [];
+    const idsEnAttente = new Set(enAttente.map((c) => c.user_id));
 
     await Promise.all(
       (pushData || []).map(async (row) => {
-        const parts = row.key.split(":"); // push:slug:hash
-        const slugAbonne = parts[1];
-        if (!enAttente.some((nom) => slugify(nom) === slugAbonne)) return;
+        const parts = row.key.split(":"); // push:userId:hash
+        const idAbonne = parts[1];
+        if (!idsEnAttente.has(idAbonne)) return;
         try {
           const sub = JSON.parse(row.value);
           await webpush.sendNotification(sub, payload, { TTL: 60, urgency: "high" });
@@ -208,7 +221,12 @@ export default async function handler(req, res) {
       await supabase.from("kv_store").delete().in("key", expirees);
     }
 
-    return res.status(200).json({ success: true, demain, enAttente, envoyes });
+    return res.status(200).json({
+      success: true,
+      demain,
+      enAttente: enAttente.map((c) => c.nom),
+      envoyes,
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

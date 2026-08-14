@@ -56,8 +56,6 @@ const OPTIONS_APERCU = [
   { label: "Dispatch — Machinerie", role: "dispatch_machines", accesSpecial: "machinerie" },
 ];
 
-// Rôles ayant accès au panneau Administration (gestion des NIP)
-const ADMIN_ROLES = ["president", "directeur"];
 // Qui peut laisser un commentaire de révision sur une requête (ex: signaler
 // qu'une équipe semble trop grosse pour l'ouvrage prévu) : les 4 surintendants
 // (par leur rôle) + Davio et William spécifiquement (par leur nom) — 6 personnes au total.
@@ -66,38 +64,24 @@ function peutCommenter(profil) {
 }
 
 // --- Centre de notifications (boîte personnelle par personne) ---------
-async function creerNotification(destinataireSlug, type, titre, corps, cible) {
+async function creerNotification(destinataireUserId, type, titre, corps, cible) {
   try {
-    const cle = `notif:${destinataireSlug}:${new Date().toISOString()}:${Math.random().toString(36).slice(2, 7)}`;
+    const cle = `notif:${destinataireUserId}:${new Date().toISOString()}:${Math.random().toString(36).slice(2, 7)}`;
     await storage.set(cle, JSON.stringify({ type, titre, corps, cible, lu: false, horodatage: new Date().toISOString() }), true);
   } catch (e) { /* notification secondaire — on ignore l'échec */ }
 }
 // Nouvelle requête ou requête modifiée -> tout le monde sauf les contremaîtres et l'auteur
 async function notifierNouvelleRequete(profil, cible, titre, corps) {
-  const destinataires = USERS.filter((u) => u.role !== "contremaitre" && u.nom !== profil.nom);
-  await Promise.all(destinataires.map((u) => creerNotification(slugify(u.nom), "nouvelle_requete", titre, corps, cible)));
+  const destinataires = MEMBRES.filter((m) => m.role !== "contremaitre" && m.userId !== profil.userId);
+  await Promise.all(destinataires.map((m) => creerNotification(m.userId, "nouvelle_requete", titre, corps, cible)));
 }
 // Commentaire ou écart signalé -> le propriétaire de la fiche + tous ceux qui peuvent commenter (sauf l'auteur du message)
-async function notifierCommentaire(profil, proprietaireNom, cible, titre, corps, type = "commentaire") {
-  const slugsUniques = new Set();
-  if (slugify(proprietaireNom) !== slugify(profil.nom)) slugsUniques.add(slugify(proprietaireNom));
-  USERS.filter((u) => peutCommenter(u) && u.nom !== profil.nom).forEach((u) => slugsUniques.add(slugify(u.nom)));
-  await Promise.all([...slugsUniques].map((s) => creerNotification(s, type, titre, corps, cible)));
+async function notifierCommentaire(profil, proprietaireUserId, cible, titre, corps, type = "commentaire") {
+  const idsUniques = new Set();
+  if (proprietaireUserId !== profil.userId) idsUniques.add(proprietaireUserId);
+  MEMBRES.filter((m) => peutCommenter(m) && m.userId !== profil.userId).forEach((m) => idsUniques.add(m.userId));
+  await Promise.all([...idsUniques].map((id) => creerNotification(id, type, titre, corps, cible)));
 }
-
-// Rôles pouvant remplir une fiche de requête (en plus du dashboard)
-const ROLES_FORMULAIRE = ["contremaitre", "surintendant"];// Regroupement des postes utilisé UNIQUEMENT à l'écran de connexion.
-// Chaque personne garde son titre réel (ROLES) partout ailleurs dans l'app —
-// ce regroupement ne fait que simplifier le choix du "poste" au moment de se connecter.
-const GROUPES_POSTE = [
-  { value: "contremaitre", label: "Contremaître", roles: ["contremaitre"] },
-  { value: "dispatch_camions", label: "Dispatch — Transport en vrac", roles: ["dispatch_camions"] },
-  { value: "surintendant", label: "Surintendant", roles: ["surintendant"] },
-  {
-    value: "gestion_projet", label: "Gestion de projet",
-    roles: ["president", "estimateur", "directeur", "coordonnateur", "charge_projet", "dispatch_machines"],
-  },
-];
 
 // Libellés affichés pour chaque type d'accès spécial (vues détaillées)
 const ACCES_SPECIAL_LABELS = {
@@ -106,46 +90,23 @@ const ACCES_SPECIAL_LABELS = {
   machinerie: "Machinerie",
 };
 
-// Répertoire des utilisateurs. NIP par défaut: 0000 pour tous (modifiable via le panneau Administration).
-// La liste des contremaîtres n'a pas encore été fournie — à compléter.
-const USERS = [
-  { nom: "Davio Pallotta", role: "president", accesSpecial: "tout" },
-  { nom: "William Dubreuil", role: "directeur", accesSpecial: "tout" },
-  { nom: "Santiago Sanchez", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Mathis Lapointe", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Matteo Carbone", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Giuseppe Pallotta", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Thomas Lawrence", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Stéphane Boisvert", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "John Vannicola", role: "charge_projet", accesSpecial: "tout" },
-  { nom: "Bryan Wong", role: "coordonnateur", accesSpecial: "tout" },
-  { nom: "Carl Pallotta", role: "coordonnateur", accesSpecial: "tout" },
-  { nom: "Marc-Antoine Blais", role: "estimateur", accesSpecial: "tout" },
-  { nom: "Yann Leclerc", role: "estimateur", accesSpecial: "tout" },
-  { nom: "Tony Moschetta", role: "surintendant", accesSpecial: "tout" },
-  { nom: "François Ouellet", role: "surintendant", accesSpecial: "tout" },
-  { nom: "Stéphane Lalande", role: "surintendant", accesSpecial: "tout" },
-  { nom: "Stephan Nadeau", role: "surintendant", accesSpecial: "tout" },
-  { nom: "Patrick Bettan", role: "dispatch_camions", accesSpecial: "camions" },
-  { nom: "Audrey Dandurand", role: "dispatch_camions", accesSpecial: "camions" },
-  { nom: "Nick Del-Vecchio", role: "dispatch_camions", accesSpecial: "camions" },
-  { nom: "Martin Potvin", role: "dispatch_machines", accesSpecial: "machinerie" },
-  { nom: "Biagio Pirro", role: "contremaitre" },
-  { nom: "Brian Labelle", role: "contremaitre" },
-  { nom: "Claude Cyr", role: "contremaitre" },
-  { nom: "Daniel Boudreault", role: "contremaitre" },
-  { nom: "Françis Jobin", role: "contremaitre" },
-  { nom: "François Gosselin", role: "contremaitre" },
-  { nom: "Jérémy Juneau", role: "contremaitre" },
-  { nom: "Jocelyn Denicolai", role: "contremaitre" },
-  { nom: "Jonathan Baulne", role: "contremaitre" },
-  { nom: "Marco Chiovetti", role: "contremaitre" },
-  { nom: "Michel Coulombe", role: "contremaitre" },
-  { nom: "Martin Guillemette", role: "contremaitre" },
-  { nom: "Patrick Courteau", role: "contremaitre" },
-  { nom: "Patrick Desmeules", role: "contremaitre" },
-  { nom: "Dominic Hamel", role: "contremaitre" },
-];
+// Cache des membres — remplace l'ancien tableau USERS codé en dur.
+// Rempli en interrogeant ordre_du_jour.profils (rempli depuis le panneau
+// /administration/ du Toolbox). Voir chargerMembresCache() ci-dessous,
+// appelé au montage de AppInner et à chaque connexion.
+let MEMBRES = [];
+async function chargerMembresCache() {
+  try {
+    const { data, error } = await supabase.from("profils").select("user_id, nom, role, acces_special");
+    if (error) throw error;
+    MEMBRES = (data || []).map((p) => ({
+      userId: p.user_id, nom: p.nom, role: p.role, accesSpecial: p.acces_special,
+    }));
+  } catch (e) {
+    // Hors ligne ou erreur passagère — on garde l'ancien cache plutôt que
+    // de planter l'app (comportement identique à chargerJoursFeriesCache).
+  }
+}
 
 // Liste de projets — 5 projets d'essai. Remplacer par la vraie liste quand disponible.
 // Liste des projets actifs (à jour juin 2026). Il manque encore 3 projets — à ajouter dès qu'ils seront fournis.
@@ -341,9 +302,13 @@ function capitaliserMots(s) {
     m.split("-").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("-")
   ).join(" ");
 }
-function nomDepuisSlug(slug) {
-  const u = USERS.find((u) => slugify(u.nom) === slug);
-  return u ? u.nom : capitaliserMots(slug.replace(/-/g, " "));
+// NOTE Phase 3 : les clés de stockage (fiche:{date}:{id}, etc.) utilisent
+// encore historiquement le nom de champ "slug" un peu partout dans ce
+// fichier, mais la valeur qu'il contient est maintenant le user_id
+// (UUID Supabase) de la personne, plus un slug lisible dérivé du nom.
+function nomDepuisUserId(userId) {
+  const m = MEMBRES.find((m) => m.userId === userId);
+  return m ? m.nom : "Utilisateur";
 }
 // Gestion des demandes multiples par personne/jour :
 // 1ère demande -> fiche:{date}:{slug}
@@ -560,615 +525,11 @@ function Plate({ children, tone = "steel", size = "sm" }) {
 }
 
 /* ---------------------------------------------------------------------
-   PIN — clavier numérique 4 chiffres
+   (Phase 3) L'ancien ProfileGate (choix du nom + NIP) et l'ancien
+   AdminPanel (gestion des NIP) ont été retirés — remplacés par AuthGate
+   (vrai login Supabase Auth) et par le panneau /administration/ du
+   Toolbox. Voir components/ordre-du-jour/AuthGate.js.
 --------------------------------------------------------------------- */
-function PinPad({ value, onChange, onSubmit, error }) {
-  const digits = value.split("");
-  const press = (d) => { if (value.length < 4) onChange(value + d); };
-  const back = () => onChange(value.slice(0, -1));
-  useEffect(() => { if (value.length === 4) onSubmit(value); }, [value]);
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 18 }}>
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} style={{
-            width: 44, height: 52, border: `1.5px solid ${error ? "#C23B3B" : "#D7DBE0"}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 24, fontWeight: 600, background: "#fff",
-          }}>
-            {digits[i] ? "•" : ""}
-          </div>
-        ))}
-      </div>
-      {error && <div style={{ textAlign: "center", color: "#C23B3B", fontSize: 13, marginBottom: 12 }}>NIP incorrect — réessayez.</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, maxWidth: 260, margin: "0 auto" }}>
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"].map((d, i) =>
-          d === "" ? <div key={i} /> : (
-            <button
-              key={i} type="button"
-              onClick={() => (d === "⌫" ? back() : press(d))}
-              style={{ padding: "14px 0", fontSize: 18, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600, border: "1px solid #D7DBE0", background: "#fff", cursor: "pointer" }}
-            >
-              {d}
-            </button>
-          )
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------
-   PROFILE GATE — sélection du nom + NIP
---------------------------------------------------------------------- */
-function ProfileGate({ onDone, onAdmin }) {
-  const [role, setRole] = useState("");
-  const [slug, setSlug] = useState("");
-  const [pin, setPin] = useState("");
-  const [erreur, setErreur] = useState(false);
-  const [verif, setVerif] = useState(false);
-  const [pins, setPins] = useState({});
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await storage.get("pins", true);
-        if (r) setPins(JSON.parse(r.value));
-      } catch (e) { /* aucun NIP personnalisé encore enregistré — tout le monde est à 0000 */ }
-    })();
-  }, []);
-
-  const utilisateur = USERS.find((u) => slugify(u.nom) === slug);
-  const groupeSelectionne = GROUPES_POSTE.find((g) => g.value === role);
-  const gensDuPoste = USERS.filter((u) => groupeSelectionne?.roles.includes(u.role)).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-
-  const verifierPin = async (val) => {
-    setVerif(true);
-    const attendu = pins[slug] || "0000";
-    await new Promise((r) => setTimeout(r, 150));
-    if (val === attendu) {
-      onDone({ nom: utilisateur.nom, role: utilisateur.role, slug, accesSpecial: utilisateur.accesSpecial });
-    } else {
-      setErreur(true);
-      setPin("");
-    }
-    setVerif(false);
-  };
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 1px 0 #D7DBE0" }}>
-        <div style={{ background: "#0F2138", padding: "22px 24px", borderTop: "4px solid #E4022E", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div style={{ color: "#AEC0F5", fontFamily: "'Oswald',sans-serif", fontSize: 12, letterSpacing: "0.14em", fontWeight: 600 }}>LES ENTREPRISES</div>
-            <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "0.02em" }}>PEP2000 INC.</div>
-            <div style={{ color: "#B9C2CC", fontSize: 13, marginTop: 2 }}>Ordre du jour — coordination chantiers</div>
-            <a href="/" style={{ color: "#AEC0F5", fontSize: 12, textDecoration: "underline", marginTop: 6, display: "inline-block" }}>→ Retour au Toolbox PEP</a>
-          </div>
-          <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: 110, width: "auto", flexShrink: 0 }} />
-        </div>
-        <div style={{ padding: 24 }}>
-          {!slug ? (
-            <>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#15181B", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Votre poste</label>
-              <div style={{ position: "relative", marginBottom: 18 }}>
-                <select
-                  value={role}
-                  onChange={(e) => { setRole(e.target.value); setSlug(""); setErreur(false); setPin(""); }}
-                  style={{ width: "100%", padding: "10px 36px 10px 12px", border: "1px solid #D7DBE0", fontSize: 15, fontWeight: 700, fontFamily: "'Inter',sans-serif", appearance: "none", background: "#fff", boxSizing: "border-box" }}
-                >
-                  <option value="" style={{ fontWeight: 700 }}>— Sélectionner votre poste —</option>
-                  {GROUPES_POSTE.map((g) => {
-                    const n = USERS.filter((u) => g.roles.includes(u.role)).length;
-                    if (n === 0) return null;
-                    return <option key={g.value} value={g.value}>{g.label}</option>;
-                  })}
-                </select>
-                <ChevronDown size={16} style={{ position: "absolute", right: 12, top: 13, color: "#6b7480", pointerEvents: "none" }} />
-              </div>
-
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: role ? "#15181B" : "#B9C2CC", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>Votre nom</label>
-              <div style={{ position: "relative", marginBottom: 20 }}>
-                <select
-                  value={slug}
-                  disabled={!role}
-                  onChange={(e) => { setSlug(e.target.value); setErreur(false); setPin(""); }}
-                  style={{ width: "100%", padding: "10px 36px 10px 12px", border: "1px solid #D7DBE0", fontSize: 15, fontWeight: 700, fontFamily: "'Inter',sans-serif", appearance: "none", background: role ? "#fff" : "#F2F3F4", color: role ? "#15181B" : "#B9C2CC", boxSizing: "border-box", cursor: role ? "pointer" : "not-allowed" }}
-                >
-                  <option value="" style={{ fontWeight: 700 }}>{role ? "— Sélectionner votre nom —" : "Choisissez d'abord un poste"}</option>
-                  {gensDuPoste.map((u) => (
-                    <option key={u.nom} value={slugify(u.nom)}>
-                      {groupeSelectionne && groupeSelectionne.roles.length > 1
-                        ? `${u.nom} (${ROLES.find((r) => r.value === u.role)?.label})`
-                        : u.nom}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} style={{ position: "absolute", right: 12, top: 13, color: "#6b7480", pointerEvents: "none" }} />
-              </div>
-
-              <button onClick={onAdmin} style={{ display: "block", margin: "0 auto", background: "transparent", border: "none", color: "#8a93a0", fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>
-                Accès administrateur
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ textAlign: "center", marginBottom: 4 }}>
-                <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17 }}>{utilisateur?.nom}</div>
-                <div style={{ fontSize: 12, color: "#6b7480", marginBottom: 18 }}>{ROLES.find((r) => r.value === utilisateur?.role)?.label}</div>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#495260", textAlign: "center", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.04em" }}>Entrez votre NIP</div>
-              <PinPad value={pin} onChange={(v) => { setPin(v); setErreur(false); }} onSubmit={verifierPin} error={erreur} />
-              <button onClick={() => { setSlug(""); setPin(""); setErreur(false); }} style={{ display: "block", margin: "16px auto 0", background: "transparent", border: "none", color: "#8a93a0", fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>
-                ← Changer de nom
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------------
-   ADMINISTRATION — gestion des NIP (Président / Directeur uniquement)
---------------------------------------------------------------------- */
-function AdminPanel({ onBack }) {
-  const [gate, setGate] = useState(""); // slug de l'admin qui se connecte
-  const [pinGate, setPinGate] = useState("");
-  const [erreurGate, setErreurGate] = useState(false);
-  const [autorise, setAutorise] = useState(false);
-  const [pins, setPins] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [statut, setStatut] = useState(null);
-  const [onglet, setOnglet] = useState("nip"); // 'nip' | 'apercu' | 'journal' | 'feries'
-  const [feries, setFeries] = useState([]);
-  const [feriesLoading, setFeriesLoading] = useState(false);
-  const [feriesCharges, setFeriesCharges] = useState(false);
-  const [nouveauFerie, setNouveauFerie] = useState("");
-  const [nouvelleDescription, setNouvelleDescription] = useState("");
-  const [feriesStatut, setFeriesStatut] = useState(null);
-  const [texteImport, setTexteImport] = useState("");
-  const [resultatImport, setResultatImport] = useState(null); // { ajoutees, ignorees } | null
-  const [logs, setLogs] = useState([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-  const [logsCharges, setLogsCharges] = useState(false);
-  const usersTries = useMemo(() => [...USERS].sort((a, b) => a.nom.localeCompare(b.nom, "fr")), []);
-  const [testRappelStatut, setTestRappelStatut] = useState(null); // null | 'envoi' | 'succes' | 'erreur'
-  const [testRappelMsg, setTestRappelMsg] = useState("");
-  const [testRappelDetails, setTestRappelDetails] = useState(null);
-
-  const envoyerTestRappel = async () => {
-    setTestRappelStatut("envoi");
-    setTestRappelMsg("");
-    setTestRappelDetails(null);
-    try {
-      const r = await fetch("/api/ordre-du-jour/rappel-quotidien/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ test: true }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data?.error || "Échec de l'envoi");
-      setTestRappelDetails(data);
-      setTestRappelStatut("succes");
-    } catch (e) {
-      setTestRappelStatut("erreur");
-      setTestRappelMsg(e.message || "Erreur inconnue");
-    }
-  };
-
-  const chargerLogs = async () => {
-    setLogsLoading(true);
-    try {
-      const listRes = await storage.list("log:", true);
-      const keys = (listRes?.keys || []).sort().reverse().slice(0, 300); // 300 plus récents
-      const entrees = [];
-      for (const k of keys) {
-        try {
-          const r = await storage.get(k, true);
-          if (r) entrees.push(JSON.parse(r.value));
-        } catch (e) { /* entrée corrompue ignorée */ }
-      }
-      setLogs(entrees);
-    } catch (e) { setLogs([]); }
-    setLogsCharges(true);
-    setLogsLoading(false);
-  };
-
-  const chargerFeries = async () => {
-    setFeriesLoading(true);
-    try {
-      const r = await storage.get("jours-feries", true);
-      setFeries(r ? JSON.parse(r.value) : []);
-    } catch (e) { setFeries([]); }
-    setFeriesCharges(true);
-    setFeriesLoading(false);
-  };
-
-  const ajouterFerie = async () => {
-    if (!nouveauFerie || estJourFerie(feries, nouveauFerie)) return;
-    setFeriesStatut("envoi");
-    try {
-      const nouvelleListe = [...feries, { date: nouveauFerie, description: nouvelleDescription.trim() }];
-      await storage.set("jours-feries", JSON.stringify(nouvelleListe), true);
-      setFeries(nouvelleListe);
-      setNouveauFerie("");
-      setNouvelleDescription("");
-      JOURS_FERIES_CACHE = nouvelleListe; // rafraîchit la copie en mémoire tout de suite
-    } finally {
-      setFeriesStatut(null);
-    }
-  };
-
-  const retirerFerie = async (date) => {
-    const nouvelleListe = feries.filter((f) => (typeof f === "string" ? f : f.date) !== date);
-    setFeries(nouvelleListe);
-    try {
-      await storage.set("jours-feries", JSON.stringify(nouvelleListe), true);
-      JOURS_FERIES_CACHE = nouvelleListe;
-    } catch (e) { /* on garde le retrait visuel même si l'enregistrement échoue */ }
-  };
-
-  const importerFeries = async () => {
-    const lignes = texteImport.split("\n").map((l) => l.trim()).filter(Boolean);
-    const reconnues = [];
-    let ignorees = 0;
-    lignes.forEach((ligne) => {
-      const resultat = parserLigneFerie(ligne);
-      if (resultat) reconnues.push(resultat); else ignorees++;
-    });
-    // Fusionne en gardant une seule entrée par date (la plus récente l'emporte)
-    const parDate = new Map();
-    [...feries, ...reconnues].forEach((f) => {
-      const obj = typeof f === "string" ? { date: f, description: "" } : f;
-      parDate.set(obj.date, obj);
-    });
-    const fusion = [...parDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-    setFeriesStatut("envoi");
-    try {
-      await storage.set("jours-feries", JSON.stringify(fusion), true);
-      setFeries(fusion);
-      JOURS_FERIES_CACHE = fusion;
-      setResultatImport({ ajoutees: reconnues.length, ignorees });
-      setTexteImport("");
-    } finally {
-      setFeriesStatut(null);
-    }
-  };
-
-  const admins = USERS.filter((u) => ADMIN_ROLES.includes(u.role)).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await storage.get("pins", true);
-        if (r) setPins(JSON.parse(r.value));
-      } catch (e) { /* rien encore enregistré */ }
-      setLoading(false);
-    })();
-  }, []);
-
-  const verifierGate = async (val) => {
-    const slug = gate;
-    const attendu = pins[slug] || "0000";
-    if (val === attendu) setAutorise(true);
-    else { setErreurGate(true); setPinGate(""); }
-  };
-
-  const changerPin = (slug, val) => setPins((p) => ({ ...p, [slug]: val.replace(/\D/g, "").slice(0, 4) }));
-
-  const enregistrer = async () => {
-    setStatut("saving");
-    try {
-      const r = await storage.set("pins", JSON.stringify(pins), true);
-      if (!r) throw new Error("échec");
-      setStatut("saved");
-      setTimeout(() => setStatut(null), 2000);
-    } catch (e) { setStatut("error"); }
-  };
-
-  if (!autorise) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 20 }}>
-        <div style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 1px 0 #D7DBE0" }}>
-          <div style={{ background: "#0F2138", padding: "22px 24px", borderTop: "4px solid #E4022E", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div>
-              <div style={{ color: "#AEC0F5", fontFamily: "'Oswald',sans-serif", fontSize: 12, letterSpacing: "0.14em", fontWeight: 600 }}>LES ENTREPRISES</div>
-              <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "0.02em" }}>PEP2000 INC.</div>
-              <div style={{ color: "#B9C2CC", fontSize: 13, marginTop: 2 }}>Administration</div>
-            </div>
-            <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: 110, width: "auto", flexShrink: 0 }} />
-          </div>
-          <div style={{ padding: 24 }}>
-          {!gate ? (
-            <>
-              <label style={labelStyle}>Compte administrateur</label>
-              <select style={{ ...selectStyle, marginBottom: 16, fontWeight: 700 }} value={gate} onChange={(e) => setGate(e.target.value)}>
-                <option value="">— Sélectionner —</option>
-                {admins.map((a) => <option key={a.nom} value={slugify(a.nom)}>{a.nom}</option>)}
-              </select>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#15181B", textAlign: "center", marginBottom: 4 }}>
-                {admins.find((a) => slugify(a.nom) === gate)?.nom}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#495260", textAlign: "center", marginBottom: 10, textTransform: "uppercase" }}>NIP requis</div>
-              <PinPad value={pinGate} onChange={(v) => { setPinGate(v); setErreurGate(false); }} onSubmit={verifierGate} error={erreurGate} />
-            </>
-          )}
-          <button onClick={onBack} style={{ display: "block", margin: "18px auto 0", background: "transparent", border: "none", color: "#8a93a0", fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>← Retour</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#EDEFF1" }}>
-      <div style={{ background: "#0F2138", borderTop: "4px solid #E4022E", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 16 }}>Administration — NIP des utilisateurs</div>
-        <button onClick={onBack} style={{ background: "transparent", border: "1px solid #4A5A70", color: "#B9C2CC", padding: "6px 10px", fontSize: 12, cursor: "pointer" }}>Retour</button>
-      </div>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: 20 }}>
-        {loading ? <div style={{ textAlign: "center", color: "#6b7480" }}>Chargement…</div> : (
-          <>
-            <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-              <button
-                onClick={() => setOnglet("nip")}
-                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${onglet === "nip" ? "#0F2138" : "#D7DBE0"}`, background: onglet === "nip" ? "#0F2138" : "#fff", color: onglet === "nip" ? "#fff" : "#15181B", cursor: "pointer" }}
-              >
-                NIP des utilisateurs
-              </button>
-              <button
-                onClick={() => setOnglet("apercu")}
-                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${onglet === "apercu" ? "#0F2138" : "#D7DBE0"}`, background: onglet === "apercu" ? "#0F2138" : "#fff", color: onglet === "apercu" ? "#fff" : "#15181B", cursor: "pointer" }}
-              >
-                Aperçu des accès et notifications
-              </button>
-              <button
-                onClick={() => { setOnglet("journal"); if (!logsCharges) chargerLogs(); }}
-                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${onglet === "journal" ? "#0F2138" : "#D7DBE0"}`, background: onglet === "journal" ? "#0F2138" : "#fff", color: onglet === "journal" ? "#fff" : "#15181B", cursor: "pointer" }}
-              >
-                Journal des requêtes
-              </button>
-              <button
-                onClick={() => { setOnglet("feries"); if (!feriesCharges) chargerFeries(); }}
-                style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${onglet === "feries" ? "#0F2138" : "#D7DBE0"}`, background: onglet === "feries" ? "#0F2138" : "#fff", color: onglet === "feries" ? "#fff" : "#15181B", cursor: "pointer" }}
-              >
-                Jours fériés
-              </button>
-            </div>
-
-            {onglet === "nip" ? (
-              <>
-                <div style={{ background: "#fff", border: "1px solid #D7DBE0" }}>
-                  {usersTries.map((u, i) => {
-                    const slug = slugify(u.nom);
-                    return (
-                      <div key={u.nom} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: i < usersTries.length - 1 ? "1px solid #EDEFF1" : "none" }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{u.nom}</div>
-                          <div style={{ fontSize: 11, color: "#8a93a0" }}>{ROLES.find((r) => r.value === u.role)?.label}</div>
-                        </div>
-                        <input
-                          value={pins[slug] || "0000"} maxLength={4} inputMode="numeric"
-                          onChange={(e) => changerPin(slug, e.target.value)}
-                          style={{ width: 64, textAlign: "center", padding: "7px 4px", border: "1px solid #D7DBE0", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600 }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <button onClick={enregistrer} style={{ width: "100%", marginTop: 16, background: "#0F2138", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
-                  {statut === "saving" ? "Enregistrement…" : statut === "saved" ? "Enregistré ✓" : "Enregistrer les NIP"}
-                </button>
-                {statut === "error" && <div style={{ color: "#C23B3B", fontSize: 13, marginTop: 8, textAlign: "center" }}>Échec de l'enregistrement — réessayez.</div>}
-              </>
-            ) : onglet === "apercu" ? (
-              <>
-                <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
-                    <thead>
-                      <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
-                        {["Nom", "Poste", "Accès spécial", "Notifications"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {usersTries.map((u, i) => (
-                        <tr key={u.nom} style={{ borderBottom: i < usersTries.length - 1 ? "1px solid #EDEFF1" : "none" }}>
-                          <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{u.nom}</td>
-                          <td style={{ padding: "9px 12px", color: "#6b7480" }}>{ROLES.find((r) => r.value === u.role)?.label}</td>
-                          <td style={{ padding: "9px 12px" }}>
-                            {u.accesSpecial ? (
-                              <Plate tone="rust" size="sm">{ACCES_SPECIAL_LABELS[u.accesSpecial] || u.accesSpecial}</Plate>
-                            ) : <span style={{ color: "#B9C2CC" }}>—</span>}
-                          </td>
-                          <td style={{ padding: "9px 12px", color: "#B9C2CC", fontStyle: "italic" }}>Non configuré</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ fontSize: 12, color: "#8a93a0", marginTop: 8 }}>
-                  Notification par courriel active : wdubreuil@pep2000.com reçoit un courriel à chaque fiche soumise ou modifiée. D'autres adresses seront ajoutées lors du déploiement à toute l'équipe.
-                </div>
-
-                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #D7DBE0" }}>
-                    <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14, color: "#0F2138", marginBottom: 4 }}>
-                      Tester le rappel automatique (12h00/16h00)
-                    </div>
-                    <div style={{ fontSize: 12.5, color: "#6b7480", marginBottom: 10 }}>
-                      Envoie tout de suite un aperçu du rappel (push + courriel) à toi seulement, sans attendre l'heure prévue ni affecter les contremaîtres.
-                    </div>
-                    <button
-                      onClick={envoyerTestRappel}
-                      disabled={testRappelStatut === "envoi"}
-                      style={{ padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", border: "none", background: "#0F2138", color: "#fff", cursor: "pointer", opacity: testRappelStatut === "envoi" ? 0.6 : 1 }}
-                    >
-                      {testRappelStatut === "envoi" ? "Envoi…" : "Envoyer un test"}
-                    </button>
-                    {testRappelStatut === "succes" && (
-                      <div style={{ marginTop: 10, fontSize: 13, color: "#2F5844" }}>✓ Courriel envoyé.</div>
-                    )}
-                    {testRappelStatut === "succes" && testRappelDetails && (
-                      <div style={{ marginTop: 8, fontSize: 12.5, color: "#495260", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", background: "#F7F8F9", padding: "10px 12px", border: "1px solid #EDEFF1" }}>
-                        Abonnements push trouvés : {testRappelDetails.abonnementsTrouves ?? "?"}<br/>
-                        Push envoyés avec succès : {testRappelDetails.pushEnvoyes ?? 0}
-                        {testRappelDetails.erreursPush?.length > 0 && (
-                          <div style={{ marginTop: 6, color: "#C23B3B" }}>
-                            {testRappelDetails.erreursPush.map((e, i) => (
-                              <div key={i}>Erreur push : {e.statusCode || "?"} — {typeof e.message === "string" ? e.message.slice(0, 200) : JSON.stringify(e.message).slice(0, 200)}</div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {testRappelStatut === "erreur" && (
-                      <div style={{ marginTop: 10, fontSize: 13, color: "#C23B3B" }}>Échec : {testRappelMsg}</div>
-                    )}
-                  </div>
-              </>
-            ) : onglet === "journal" ? (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <div style={{ fontSize: 12.5, color: "#6b7480" }}>
-                    Les 300 requêtes les plus récentes (parmi toutes les personnes).
-                  </div>
-                  <button
-                    onClick={chargerLogs}
-                    style={{ padding: "6px 12px", fontSize: 12, fontWeight: 600, border: "1px solid #D7DBE0", background: "#fff", cursor: "pointer", fontFamily: "'Inter',sans-serif" }}
-                  >
-                    {logsLoading ? "Actualisation…" : "↻ Actualiser"}
-                  </button>
-                </div>
-                <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, fontFamily: "'Inter',sans-serif" }}>
-                    <thead>
-                      <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
-                        {["Quand", "Par qui", "Requête visée", "Action", "Changement"].map((h) => (
-                          <th key={h} style={{ textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logsLoading && logs.length === 0 ? (
-                        <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#8a93a0" }}>Chargement…</td></tr>
-                      ) : logs.length === 0 ? (
-                        <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#8a93a0" }}>Aucune requête enregistrée pour le moment.</td></tr>
-                      ) : (
-                        logs.map((l, i) => (
-                          <tr key={`${l.horodatage}-${i}`} style={{ borderBottom: i < logs.length - 1 ? "1px solid #EDEFF1" : "none" }}>
-                            <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#495260" }}>{formatHorodatage(l.horodatage)}</td>
-                            <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{l.nom}</td>
-                            <td style={{ padding: "9px 12px", whiteSpace: "nowrap", color: "#6b7480" }}>{l.dateFiche}{l.seq > 1 ? ` (${l.seq}e)` : ""}</td>
-                            <td style={{ padding: "9px 12px", whiteSpace: "nowrap" }}>
-                              <Plate tone={l.action === "Modification" ? "steel" : "rust"} size="sm">{l.action}</Plate>
-                            </td>
-                            <td style={{ padding: "9px 12px", color: "#495260" }}>{l.resume}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 12.5, color: "#6b7480", marginBottom: 14 }}>
-                  Ces dates seront sautées automatiquement — les requêtes visent la journée suivante, et le rappel automatique (12h00/16h00) ne se déclenche pas ce jour-là.
-                </div>
-
-                <div style={{ background: "#F7F8F9", border: "1px solid #D7DBE0", padding: "14px 16px", marginBottom: 18 }}>
-                  <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 13, color: "#0F2138", marginBottom: 6 }}>
-                    Importer une liste complète
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7480", marginBottom: 8 }}>
-                    Une date par ligne, avec une description optionnelle après un tiret. Formats reconnus : 2026-01-01, 01/01/2026, ou 1 janvier 2026.
-                  </div>
-                  <textarea
-                    value={texteImport}
-                    onChange={(e) => setTexteImport(e.target.value)}
-                    placeholder={"2026-01-01 - Jour de l'An\n2026-06-24 - St-Jean-Baptiste\n2026-07-01 - Fête du Canada"}
-                    style={{ ...inputStyle, minHeight: 100, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 13, marginBottom: 10 }}
-                  />
-                  <button
-                    onClick={importerFeries}
-                    disabled={!texteImport.trim() || feriesStatut === "envoi"}
-                    style={{ padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", border: "none", background: "#0F2138", color: "#fff", cursor: "pointer", opacity: (!texteImport.trim() || feriesStatut === "envoi") ? 0.6 : 1 }}
-                  >
-                    {feriesStatut === "envoi" ? "Importation…" : "Importer la liste"}
-                  </button>
-                  {resultatImport && (
-                    <div style={{ marginTop: 10, fontSize: 13 }}>
-                      <span style={{ color: "#2F5844" }}>✓ {resultatImport.ajoutees} date{resultatImport.ajoutees !== 1 ? "s" : ""} ajoutée{resultatImport.ajoutees !== 1 ? "s" : ""}.</span>
-                      {resultatImport.ignorees > 0 && (
-                        <span style={{ color: "#C23B3B", marginLeft: 8 }}>{resultatImport.ignorees} ligne{resultatImport.ignorees !== 1 ? "s" : ""} non reconnue{resultatImport.ignorees !== 1 ? "s" : ""}.</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ fontSize: 12, color: "#8a93a0", marginBottom: 8, textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.03em" }}>
-                  Ou ajouter une seule date
-                </div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-                  <input
-                    type="date"
-                    value={nouveauFerie}
-                    onChange={(e) => setNouveauFerie(e.target.value)}
-                    style={{ ...inputStyle, flex: "1 1 160px" }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Ex. St-Jean-Baptiste"
-                    value={nouvelleDescription}
-                    onChange={(e) => setNouvelleDescription(e.target.value)}
-                    style={{ ...inputStyle, flex: "2 1 200px" }}
-                  />
-                  <button
-                    onClick={ajouterFerie}
-                    disabled={!nouveauFerie || feriesStatut === "envoi"}
-                    style={{ padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", border: "none", background: "#0F2138", color: "#fff", cursor: "pointer", opacity: (!nouveauFerie || feriesStatut === "envoi") ? 0.6 : 1 }}
-                  >
-                    + Ajouter
-                  </button>
-                </div>
-                {feriesLoading ? (
-                  <div style={{ padding: 30, textAlign: "center", color: "#6b7480" }}>Chargement…</div>
-                ) : feries.length === 0 ? (
-                  <div style={{ padding: 30, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
-                    Aucun jour férié enregistré.
-                  </div>
-                ) : (
-                  <div style={{ background: "#fff", border: "1px solid #D7DBE0" }}>
-                    {[...feries].map((f) => (typeof f === "string" ? { date: f, description: "" } : f)).sort((a, b) => a.date.localeCompare(b.date)).map((f, i) => (
-                      <div key={f.date} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: i < feries.length - 1 ? "1px solid #EDEFF1" : "none" }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600 }}>{capitaliserMots(new Date(f.date + "T12:00:00").toLocaleDateString("fr-CA", { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</div>
-                          {f.description && <div style={{ fontSize: 12.5, color: "#6b7480", marginTop: 2 }}>{f.description}</div>}
-                        </div>
-                        <button
-                          onClick={() => retirerFerie(f.date)}
-                          style={{ background: "transparent", border: "none", color: "#C23B3B", cursor: "pointer", fontSize: 12.5, fontWeight: 600, fontFamily: "'Inter',sans-serif" }}
-                        >
-                          Retirer
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ---------------------------------------------------------------------
    TOP BAR
@@ -1178,7 +539,7 @@ function NotificationCenter({ profil, onNaviguer }) {
   const { isPhone } = useDevice();
   const [notifs, setNotifs] = useState([]);
   const [ouvert, setOuvert] = useState(false);
-  const slug = slugify(profil.nom);
+  const slug = profil.userId;
 
   const charger = useCallback(async () => {
     try {
@@ -1702,7 +1063,7 @@ function HistoriqueDiesel({ fiches }) {
 function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton }) {
   const [fiches, setFiches] = useState([]);
   const [loading, setLoading] = useState(true);
-  const slug = slugify(profil.nom);
+  const slug = profil.userId;
 
   const charger = useCallback(async () => {
     setLoading(true);
@@ -1895,7 +1256,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
    FICHE DÉTAIL — vue lecture seule d'une requête déjà envoyée
 --------------------------------------------------------------------- */
 function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
-  const key = ficheKey(date, slugify(profil.nom), seq);
+  const key = ficheKey(date, profil.userId, seq);
   const [fiche, setFiche] = useState(null);
   const [loading, setLoading] = useState(true);
   const [texteReponse, setTexteReponse] = useState("");
@@ -1949,7 +1310,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
         });
       } catch (ePush) { /* secondaire */ }
       try {
-        await notifierCommentaire(profil, profil.nom, { date, slug: slugify(profil.nom), seq }, `Réponse de ${profil.nom}`, nouveauTexte);
+        await notifierCommentaire(profil, profil.userId, { date, slug: profil.userId, seq }, `Réponse de ${profil.nom}`, nouveauTexte);
       } catch (eCentre) { /* secondaire */ }
     } finally {
       setEnvoiEnCours(false);
@@ -1987,7 +1348,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
         });
       } catch (ePush) { /* secondaire */ }
       try {
-        await notifierCommentaire(profil, profil.nom, { date, slug: slugify(profil.nom), seq }, `Écart signalé par ${profil.nom}`, nouveauTexte, "ecart");
+        await notifierCommentaire(profil, profil.userId, { date, slug: profil.userId, seq }, `Écart signalé par ${profil.nom}`, nouveauTexte, "ecart");
       } catch (eCentre) { /* secondaire */ }
     } finally {
       setEnvoiEcartEnCours(false);
@@ -2205,7 +1566,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
 }
 
 function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
-  const key = ficheKey(date, slugify(profil.nom), seq);
+  const key = ficheKey(date, profil.userId, seq);
   const [fiche, setFiche] = useState(emptyFiche());
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState(null);
@@ -2287,7 +1648,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
         // Journal des requêtes (n'empêche jamais l'enregistrement principal en cas d'échec)
         try {
           const horodatage = new Date().toISOString();
-          await storage.set(`log:${horodatage}:${slugify(profil.nom)}`, JSON.stringify({
+          await storage.set(`log:${horodatage}:${profil.userId}`, JSON.stringify({
             nom: profil.nom,
             role: profil.role,
             dateFiche: date,
@@ -2348,7 +1709,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
         try {
           await notifierNouvelleRequete(
             profil,
-            { date, slug: slugify(profil.nom), seq },
+            { date, slug: profil.userId, seq },
             dejaExistante ? `Requête modifiée — ${profil.nom}` : `Nouvelle requête — ${profil.nom}`,
             toSave.chantier || "Aucun chantier sélectionné"
           );
@@ -3279,7 +2640,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
             };
             const nomSlug = k.replace(`fiche:${date}:`, "").replace(/::\d+$/, "");
             const seq = parseSeqSuffix(k);
-            const nomAffiche = seq > 1 ? `${nomDepuisSlug(nomSlug)} (${seq}e demande)` : nomDepuisSlug(nomSlug);
+            const nomAffiche = seq > 1 ? `${nomDepuisUserId(nomSlug)} (${seq}e demande)` : nomDepuisUserId(nomSlug);
             results.push({ nom: nomAffiche, data, key: k, seq, slug: nomSlug, date });
           }
         } catch (e) { /* entrée corrompue ignorée */ }
@@ -3331,7 +2692,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       await storage.set(f.key, JSON.stringify(donnees), true);
       await load();
 
-      const nomPropre = nomDepuisSlug(f.slug);
+      const nomPropre = nomDepuisUserId(f.slug);
       const dateTexte = new Date(f.date + "T12:00:00").toLocaleDateString("fr-CA", { day: "numeric", month: "long", year: "numeric" });
       const titreOriginal = `Ordre du jour - ${dateTexte} - ${nomPropre}`;
       // Notification par courriel (secondaire — n'empêche jamais l'enregistrement du commentaire)
@@ -3361,7 +2722,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       } catch (ePush) { /* notification secondaire — on ignore l'échec */ }
       // Notification dans le centre de notifications de l'app (secondaire)
       try {
-        await notifierCommentaire(profil, nomPropre, { date: f.date, slug: f.slug, seq: f.seq }, `Commentaire de ${profil.nom}`, texte);
+        await notifierCommentaire(profil, f.slug, { date: f.date, slug: f.slug, seq: f.seq }, `Commentaire de ${profil.nom}`, texte);
       } catch (eCentre) { /* notification secondaire — on ignore l'échec */ }
     } catch (e) {
       // silencieux — la fenêtre reste ouverte pour réessayer si besoin
@@ -3522,7 +2883,7 @@ function NotificationsPushPage({ profil, onRetour }) {
     let annule = false;
     (async () => {
       try {
-        const slug = slugify(profil.nom);
+        const slug = profil.userId;
         const r = await storage.get(`pref-courriel:${slug}`, true);
         if (!annule) setEtatCourriel(r?.value === "inactif" ? "inactif" : "actif"); // actif par défaut
       } catch (e) {
@@ -3534,7 +2895,7 @@ function NotificationsPushPage({ profil, onRetour }) {
 
   const basculerCourriel = async () => {
     if (etatCourriel === "en-cours") return;
-    const slug = slugify(profil.nom);
+    const slug = profil.userId;
     const nouveauEtat = etatCourriel === "actif" ? "inactif" : "actif";
     setEtatCourriel("en-cours");
     try {
@@ -3548,7 +2909,7 @@ function NotificationsPushPage({ profil, onRetour }) {
   const activer = async () => {
     if (etat === "en-cours" || etat === "non-supporte" || etat === "verification") return;
     setEtat("en-cours");
-    const slug = slugify(profil.nom);
+    const slug = profil.userId;
     try {
       const reg = await navigator.serviceWorker.ready;
       const permission = await Notification.requestPermission();
@@ -3571,7 +2932,7 @@ function NotificationsPushPage({ profil, onRetour }) {
   const desactiver = async () => {
     if (etat === "en-cours") return;
     setEtat("en-cours");
-    const slug = slugify(profil.nom);
+    const slug = profil.userId;
     try {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
@@ -4016,7 +3377,6 @@ function AppInner() {
   useGoogleFonts();
   const [profil, setProfil] = useState(null);
   const [apercu, setApercu] = useState(null); // { role, accesSpecial } | null — mode test (voir profil.peutPrevisualiser)
-  const [showAdmin, setShowAdmin] = useState(false);
   const [date, setDate] = useState(tomorrowISO());
   const [vue, setVue] = useState({ ecran: "accueil" });
   const [menuSection, setMenuSection] = useState(null); // 'projets' | 'contacts' | null
@@ -4026,12 +3386,11 @@ function AppInner() {
   const [verifNouvelle, setVerifNouvelle] = useState(false);
 
   useEffect(() => { chargerJoursFeriesCache(); }, []);
+  // Recharge le cache des membres (ordre_du_jour.profils) dès qu'une session
+  // est établie — nécessaire pour les listes de destinataires de
+  // notifications et la conversion userId -> nom affiché.
+  useEffect(() => { if (profil) chargerMembresCache(); }, [profil]);
 
-  // NOTE Phase 3: le panneau admin interne (NIP) devient inatteignable —
-  // la gestion des comptes/rôles se fait maintenant via /administration/
-  // du Toolbox. showAdmin/AdminPanel restent en place pour l'instant
-  // (code mort inoffensif) et seront retirés dans un nettoyage ultérieur.
-  if (showAdmin) return <AdminPanel onBack={() => setShowAdmin(false)} />;
   if (!profil) return <AuthGate onDone={setProfil} />;
 
   const deconnecter = () => {
@@ -4048,7 +3407,7 @@ function AppInner() {
   // une demande pour demain, et si oui, propose de modifier ou d'en soumettre une 2e.
   const demarrerNouvelleRequete = async (dateOverride) => {
     const d = dateOverride || tomorrowISO();
-    const slug = slugify(profil.nom);
+    const slug = profil.userId;
     setVerifNouvelle(true);
     try {
       const r = await storage.get(ficheKey(d, slug, 1), true);
@@ -4066,7 +3425,7 @@ function AppInner() {
 
   const soumettreDeuxiemeDemande = async () => {
     const { date: d } = confirmNouvelle;
-    const slug = slugify(profil.nom);
+    const slug = profil.userId;
     let prochainSeq = 2;
     try {
       const listRes = await storage.list(`fiche:${d}:${slug}::`, true);
@@ -4098,7 +3457,7 @@ function AppInner() {
         }}
         onNaviguerNotification={(n) => {
           setMenuSection(null);
-          if (n.cible?.slug === slugify(profil.nom)) {
+          if (n.cible?.slug === profil.userId) {
             setVue({ ecran: "detail", date: n.cible.date, seq: n.cible.seq || 1 });
           } else {
             setDate(n.cible.date);

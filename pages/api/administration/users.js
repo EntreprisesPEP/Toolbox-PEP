@@ -150,6 +150,7 @@ export default async function handler(req, res) {
           nom: attenteRow.nom,
           role: attenteRow.role,
           acces_special: attenteRow.acces_special,
+          email: emailNorm,
           updated_at: new Date().toISOString(),
         });
         await admin.from('pep_user_apps').upsert({
@@ -256,12 +257,18 @@ export default async function handler(req, res) {
         user_id, app_slug: ORDRE_DU_JOUR_SLUG, granted_by: userData.user.id,
       });
 
+      // Recupere le courriel du compte cible — necessaire pour que
+      // send-notification.js puisse envoyer des courriels sans avoir
+      // besoin de la cle service_role (voir ordre_du_jour.profils.email).
+      const { data: targetUserOdj } = await admin.auth.admin.getUserById(user_id);
+
       const { error } = await admin.schema('ordre_du_jour').from('profils').upsert({
         user_id,
         nom: nom.trim(),
         role,
         acces_special: accesFinal,
         peut_previsualiser: !!peut_previsualiser,
+        email: targetUserOdj?.user?.email || null,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
