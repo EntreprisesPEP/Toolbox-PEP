@@ -485,6 +485,9 @@
       </span>
       <button class="login-btn" id="loginBtn" type="submit">Se connecter</button>
     </form>
+    <div class="login-forgot" style="text-align:center; margin-top:12px;">
+      <a href="#" id="forgotPasswordLink" style="color:#5B8FD9; font-size:13px; text-decoration:underline;">Mot de passe oublié?</a>
+    </div>
   </div>
 </div>
 
@@ -853,12 +856,38 @@ function showHub(user){
 
 function showLoginError(msg){
   const el = document.getElementById('loginError');
+  el.style.background = '';
   el.textContent = msg;
   el.classList.add('show');
 }
 function hideLoginError(){
   document.getElementById('loginError').classList.remove('show');
 }
+
+document.getElementById('forgotPasswordLink').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  hideLoginError();
+  const email = document.getElementById('loginEmail').value.trim();
+  if(!email){
+    showLoginError('Écris ton courriel dans le champ ci-dessus, puis clique sur "Mot de passe oublié?".');
+    return;
+  }
+  const link = document.getElementById('forgotPasswordLink');
+  link.textContent = 'Envoi en cours...';
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/'
+  });
+  link.textContent = 'Mot de passe oublié?';
+  if(error){
+    showLoginError("Erreur: " + error.message);
+    return;
+  }
+  document.getElementById('loginError').classList.remove('show');
+  const errEl = document.getElementById('loginError');
+  errEl.style.background = '#1e8e5a';
+  errEl.textContent = 'Courriel envoyé! Vérifie ta boîte de réception (et les pourriels).';
+  errEl.classList.add('show');
+});
 
 document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   e.preventDefault();

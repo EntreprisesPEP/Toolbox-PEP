@@ -88,7 +88,7 @@ export default async function handler(req, res) {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "Dispatch PEP - Application <dispatch@pep2000.app>",
+            from: "Dispatch PEP - Application <dispatch@toolbox-pep.com>",
             to: ["wdubreuil@pep2000.com"],
             subject: "TEST — Aperçu du rappel automatique",
             html: `
