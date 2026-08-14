@@ -413,6 +413,21 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
   const [odjPreview, setOdjPreview] = useState(!!user.ordre_du_jour_profil?.peut_previsualiser);
   const [odjMsg, setOdjMsg] = useState('');
 
+  // Filet de sécurité : si le profil réel arrive/change après le premier
+  // rendu (ex: React réutilise ce composant sans le remonter), on
+  // resynchronise les champs plutôt que de laisser une valeur par défaut
+  // (comme le préfixe du courriel) risquer d'écraser le vrai nom au
+  // prochain "Enregistrer". Ne s'exécute que quand un profil existe déjà.
+  useEffect(() => {
+    if (user.ordre_du_jour_profil) {
+      setOdjNom(user.ordre_du_jour_profil.nom);
+      setOdjRole(user.ordre_du_jour_profil.role);
+      setOdjAcces(user.ordre_du_jour_profil.acces_special);
+      setOdjPreview(!!user.ordre_du_jour_profil.peut_previsualiser);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.ordre_du_jour_profil?.nom, user.ordre_du_jour_profil?.role, user.ordre_du_jour_profil?.acces_special, user.ordre_du_jour_profil?.peut_previsualiser]);
+
   function toggleApp(slug) {
     const next = new Set(localApps);
     if (next.has(slug)) next.delete(slug); else next.add(slug);
