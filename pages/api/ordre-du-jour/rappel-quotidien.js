@@ -37,17 +37,21 @@ export default async function handler(req, res) {
   const { VAPID_PUBLIC_KEY: pub, ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY } = process.env;
   const VAPID_PUBLIC_KEY = ORDREDUJOUR_VAPID_PUBLIC_KEY || pub;
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!VAPID_PUBLIC_KEY || !ORDREDUJOUR_VAPID_PRIVATE_KEY) {
     return res.status(500).json({ error: "Clés VAPID non configurées sur le serveur." });
   }
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     return res.status(500).json({ error: "Configuration Supabase manquante sur le serveur." });
   }
 
   webpush.setVapidDetails("mailto:wdubreuil@pep2000.com", VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY);
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  // NOTE Phase 3 : kv_store et profils sont restreints aux requêtes
+  // "authenticated"/service_role (voir phase3-migration.sql). Ce cron
+  // tourne côté serveur sans session utilisateur — il doit donc utiliser
+  // la clé service_role, pas la clé anonyme.
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     db: { schema: "ordre_du_jour" },
   });
 

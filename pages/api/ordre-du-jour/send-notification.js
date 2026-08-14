@@ -15,10 +15,14 @@ const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
 
 async function destinatairesActifs() {
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [];
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return [];
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // NOTE Phase 3 : kv_store et profils sont restreints aux requêtes
+    // "authenticated"/service_role (voir phase3-migration.sql). Cette
+    // fonction tourne côté serveur sans session utilisateur — elle doit
+    // donc utiliser la clé service_role, pas la clé anonyme.
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       db: { schema: "ordre_du_jour" },
     });
     const { data: membres, error } = await supabase
