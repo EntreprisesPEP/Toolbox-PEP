@@ -5,11 +5,13 @@ import NeedsPanel from './NeedsPanel';
 import ConfirmModal from './ConfirmModal';
 
 export default function Meeting2View({ board, editable, theme, printMode }) {
-  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments } = board;
+  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments, clearMeeting2Week } = board;
   const dates = printMode ? twoWeekDates(settings.range_start) : weekDates(settings.range_start);
   const pal = dayCellPalette(theme);
   const activeProjects = projects.filter((p) => p.statut !== 'Termine');
   const [notice, setNotice] = useState('');
+  const [confirmCopyPrev, setConfirmCopyPrev] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [editingNameId, setEditingNameId] = useState(null);
   const [editingNameValue, setEditingNameValue] = useState('');
 
@@ -55,15 +57,10 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
               <button className="btn ghost" onClick={() => { const d = mondayOf(today()); d.setDate(d.getDate() + 7); goToWeek(d); }}>1re semaine</button>
               <button className="btn ghost" onClick={() => { const d = mondayOf(today()); d.setDate(d.getDate() + 14); goToWeek(d); }}>2e semaine</button>
               {editable && (
-                <button
-                  className="btn ghost"
-                  onClick={async () => {
-                    const n = await importPreviousWeekAssignments();
-                    setNotice(n === 0
-                      ? "Aucune attribution trouvee pour la semaine precedente."
-                      : `${n} attribution(s) copiee(s) depuis la semaine precedente.`);
-                  }}
-                >Copier la semaine precedente</button>
+                <button className="btn ghost" onClick={() => setConfirmCopyPrev(true)}>Copier la semaine precedente</button>
+              )}
+              {editable && (
+                <button className="btn ghost" onClick={() => setConfirmClear(true)}>Effacer cette semaine</button>
               )}
             </div>
           </div>
@@ -192,6 +189,28 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
         okLabel="OK"
         showCancel={false}
         onOk={() => setNotice('')}
+      />
+
+      <ConfirmModal
+        open={confirmCopyPrev}
+        message="Voulez-vous vraiment copier les attributions de la semaine precedente sur la semaine affichee ? Ça remplacera les attributions deja en place pour cette semaine."
+        okLabel="Copier"
+        onOk={async () => {
+          setConfirmCopyPrev(false);
+          const n = await importPreviousWeekAssignments();
+          setNotice(n === 0
+            ? "Aucune attribution trouvee pour la semaine precedente."
+            : `${n} attribution(s) copiee(s) depuis la semaine precedente.`);
+        }}
+        onCancel={() => setConfirmCopyPrev(false)}
+      />
+
+      <ConfirmModal
+        open={confirmClear}
+        message="Voulez-vous vraiment effacer toutes les attributions de la semaine affichee ? Cette action est irreversible."
+        okLabel="Effacer"
+        onOk={async () => { await clearMeeting2Week(dateKey(dates[0])); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
       />
     </div>
   );

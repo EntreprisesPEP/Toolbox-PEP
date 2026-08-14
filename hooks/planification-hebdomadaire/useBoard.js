@@ -313,6 +313,26 @@ export function useBoard() {
     return imported;
   }
 
+  async function clearMeeting1Week() {
+    await withSync(async () => {
+      await Promise.all(
+        projectsRef.current.map((p) =>
+          supabase.from('projects').update({ statut: 'A venir', commentaire: '', date_valeur: null }).eq('id', p.id)
+        )
+      );
+      await loadAll();
+    });
+  }
+
+  async function clearMeeting2Week(weekIso) {
+    const dates = weekDates(new Date(weekIso + 'T00:00:00')).map(dateKey);
+    await withSync(async () => {
+      const { error } = await supabase.from('assignments').delete().in('day', dates);
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+
   // ---------- Notes hebdomadaires ----------
   async function switchNotesWeek(newWeekIso) {
     const oldWeekIso = settings.notes_week_start;
@@ -392,6 +412,7 @@ export function useBoard() {
     getContremaitreName, setContremaitreNameForWeek,
     getAssignment, setAssignment,
     updateSettings, switchNotesWeek, importPreviousWeek, importPreviousWeekAssignments,
+    clearMeeting1Week, clearMeeting2Week,
     commentsFor, addComment, deleteComment,
     undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,
     reload: loadAll,

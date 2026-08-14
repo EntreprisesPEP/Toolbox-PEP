@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import ProjectsTable from './ProjectsTable';
 import ConfirmModal from './ConfirmModal';
+import FullscreenView from './FullscreenView';
 import { fmtDateLong, mondayOf, dateKey } from '../../lib/planification-hebdomadaire/dates';
 
 export default function Meeting1View({ board, editable, theme }) {
-  const { projects, settings, updateProject, switchNotesWeek, importPreviousWeek } = board;
+  const { projects, settings, updateProject, switchNotesWeek, importPreviousWeek, clearMeeting1Week } = board;
   const [notice, setNotice] = useState('');
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const active = projects.filter((p) => p.statut !== 'Termine');
   const weekStart = settings.notes_week_start ? new Date(settings.notes_week_start + 'T00:00:00') : mondayOf(new Date());
@@ -24,19 +27,27 @@ export default function Meeting1View({ board, editable, theme }) {
               onChange={(e) => e.target.value && switchNotesWeek(dateKey(mondayOf(new Date(e.target.value + 'T00:00:00'))))}
             />
           </div>
-          {editable && (
-            <button
-              className="btn ghost"
-              onClick={async () => {
-                const n = await importPreviousWeek();
-                setNotice(n === 0
-                  ? "Aucune note trouvee pour la semaine precedente (elle n'a peut-etre jamais ete visitee)."
-                  : `${n} projet(s) mis a jour avec les notes de la semaine precedente.`);
-              }}
-            >Importer la semaine precedente</button>
-          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn ghost" onClick={() => setFullscreen(true)}>Plein ecran</button>
+            {editable && (
+              <button
+                className="btn ghost"
+                onClick={async () => {
+                  const n = await importPreviousWeek();
+                  setNotice(n === 0
+                    ? "Aucune note trouvee pour la semaine precedente (elle n'a peut-etre jamais ete visitee)."
+                    : `${n} projet(s) mis a jour avec les notes de la semaine precedente.`);
+                }}
+              >Importer la semaine precedente</button>
+            )}
+            {editable && (
+              <button className="btn ghost" onClick={() => setConfirmClear(true)}>Effacer cette semaine</button>
+            )}
+          </div>
         </div>
       </div>
+
+      <FullscreenView open={fullscreen} onClose={() => setFullscreen(false)} activeProjects={active} />
 
       <ProjectsTable
         rows={active}
@@ -63,6 +74,14 @@ export default function Meeting1View({ board, editable, theme }) {
         okLabel="OK"
         showCancel={false}
         onOk={() => setNotice('')}
+      />
+
+      <ConfirmModal
+        open={confirmClear}
+        message="Voulez-vous vraiment effacer les statuts et commentaires de tous les projets pour cette semaine ? Cette action est irreversible."
+        okLabel="Effacer"
+        onOk={async () => { await clearMeeting1Week(); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
       />
     </div>
   );

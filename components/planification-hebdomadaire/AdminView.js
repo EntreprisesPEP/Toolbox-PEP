@@ -30,6 +30,27 @@ export default function AdminView({ board, editable }) {
         Section administrative : ajoute, corrige ou retire un projet ici. Ces changements
         alimentent Meeting 1 et Meeting 2, ou les noms restent fixes.
       </p>
+      {editable && (
+        <div className="admin-add">
+          <input type="text" placeholder="No de job" value={newProj.no} onChange={(e) => setNewProj({ ...newProj, no: e.target.value })} />
+          <input type="text" placeholder="Nom du projet" value={newProj.projet} onChange={(e) => setNewProj({ ...newProj, projet: e.target.value })} />
+          <select value={newProj.charge} onChange={(e) => setNewProj({ ...newProj, charge: e.target.value })}>
+            <NameOptions list={charges} selected="" />
+          </select>
+          <select value={newProj.surintendant} onChange={(e) => setNewProj({ ...newProj, surintendant: e.target.value })}>
+            <NameOptions list={surintendants} selected="" />
+          </select>
+          <button
+            className="btn"
+            onClick={async () => {
+              if (!newProj.projet.trim()) return;
+              await addProject(newProj);
+              setNewProj({ no: '', projet: '', charge: '', surintendant: '' });
+            }}
+          >+ Ajouter</button>
+        </div>
+      )}
+
       <div className="scrollx">
         <table>
           <thead><tr><th>No</th><th>Projet</th><th>Charge</th><th>Surintendant</th><th /></tr></thead>
@@ -65,27 +86,6 @@ export default function AdminView({ board, editable }) {
           </tbody>
         </table>
       </div>
-
-      {editable && (
-        <div className="admin-add">
-          <input type="text" placeholder="No de job" value={newProj.no} onChange={(e) => setNewProj({ ...newProj, no: e.target.value })} />
-          <input type="text" placeholder="Nom du projet" value={newProj.projet} onChange={(e) => setNewProj({ ...newProj, projet: e.target.value })} />
-          <select value={newProj.charge} onChange={(e) => setNewProj({ ...newProj, charge: e.target.value })}>
-            <NameOptions list={charges} selected="" />
-          </select>
-          <select value={newProj.surintendant} onChange={(e) => setNewProj({ ...newProj, surintendant: e.target.value })}>
-            <NameOptions list={surintendants} selected="" />
-          </select>
-          <button
-            className="btn"
-            onClick={async () => {
-              if (!newProj.projet.trim()) return;
-              await addProject(newProj);
-              setNewProj({ no: '', projet: '', charge: '', surintendant: '' });
-            }}
-          >+ Ajouter</button>
-        </div>
-      )}
 
       <h3>Charges de projet</h3>
       <div className="name-list">
