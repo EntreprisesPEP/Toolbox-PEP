@@ -45,6 +45,8 @@ export default function Meeting1View({ board, editable, theme }) {
         board={board}
         onUpdate={(id, patch) => updateProject(id, patch)}
         emptyLabel="Aucun projet actif. Ajoute-les dans Admin projets."
+        highlightedId={settings.highlighted_project_id}
+        onHighlight={editable ? (id) => board.updateSettings({ highlighted_project_id: settings.highlighted_project_id === id ? null : id }) : undefined}
       />
 
       <div style={{ textAlign: 'center', marginTop: 14 }}>

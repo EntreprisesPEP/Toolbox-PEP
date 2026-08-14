@@ -1,15 +1,40 @@
+import { useState } from 'react';
 import { dayCellPalette } from '../../lib/planification-hebdomadaire/statusColors';
 import { JOURS, dateKey, mondayOf, today, weekDates, twoWeekDates, fmtDateLong } from '../../lib/planification-hebdomadaire/dates';
 import NeedsPanel from './NeedsPanel';
+import ConfirmModal from './ConfirmModal';
 
 export default function Meeting2View({ board, editable, theme, printMode }) {
-  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject } = board;
+  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments } = board;
   const dates = printMode ? twoWeekDates(settings.range_start) : weekDates(settings.range_start);
   const pal = dayCellPalette(theme);
   const activeProjects = projects.filter((p) => p.statut !== 'Termine');
+  const [notice, setNotice] = useState('');
+  const [editingNameId, setEditingNameId] = useState(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
 
   function goToWeek(mondayDate) {
     updateSettings({ range_start: dateKey(mondayDate) });
+  }
+
+  function copyMondayToWeek(contremaitreId) {
+    const mondayIso = dateKey(dates[0]);
+    const mondayProjectId = getAssignment(contremaitreId, mondayIso);
+    for (let i = 1; i < 5; i++) { // mardi a vendredi
+      setAssignment(contremaitreId, dateKey(dates[i]), mondayProjectId);
+    }
+  }
+
+  function startEditName(c) {
+    if (!editable) return;
+    setEditingNameId(c.id);
+    setEditingNameValue(getContremaitreName(c.id, dateKey(dates[0])));
+  }
+  function saveEditName() {
+    if (editingNameId && editingNameValue.trim()) {
+      setContremaitreNameForWeek(editingNameId, dateKey(dates[0]), editingNameValue.trim());
+    }
+    setEditingNameId(null);
   }
 
   return (
@@ -26,9 +51,20 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
                 onChange={(e) => e.target.value && goToWeek(mondayOf(new Date(e.target.value + 'T00:00:00')))}
               />
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button className="btn ghost" onClick={() => { const d = mondayOf(today()); d.setDate(d.getDate() + 7); goToWeek(d); }}>1re semaine</button>
               <button className="btn ghost" onClick={() => { const d = mondayOf(today()); d.setDate(d.getDate() + 14); goToWeek(d); }}>2e semaine</button>
+              {editable && (
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    const n = await importPreviousWeekAssignments();
+                    setNotice(n === 0
+                      ? "Aucune attribution trouvee pour la semaine precedente."
+                      : `${n} attribution(s) copiee(s) depuis la semaine precedente.`);
+                  }}
+                >Copier la semaine precedente</button>
+              )}
             </div>
           </div>
         )}
@@ -65,40 +101,78 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
           </thead>
           <tbody>
             {contremaitres.length === 0 && <tr><td colSpan={dates.length + 1} className="empty">Aucun contremaitre. Ajoute-les dans Admin projets.</td></tr>}
-            {contremaitres.map((c) => (
-              <tr key={c.id}>
-                <td className="cm-name" style={{ color: pal.ink }}>{c.nom}</td>
-                {dates.map((d, i) => {
-                  const dIso = dateKey(d);
-                  const wknd = d.getDay() === 0 || d.getDay() === 6;
-                  const bg = wknd ? pal.weekend : pal.base;
-                  const bd = wknd ? pal.weekendBorder : pal.border;
-                  const startsWeek2 = printMode && i === 7;
-                  const projectId = getAssignment(c.id, dIso);
-                  const proj = activeProjects.find((p) => p.id === projectId);
-                  return (
-                    <td
-                      key={dIso}
-                      className="daycell"
-                      style={{ background: bg, borderLeft: startsWeek2 ? '2px solid var(--red)' : undefined }}
-                    >
-                      {editable ? (
-                        <select
-                          value={projectId || ''}
-                          style={{ background: bg, color: pal.ink, borderColor: bd }}
-                          onChange={(e) => setAssignment(c.id, dIso, e.target.value || null)}
-                        >
-                          <option value="">&mdash;</option>
-                          {activeProjects.map((p) => <option key={p.id} value={p.id}>{p.projet}</option>)}
-                        </select>
-                      ) : (
-                        <span style={{ color: pal.ink }}>{proj ? proj.projet : '\u2014'}</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {contremaitres.map((c, rowIdx) => {
+              const zebraBg = rowIdx % 2 === 0 ? 'var(--panel)' : 'var(--panel-2)';
+              return (
+                <tr key={c.id}>
+                  <td className="cm-name" style={{ color: pal.ink, background: zebraBg }}>
+                    {editingNameId === c.id ? (
+                      <input
+                        autoFocus
+                        value={editingNameValue}
+                        onChange={(e) => setEditingNameValue(e.target.value)}
+                        onBlur={saveEditName}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveEditName(); if (e.key === 'Escape') setEditingNameId(null); }}
+                        style={{ width: '100%' }}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => startEditName(c)}
+                        title={editable ? 'Cliquer pour renommer (a partir de cette semaine)' : undefined}
+                        style={{ cursor: editable ? 'pointer' : undefined }}
+                      >{getContremaitreName(c.id, dateKey(dates[0]))}</span>
+                    )}
+                  </td>
+                  {dates.map((d, i) => {
+                    const dIso = dateKey(d);
+                    const wknd = d.getDay() === 0 || d.getDay() === 6;
+                    const bg = wknd ? pal.weekend : zebraBg;
+                    const bd = wknd ? pal.weekendBorder : pal.border;
+                    const startsWeek2 = printMode && i === 7;
+                    const projectId = getAssignment(c.id, dIso);
+                    const proj = activeProjects.find((p) => p.id === projectId);
+                    const isMonday = !printMode && i === 0;
+                    return (
+                      <td
+                        key={dIso}
+                        className="daycell"
+                        style={{ background: bg, borderLeft: startsWeek2 ? '2px solid var(--red)' : undefined, position: 'relative' }}
+                      >
+                        {editable ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <select
+                              value={projectId || ''}
+                              style={{ background: bg, color: pal.ink, borderColor: bd, flex: 1 }}
+                              onChange={(e) => setAssignment(c.id, dIso, e.target.value || null)}
+                              onKeyDown={(e) => {
+                                if (e.key === ' ') {
+                                  e.preventDefault();
+                                  setAssignment(c.id, dIso, null);
+                                }
+                              }}
+                            >
+                              <option value="">&mdash;</option>
+                              {activeProjects.map((p) => <option key={p.id} value={p.id}>{p.projet}</option>)}
+                            </select>
+                            {isMonday && (
+                              <button
+                                type="button"
+                                className="btn ghost small"
+                                title="Copier ce projet du lundi au vendredi"
+                                onClick={() => copyMondayToWeek(c.id)}
+                                style={{ padding: '2px 5px', fontSize: 10, flexShrink: 0 }}
+                              >All</button>
+                            )}
+                          </span>
+                        ) : (
+                          <span style={{ color: pal.ink }}>{proj ? proj.projet : '\u2014'}</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -111,6 +185,14 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
           onTogglePlaced={(id, field, value) => updateProject(id, { [field]: value })}
         />
       )}
+
+      <ConfirmModal
+        open={!!notice}
+        message={notice}
+        okLabel="OK"
+        showCancel={false}
+        onOk={() => setNotice('')}
+      />
     </div>
   );
 }

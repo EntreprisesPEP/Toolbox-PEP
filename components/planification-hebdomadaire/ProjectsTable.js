@@ -26,7 +26,7 @@ function AutoTextarea({ value, editable, onChange }) {
   );
 }
 
-export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel }) {
+export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel, highlightedId, onHighlight }) {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [filterCharge, setFilterCharge] = useState(null);
@@ -94,9 +94,15 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
           {visible.map((p) => {
             const col = statusColor(p.statut, theme);
             const projComments = board.commentsFor(p.id);
+            const isHighlighted = highlightedId && p.id === highlightedId;
+            const rowStyle = isHighlighted ? { background: '#FFF3B0' } : (col ? { background: col.bg } : undefined);
             return (
-              <tr key={p.id} style={col ? { background: col.bg } : undefined}>
-                <td>
+              <tr key={p.id} style={rowStyle}>
+                <td
+                  onClick={onHighlight ? () => onHighlight(p.id) : undefined}
+                  style={onHighlight ? { cursor: 'pointer' } : undefined}
+                  title={onHighlight ? 'Cliquer pour surligner ce projet pour tout le monde' : undefined}
+                >
                   <span className="jobline" title={`${p.no} ${p.projet}`}>
                     <span className="no">{p.no}</span>{p.projet}
                   </span>

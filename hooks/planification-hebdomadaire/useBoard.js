@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../../lib/planification-hebdomadaire/supabaseClient';
-import { dateKey, mondayOf, today } from '../../lib/planification-hebdomadaire/dates';
+import { dateKey, mondayOf, today, weekDates } from '../../lib/planification-hebdomadaire/dates';
 
 const MAX_HISTORY = 50;
 
@@ -8,6 +8,7 @@ export function useBoard() {
   const [projects, setProjects] = useState([]);
   const [contremaitres, setContremaitres] = useState([]);
   const [assignments, setAssignments] = useState([]);
+  const [nameOverrides, setNameOverrides] = useState([]);
   const [charges, setCharges] = useState([]);
   const [surintendants, setSurintendants] = useState([]);
   const [comments, setComments] = useState([]); // project_comments rows
@@ -22,12 +23,14 @@ export function useBoard() {
   const projectsRef = useRef([]);
   const contremaitresRef = useRef([]);
   const assignmentsRef = useRef([]);
+  const nameOverridesRef = useRef([]);
   projectsRef.current = projects;
   contremaitresRef.current = contremaitres;
   assignmentsRef.current = assignments;
+  nameOverridesRef.current = nameOverrides;
 
   const loadAll = useCallback(async () => {
-    const [p, cm, asg, ch, su, st, cmts] = await Promise.all([
+    const [p, cm, asg, ch, su, st, cmts, no] = await Promise.all([
       supabase.from('projects').select('*').order('sort_order', { ascending: true }),
       supabase.from('contremaitres').select('*').order('sort_order', { ascending: true }),
       supabase.from('assignments').select('*'),
@@ -35,6 +38,7 @@ export function useBoard() {
       supabase.from('surintendants').select('*').order('nom', { ascending: true }),
       supabase.from('app_settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('project_comments').select('*').order('created_at', { ascending: false }),
+      supabase.from('contremaitre_name_overrides').select('*'),
     ]);
     if (!mounted.current) return;
     if (p.data) setProjects(p.data);
@@ -43,6 +47,7 @@ export function useBoard() {
     if (ch.data) setCharges(ch.data.map((c) => c.nom));
     if (su.data) setSurintendants(su.data.map((s) => s.nom));
     if (cmts.data) setComments(cmts.data);
+    if (no.data) setNameOverrides(no.data);
     if (st.data) {
       setSettings(st.data);
     } else {
@@ -65,6 +70,7 @@ export function useBoard() {
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'surintendants' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'app_settings' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'project_comments' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'contremaitre_name_overrides' }, loadAll)
       .subscribe();
     return () => { mounted.current = false; supabase.removeChannel(channel); };
   }, [loadAll]);
@@ -218,6 +224,27 @@ export function useBoard() {
     await withSync(async () => { await rawDeleteContremaitre(id); await loadAll(); });
   }
 
+  // ---------- Noms d'equipe par semaine ----------
+  // Le nom affiche pour une semaine donnee est le dernier renommage dont
+  // la semaine de depart est <= la semaine consultee (sinon le nom de base).
+  function getContremaitreName(contremaitreId, weekStartIso) {
+    const base = contremaitresRef.current.find((c) => c.id === contremaitreId);
+    const applicable = nameOverridesRef.current
+      .filter((o) => o.contremaitre_id === contremaitreId && o.week_start <= weekStartIso)
+      .sort((a, b) => (a.week_start < b.week_start ? 1 : -1));
+    if (applicable.length > 0) return applicable[0].nom;
+    return base ? base.nom : '';
+  }
+  async function setContremaitreNameForWeek(contremaitreId, weekStartIso, nom) {
+    await withSync(async () => {
+      const { error } = await supabase
+        .from('contremaitre_name_overrides')
+        .upsert({ contremaitre_id: contremaitreId, week_start: weekStartIso, nom }, { onConflict: 'contremaitre_id,week_start' });
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+
   // ---------- Assignments ----------
   function getAssignment(contremaitreId, dayIso) {
     const row = assignments.find((a) => a.contremaitre_id === contremaitreId && a.day === dayIso);
@@ -250,6 +277,40 @@ export function useBoard() {
       if (error) throw error;
       await loadAll();
     });
+  }
+
+  async function importPreviousWeekAssignments() {
+    const currentMonday = new Date(settings.range_start + 'T00:00:00');
+    const prevMonday = new Date(currentMonday);
+    prevMonday.setDate(prevMonday.getDate() - 7);
+    const currentDates = weekDates(currentMonday).map(dateKey);
+    const prevDates = weekDates(prevMonday).map(dateKey);
+
+    const { data: prevAssignments, error } = await supabase
+      .from('assignments')
+      .select('*')
+      .in('day', prevDates);
+    if (error) throw error;
+
+    let imported = 0;
+    await withSync(async () => {
+      const rowsToUpsert = [];
+      (prevAssignments || []).forEach((a) => {
+        const offset = prevDates.indexOf(a.day);
+        if (offset === -1) return;
+        const targetDay = currentDates[offset];
+        rowsToUpsert.push({ contremaitre_id: a.contremaitre_id, day: targetDay, project_id: a.project_id });
+        imported++;
+      });
+      if (rowsToUpsert.length > 0) {
+        const { error: upsertError } = await supabase
+          .from('assignments')
+          .upsert(rowsToUpsert, { onConflict: 'contremaitre_id,day' });
+        if (upsertError) throw upsertError;
+      }
+      await loadAll();
+    });
+    return imported;
   }
 
   // ---------- Notes hebdomadaires ----------
@@ -328,8 +389,9 @@ export function useBoard() {
     addProject, updateProject, deleteProject,
     addCharge, deleteCharge, addSurintendant, deleteSurintendant,
     addContremaitre, updateContremaitre, deleteContremaitre,
+    getContremaitreName, setContremaitreNameForWeek,
     getAssignment, setAssignment,
-    updateSettings, switchNotesWeek, importPreviousWeek,
+    updateSettings, switchNotesWeek, importPreviousWeek, importPreviousWeekAssignments,
     commentsFor, addComment, deleteComment,
     undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,
     reload: loadAll,
