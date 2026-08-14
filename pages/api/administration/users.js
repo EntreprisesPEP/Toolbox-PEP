@@ -81,7 +81,10 @@ export default async function handler(req, res) {
       }
 
       const ordreDuJourMap = Object.fromEntries(
-        (ordreDuJourProfils || []).map((p) => [p.user_id, { nom: p.nom, role: p.role, acces_special: p.acces_special }])
+        (ordreDuJourProfils || []).map((p) => [p.user_id, {
+          nom: p.nom, role: p.role, acces_special: p.acces_special,
+          peut_previsualiser: !!p.peut_previsualiser,
+        }])
       );
 
       // NOUVEAU — profils en attente (pas encore de compte, references par courriel)
@@ -242,7 +245,7 @@ export default async function handler(req, res) {
     // (nom affiche, role metier, acces special). Appele depuis le bloc
     // dedie qui apparait dans PermissionsGrid quand "Ordre du jour" est coche.
     if (action === 'update_ordre_du_jour_profil') {
-      const { user_id, nom, role, acces_special } = req.body;
+      const { user_id, nom, role, acces_special, peut_previsualiser } = req.body;
       if (!user_id || !nom || !role) throw new Error('user_id, nom et role requis');
       if (!ORDRE_DU_JOUR_ROLES.includes(role)) throw new Error('Role Ordre du jour invalide');
       const accesFinal = ORDRE_DU_JOUR_ACCES.includes(acces_special) ? acces_special : 'tout';
@@ -258,6 +261,7 @@ export default async function handler(req, res) {
         nom: nom.trim(),
         role,
         acces_special: accesFinal,
+        peut_previsualiser: !!peut_previsualiser,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;

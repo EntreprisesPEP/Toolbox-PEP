@@ -203,7 +203,7 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
-  async function onSaveOrdreDuJourProfil(user, nom, role, accesSpecial) {
+  async function onSaveOrdreDuJourProfil(user, nom, role, accesSpecial, peutPrevisualiser) {
     setSaving(true);
     try {
       await callApi({
@@ -212,6 +212,7 @@ export default function AdministrationPage() {
         nom,
         role,
         acces_special: accesSpecial,
+        peut_previsualiser: peutPrevisualiser,
       });
       await loadAll();
     } catch (e) {
@@ -338,7 +339,7 @@ export default function AdministrationPage() {
                   onRoleChange={(role) => onRoleChange(u, role)}
                   onDelete={() => onDeleteUser(u)}
                   onSavePermissions={(appSlug, hasAppAccess, featureKeys) => onSavePermissions(u, appSlug, hasAppAccess, featureKeys)}
-                  onSaveOrdreDuJourProfil={(nom, role, accesSpecial) => onSaveOrdreDuJourProfil(u, nom, role, accesSpecial)}
+                  onSaveOrdreDuJourProfil={(nom, role, accesSpecial, peutPrevisualiser) => onSaveOrdreDuJourProfil(u, nom, role, accesSpecial, peutPrevisualiser)}
                   saving={saving}
                 />
               ))}
@@ -409,6 +410,7 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
   const [odjNom, setOdjNom] = useState(user.ordre_du_jour_profil?.nom || user.email?.split('@')[0] || '');
   const [odjRole, setOdjRole] = useState(user.ordre_du_jour_profil?.role || 'contremaitre');
   const [odjAcces, setOdjAcces] = useState(user.ordre_du_jour_profil?.acces_special || 'tout');
+  const [odjPreview, setOdjPreview] = useState(!!user.ordre_du_jour_profil?.peut_previsualiser);
   const [odjMsg, setOdjMsg] = useState('');
 
   function toggleApp(slug) {
@@ -438,7 +440,7 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
       return;
     }
     setOdjMsg('Enregistrement...');
-    await onSaveOrdreDuJourProfil(odjNom, odjRole, odjAcces);
+    await onSaveOrdreDuJourProfil(odjNom, odjRole, odjAcces, odjPreview);
     setOdjMsg('Enregistre ✓');
     setTimeout(() => setOdjMsg(''), 2000);
   }
@@ -491,6 +493,10 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                     <option key={a} value={a}>{ACCES_LABELS[a] || a}</option>
                   ))}
                 </select>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', marginBottom: 8 }}>
+                  <input type="checkbox" checked={odjPreview} onChange={(e) => setOdjPreview(e.target.checked)} />
+                  Peut prévisualiser tous les rôles (mode test — usage interne seulement)
+                </label>
                 <button onClick={saveOdjProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>
                   Enregistrer le profil
                 </button>

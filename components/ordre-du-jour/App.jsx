@@ -4,6 +4,8 @@ import {
   Save, CheckCircle2, AlertCircle, LogOut, RefreshCw, Plus, ChevronRight, SendHorizontal
 } from "lucide-react";
 import { storage } from "./lib/storage";
+import { supabase } from "./lib/supabaseClient";
+import AuthGate from "./AuthGate";
 
 /* Hook responsive */
 function useWindowWidth() {
@@ -40,6 +42,18 @@ const ROLES = [
   { value: "estimateur", label: "Estimateur", groupe: "Direction" },
   { value: "directeur", label: "Directeur construction", groupe: "Direction" },
   { value: "president", label: "Président", groupe: "Direction" },
+];
+
+// Combinaisons rôle+accès couvrant chaque vue distincte de l'app — utilisées
+// uniquement par le sélecteur d'Aperçu (mode test, profils.peut_previsualiser).
+// Ne change QUE l'affichage : les données restent enregistrées sous la vraie
+// identité (nom/userId) de la personne connectée.
+const OPTIONS_APERCU = [
+  { label: "Contremaître", role: "contremaitre", accesSpecial: "tout" },
+  { label: "Surintendant", role: "surintendant", accesSpecial: "tout" },
+  { label: "Gestion de projet (vue complète)", role: "directeur", accesSpecial: "tout" },
+  { label: "Dispatch — Camions", role: "dispatch_camions", accesSpecial: "camions" },
+  { label: "Dispatch — Machinerie", role: "dispatch_machines", accesSpecial: "machinerie" },
 ];
 
 // Rôles ayant accès au panneau Administration (gestion des NIP)
@@ -3951,9 +3965,57 @@ function InfoGenerale({ section, onRetour }) {
   );
 }
 
+/* ---------------------------------------------------------------------
+   SÉLECTEUR D'APERÇU — visible uniquement si profil.peutPrevisualiser.
+   Change l'affichage (rôle/accès) sans changer l'identité réelle : tout
+   ce qui est soumis reste enregistré sous le vrai compte de la personne.
+--------------------------------------------------------------------- */
+function SelecteurApercu({ apercu, onChange }) {
+  const [ouvert, setOuvert] = useState(false);
+  const optionActuelle = OPTIONS_APERCU.find((o) => o.role === apercu?.role && o.accesSpecial === apercu?.accesSpecial);
+
+  return (
+    <div style={{ position: "fixed", bottom: 14, right: 14, zIndex: 2000, fontFamily: "'Inter',sans-serif" }}>
+      {ouvert && (
+        <div style={{ background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 2px 10px rgba(0,0,0,0.15)", marginBottom: 8, width: 240 }}>
+          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8a93a0", borderBottom: "1px solid #EDEFF1" }}>
+            Aperçu — voir comme
+          </div>
+          <button
+            onClick={() => { onChange(null); setOuvert(false); }}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: !apercu ? "#EDEFF1" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: !apercu ? 700 : 400 }}
+          >
+            Mon rôle réel
+          </button>
+          {OPTIONS_APERCU.map((o) => (
+            <button
+              key={o.label}
+              onClick={() => { onChange({ role: o.role, accesSpecial: o.accesSpecial }); setOuvert(false); }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: optionActuelle?.label === o.label ? "#EDEFF1" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: optionActuelle?.label === o.label ? 700 : 400 }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setOuvert((o) => !o)}
+        style={{
+          background: apercu ? "#E4022E" : "#0F2138", color: "#fff", border: "none", borderRadius: 20,
+          padding: "10px 16px", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+        }}
+      >
+        {apercu ? `Aperçu : ${optionActuelle?.label || "?"}` : "Aperçu…"}
+      </button>
+    </div>
+  );
+}
+
 function AppInner() {
   useGoogleFonts();
   const [profil, setProfil] = useState(null);
+  const [apercu, setApercu] = useState(null); // { role, accesSpecial } | null — mode test (voir profil.peutPrevisualiser)
   const [showAdmin, setShowAdmin] = useState(false);
   const [date, setDate] = useState(tomorrowISO());
   const [vue, setVue] = useState({ ecran: "accueil" });
@@ -3965,10 +4027,22 @@ function AppInner() {
 
   useEffect(() => { chargerJoursFeriesCache(); }, []);
 
+  // NOTE Phase 3: le panneau admin interne (NIP) devient inatteignable —
+  // la gestion des comptes/rôles se fait maintenant via /administration/
+  // du Toolbox. showAdmin/AdminPanel restent en place pour l'instant
+  // (code mort inoffensif) et seront retirés dans un nettoyage ultérieur.
   if (showAdmin) return <AdminPanel onBack={() => setShowAdmin(false)} />;
-  if (!profil) return <ProfileGate onDone={setProfil} onAdmin={() => setShowAdmin(true)} />;
+  if (!profil) return <AuthGate onDone={setProfil} />;
 
-  const deconnecter = () => { setProfil(null); setVue({ ecran: "accueil" }); setMenuSection(null); };
+  const deconnecter = () => {
+    supabase.auth.signOut();
+    setProfil(null); setApercu(null); setVue({ ecran: "accueil" }); setMenuSection(null);
+  };
+
+  // Mode Aperçu (profil.peutPrevisualiser) : change uniquement role/accesSpecial
+  // pour l'affichage. Le nom (donc l'identité réelle pour tout ce qui est
+  // enregistré) reste toujours celui de la vraie personne connectée.
+  const profilEffectif = apercu ? { ...profil, role: apercu.role, accesSpecial: apercu.accesSpecial } : profil;
 
   // Appelé quand on clique "Faire une nouvelle requête" : vérifie s'il y a déjà
   // une demande pour demain, et si oui, propose de modifier ou d'en soumettre une 2e.
@@ -4006,11 +4080,11 @@ function AppInner() {
   return (
     <div style={{ minHeight: "100vh", background: "#EDEFF1" }}>
       <TopBar
-        profil={profil}
+        profil={profilEffectif}
         date={date}
         setDate={setDate}
         onSwitchProfile={deconnecter}
-        masquerDate={profil.role === "contremaitre"}
+        masquerDate={profilEffectif.role === "contremaitre"}
         onMenuSelect={(id) => {
           if (id === "retour") {
             setMenuSection(null);
@@ -4033,6 +4107,7 @@ function AppInner() {
           }
         }}
       />
+      {profil.peutPrevisualiser && <SelecteurApercu apercu={apercu} onChange={setApercu} />}
       {confirmNouvelle && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,33,56,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
           <div style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #D7DBE0", padding: 24, fontFamily: "'Inter',sans-serif" }}>
@@ -4060,33 +4135,33 @@ function AppInner() {
         </div>
       )}
       {menuSection === "notifications" ? (
-        <NotificationsPushPage profil={profil} onRetour={() => setMenuSection(null)} />
+        <NotificationsPushPage profil={profilEffectif} onRetour={() => setMenuSection(null)} />
       ) : menuSection ? (
         <InfoGenerale section={menuSection} onRetour={() => setMenuSection(null)} />
-      ) : profil.role === "contremaitre" ? (
+      ) : profilEffectif.role === "contremaitre" ? (
         vue.ecran === "accueil" ? (
           <ContremaitreAccueil
-            profil={profil}
+            profil={profilEffectif}
             onNouvelle={demarrerNouvelleRequete}
             onOuvrirDate={(d, s) => setVue({ ecran: "detail", date: d, seq: s })}
           />
         ) : vue.ecran === "detail" ? (
           <FicheDetail
-            profil={profil}
+            profil={profilEffectif}
             date={vue.date}
             seq={vue.seq}
             onRetour={() => setVue({ ecran: "accueil" })}
             onModifier={() => setVue({ ecran: "form", date: vue.date, seq: vue.seq })}
           />
         ) : (
-          <FicheForm profil={profil} date={vue.date} seq={vue.seq} onRetourAccueil={() => setVue({ ecran: "accueil" })} />
+          <FicheForm profil={profilEffectif} date={vue.date} seq={vue.seq} onRetourAccueil={() => setVue({ ecran: "accueil" })} />
         )
-      ) : profil.role === "surintendant" ? (
+      ) : profilEffectif.role === "surintendant" ? (
         vue.ecran === "form" ? (
-          <FicheForm profil={profil} date={vue.date || tomorrowISO()} seq={vue.seq} onRetourAccueil={() => setVue({ ecran: "accueil" })} />
+          <FicheForm profil={profilEffectif} date={vue.date || tomorrowISO()} seq={vue.seq} onRetourAccueil={() => setVue({ ecran: "accueil" })} />
         ) : vue.ecran === "detail" ? (
           <FicheDetail
-            profil={profil}
+            profil={profilEffectif}
             date={vue.date}
             seq={vue.seq}
             onRetour={() => setVue({ ecran: "accueil" })}
@@ -4095,7 +4170,7 @@ function AppInner() {
         ) : (
           <Dashboard
             date={date}
-            profil={profil}
+            profil={profilEffectif}
             boutonRequete={demarrerNouvelleRequete}
             onOuvrirDate={(d, s) => setVue({ ecran: "detail", date: d, seq: s })}
             scrollCible={scrollCible}
@@ -4104,7 +4179,7 @@ function AppInner() {
           />
         )
       ) : (
-        <Dashboard date={date} profil={profil} scrollCible={scrollCible} onScrollFait={() => setScrollCible(null)} resetSignal={resetSignal} />
+        <Dashboard date={date} profil={profilEffectif} scrollCible={scrollCible} onScrollFait={() => setScrollCible(null)} resetSignal={resetSignal} />
       )}
     </div>
   );
