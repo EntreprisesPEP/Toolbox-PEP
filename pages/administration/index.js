@@ -158,7 +158,7 @@ export default function AdministrationPage() {
       <Center>
         <h2>Connexion requise</h2>
         <p>Connecte-toi depuis le Toolbox, puis reviens sur cette page.</p>
-        <a href="/">Aller au Toolbox</a>
+        <a href="/">Aller au Toolbox PEP</a>
       </Center>
     );
   }
@@ -168,7 +168,7 @@ export default function AdministrationPage() {
       <Center>
         <h2>Acces refuse</h2>
         <p>Ce panneau est reserve aux administrateurs.</p>
-        <a href="/">Retour au Toolbox</a>
+        <a href="/">&#8592; Retour au Toolbox PEP</a>
       </Center>
     );
   }
@@ -179,7 +179,7 @@ export default function AdministrationPage() {
 
       <header style={{ background: '#14213D', color: '#fff', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>Administration - Toolbox PEP</h1>
-        <a href="/" style={{ color: '#fff', textDecoration: 'underline', fontSize: 14 }}>&#8592; Retour au Toolbox</a>
+        <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>&#8592; Retour au Toolbox PEP</a>
       </header>
 
       <main style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px 60px' }}>

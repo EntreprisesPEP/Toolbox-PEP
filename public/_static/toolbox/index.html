@@ -57,7 +57,7 @@
   }
   .password-field-wrap input{
     padding-right:40px;
-    margin-bottom:0;
+    margin-bottom:0 !important;
   }
   .password-toggle-btn{
     position:absolute;
@@ -491,15 +491,47 @@
   </div>
 </div>
 
+<div class="login-wrap" id="forgotPasswordWrap" style="display:none;">
+  <div class="login-card">
+    <h1>Mot de passe oublié?</h1>
+    <p class="sub">Écris ton courriel, on t'envoie un lien pour en créer un nouveau</p>
+    <div class="login-error" id="forgotPasswordError"></div>
+    <form id="forgotPasswordForm" autocomplete="on">
+      <span class="field-label">Courriel</span>
+      <input type="email" id="forgotPasswordEmail" name="email" autocomplete="username">
+      <button class="login-btn" id="forgotPasswordSubmitBtn" type="submit">Envoyer le lien</button>
+    </form>
+    <div style="text-align:center; margin-top:12px;">
+      <a href="#" id="backToLoginLink" style="color:#5B8FD9; font-size:13px; text-decoration:underline;">&#8592; Retour à la connexion</a>
+    </div>
+  </div>
+</div>
+
 <div class="login-wrap" id="setPasswordWrap" style="display:none;">
   <div class="login-card">
     <h1>Bienvenue!</h1>
     <p class="sub">Crée ton mot de passe pour accéder au Toolbox PEP</p>
     <div class="login-error" id="setPasswordError"></div>
     <span class="field-label">Nouveau mot de passe (6 caractères minimum)</span>
-    <input type="password" id="newPasswordInput" autocomplete="new-password">
+    <span class="password-field-wrap">
+      <input type="password" id="newPasswordInput" autocomplete="new-password">
+      <button type="button" class="password-toggle-btn" id="newPasswordToggleBtn" title="Afficher le mot de passe" aria-label="Afficher le mot de passe">
+        <svg id="newPasswordEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      </button>
+    </span>
     <span class="field-label">Confirme le mot de passe</span>
-    <input type="password" id="confirmPasswordInput" autocomplete="new-password">
+    <span class="password-field-wrap">
+      <input type="password" id="confirmPasswordInput" autocomplete="new-password">
+      <button type="button" class="password-toggle-btn" id="confirmPasswordToggleBtn" title="Afficher le mot de passe" aria-label="Afficher le mot de passe">
+        <svg id="confirmPasswordEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      </button>
+    </span>
     <button class="login-btn" id="setPasswordBtn">Créer mon mot de passe</button>
   </div>
 </div>
@@ -843,11 +875,16 @@ applyTheme();
 applyFormat();
 
 function showLogin(){
+  document.getElementById('setPasswordWrap').style.display = 'none';
+  document.getElementById('forgotPasswordWrap').style.display = 'none';
   document.getElementById('loginWrap').style.display = 'flex';
   document.getElementById('hubWrap').classList.remove('show');
 }
 function showHub(user){
   document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('setPasswordWrap').style.display = 'none';
+  document.getElementById('forgotPasswordWrap').style.display = 'none';
+  document.getElementById('hubWrap').style.display = '';
   document.getElementById('hubWrap').classList.add('show');
   document.getElementById('userEmailLabel').textContent = user.email;
   currentUserEmail = (user.email || '').toLowerCase();
@@ -864,26 +901,51 @@ function hideLoginError(){
   document.getElementById('loginError').classList.remove('show');
 }
 
-document.getElementById('forgotPasswordLink').addEventListener('click', async (e)=>{
+function showForgotPassword(){
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('setPasswordWrap').style.display = 'none';
+  document.getElementById('hubWrap').style.display = 'none';
+  document.getElementById('hubWrap').classList.remove('show');
+  document.getElementById('forgotPasswordError').classList.remove('show');
+  document.getElementById('forgotPasswordEmail').value = '';
+  document.getElementById('forgotPasswordWrap').style.display = 'flex';
+}
+
+document.getElementById('forgotPasswordLink').addEventListener('click', (e)=>{
   e.preventDefault();
-  hideLoginError();
-  const email = document.getElementById('loginEmail').value.trim();
+  showForgotPassword();
+});
+
+document.getElementById('backToLoginLink').addEventListener('click', (e)=>{
+  e.preventDefault();
+  document.getElementById('forgotPasswordWrap').style.display = 'none';
+  showLogin();
+});
+
+document.getElementById('forgotPasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const errEl = document.getElementById('forgotPasswordError');
+  errEl.classList.remove('show');
+  errEl.style.background = '';
+  const email = document.getElementById('forgotPasswordEmail').value.trim();
   if(!email){
-    showLoginError('Écris ton courriel dans le champ ci-dessus, puis clique sur "Mot de passe oublié?".');
+    errEl.textContent = 'Écris ton courriel.';
+    errEl.classList.add('show');
     return;
   }
-  const link = document.getElementById('forgotPasswordLink');
-  link.textContent = 'Envoi en cours...';
+  const btn = document.getElementById('forgotPasswordSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi en cours...';
   const { error } = await sb.auth.resetPasswordForEmail(email, {
     redirectTo: window.location.origin + '/'
   });
-  link.textContent = 'Mot de passe oublié?';
+  btn.disabled = false;
+  btn.textContent = 'Envoyer le lien';
   if(error){
-    showLoginError("Erreur: " + error.message);
+    errEl.textContent = "Erreur: " + error.message;
+    errEl.classList.add('show');
     return;
   }
-  document.getElementById('loginError').classList.remove('show');
-  const errEl = document.getElementById('loginError');
   errEl.style.background = '#1e8e5a';
   errEl.textContent = 'Courriel envoyé! Vérifie ta boîte de réception (et les pourriels).';
   errEl.classList.add('show');
@@ -911,19 +973,24 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   showHub(data.user);
 });
 
-document.getElementById('passwordToggleBtn').addEventListener('click', ()=>{
-  const input = document.getElementById('loginPassword');
-  const btn = document.getElementById('passwordToggleBtn');
-  if(input.type === 'password'){
-    input.type = 'text';
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 4.22-5.06M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
-    btn.title = 'Cacher le mot de passe';
-  } else {
-    input.type = 'password';
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
-    btn.title = 'Afficher le mot de passe';
-  }
-});
+function wirePasswordToggle(inputId, btnId){
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  btn.addEventListener('click', ()=>{
+    if(input.type === 'password'){
+      input.type = 'text';
+      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a18.5 18.5 0 0 1 4.22-5.06M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+      btn.title = 'Cacher le mot de passe';
+    } else {
+      input.type = 'password';
+      btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+      btn.title = 'Afficher le mot de passe';
+    }
+  });
+}
+wirePasswordToggle('loginPassword', 'passwordToggleBtn');
+wirePasswordToggle('newPasswordInput', 'newPasswordToggleBtn');
+wirePasswordToggle('confirmPasswordInput', 'confirmPasswordToggleBtn');
 
 document.getElementById('logoutBtn').addEventListener('click', async ()=>{
   await sb.auth.signOut();
@@ -933,6 +1000,7 @@ document.getElementById('logoutBtn').addEventListener('click', async ()=>{
 function showSetPassword(){
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('hubWrap').style.display = 'none';
+  document.getElementById('forgotPasswordWrap').style.display = 'none';
   document.getElementById('setPasswordWrap').style.display = 'flex';
 }
 
@@ -962,7 +1030,11 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
   btn.disabled = false;
   btn.textContent = 'Créer mon mot de passe';
   if(error){
-    showSetPasswordError("Erreur: " + error.message);
+    if(error.message && error.message.toLowerCase().includes('should be different from the old password')){
+      showSetPasswordError('Ce mot de passe est déjà enregistré — tu es probablement déjà connecté. Rafraîchis la page.');
+    } else {
+      showSetPasswordError("Erreur: " + error.message);
+    }
     return;
   }
   showHub(data.user);
