@@ -174,7 +174,13 @@ export default function ListeProjetsPage() {
       types.find((t) => t.code === p.type_projet)?.label || '',
       p.charge, p.surintendant, p.contact_inspection, p.adresse,
     ].map(csvEchappe).join(','));
-    const csv = '\uFEFF' + [entetes.join(','), ...lignes].join('\r\n');
+    const csv = '\uFEFF' + [
+      'Les Entreprises PEP2000 inc. - Liste des projets',
+      `Genere le ${new Date().toLocaleDateString('fr-CA')}`,
+      '',
+      entetes.join(','),
+      ...lignes,
+    ].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -382,20 +388,29 @@ export default function ListeProjetsPage() {
         </div>
 
         {tab === 'projets' && (
-          <div id="zone-imprimable" style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
+          <>
+            <div className="print-only" style={{ display: 'none' }}>
+              <div style={{ height: 4, background: RED }} />
+              <div style={{ background: NAVY, color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src={LOGO_PEP} alt="" style={{ height: 32, width: 'auto' }} />
+                <strong style={{ fontSize: 14, fontFamily: "'Oswald',sans-serif" }}>Les Entreprises PEP2000 inc. — Liste des projets</strong>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#B9C2CC' }}>Généré le {new Date().toLocaleDateString('fr-CA')}</span>
+              </div>
+            </div>
+            <div id="zone-imprimable" style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ position: 'sticky', top: headerH + barreH, zIndex: 40 }}>
-                    <th style={th} onClick={() => trierPar('no')}>No {triChamp === 'no' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
-                    <th style={th} onClick={() => trierPar('nom')}>Projet {triChamp === 'nom' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
-                    <th style={th} onClick={() => trierPar('client')}>Client</th>
-                    <th style={th}>Contact client</th>
-                    <th style={th}>Type</th>
-                    <th style={th} onClick={() => trierPar('charge')}>Chargé</th>
-                    <th style={th} onClick={() => trierPar('surintendant')}>Surintendant</th>
-                    <th style={th}>Contact inspection</th>
-                    {peutModifier && <th style={{ ...th, cursor: 'default' }} className="no-print" />}
+                  <tr>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('no')}>No {triChamp === 'no' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('nom')}>Projet {triChamp === 'nom' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('client')}>Client</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Contact client</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Type</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('charge')}>Chargé</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('surintendant')}>Surintendant</th>
+                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Contact inspection</th>
+                    {peutModifier && <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40, cursor: 'default' }} className="no-print" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -427,6 +442,7 @@ export default function ListeProjetsPage() {
               </table>
             </div>
           </div>
+          </>
         )}
 
         {tab === 'types' && (
@@ -528,8 +544,10 @@ export default function ListeProjetsPage() {
       )}
 
       <style jsx global>{`
+        .print-only { display: none; }
         @media print {
           .no-print { display: none !important; }
+          .print-only { display: block !important; }
           body, #zone-imprimable { background: #fff !important; }
           table { font-size: 10px !important; }
           th { background: #14213D !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
