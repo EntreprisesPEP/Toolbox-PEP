@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,6 +11,10 @@ const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema:
 const NAVY = '#14213D';
 const RED = '#C41230';
 const BG = '#EDEFF1';
+// Logo déjà déployé et utilisé ailleurs dans le Toolbox (Planification
+// hebdomadaire) — on réutilise le même fichier réel plutôt que d'en
+// fabriquer un nouveau.
+const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
 
 function Center({ children }) {
   return (
@@ -36,11 +40,17 @@ const input = { padding: '7px 9px', borderRadius: 5, border: '1px solid #ccc', f
 const th = {
   textAlign: 'left', padding: '7px 10px', color: '#fff', fontWeight: 600, fontSize: 11.5,
   cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: NAVY,
-  textTransform: 'uppercase', letterSpacing: '0.03em', position: 'sticky', top: 0,
+  textTransform: 'uppercase', letterSpacing: '0.03em',
 };
 const td = { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1', whiteSpace: 'nowrap' };
 
 const TYPE_ICONES = { pep_excavation: '⛏️', estimation: '📐', amenagement: '🌳', pep_pavage: '🛣️', adp: '🧱' };
+
+function csvEchappe(v) {
+  const s = (v ?? '').toString();
+  if (/[",\n;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
 
 export default function ListeProjetsPage() {
   const [session, setSession] = useState(null);
@@ -55,6 +65,7 @@ export default function ListeProjetsPage() {
 
   const [recherche, setRecherche] = useState('');
   const [filtreType, setFiltreType] = useState('');
+  const [inclureEstimation, setInclureEstimation] = useState(false);
   const [triChamp, setTriChamp] = useState('no');
   const [triDir, setTriDir] = useState('desc');
 
@@ -64,6 +75,22 @@ export default function ListeProjetsPage() {
   const [confirmSuppr, setConfirmSuppr] = useState(null);
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState('');
+
+  // --- Frozen (sticky) header + barre de contrôle -----------------------
+  const headerRef = useRef(null);
+  const barreRef = useRef(null);
+  const [headerH, setHeaderH] = useState(0);
+  const [barreH, setBarreH] = useState(0);
+
+  useEffect(() => {
+    function mesurer() {
+      if (headerRef.current) setHeaderH(headerRef.current.offsetHeight);
+      if (barreRef.current) setBarreH(barreRef.current.offsetHeight);
+    }
+    mesurer();
+    window.addEventListener('resize', mesurer);
+    return () => window.removeEventListener('resize', mesurer);
+  }, [tab, erreur, peutModifier, loading]);
 
   async function chargerTout() {
     const [resProjets, resTypes, resPersonnel] = await Promise.all([
@@ -116,17 +143,14 @@ export default function ListeProjetsPage() {
   function emailDe(nomPersonnel) {
     return personnel.find((p) => p.nom === nomPersonnel)?.courriel || null;
   }
-  function labelType(code) {
-    const t = types.find((x) => x.code === code);
-    return t ? `${TYPE_ICONES[code] || ''} ${t.label}`.trim() : '—';
-  }
 
   const projetsAffiches = useMemo(() => {
     const q = recherche.trim().toLowerCase();
     let list = projets.filter((p) => {
+      if (p.type_projet === 'estimation' && !inclureEstimation && !q && !filtreType) return false;
       if (filtreType && p.type_projet !== filtreType) return false;
       if (!q) return true;
-      return [p.no, p.nom, p.client, p.charge, p.surintendant, p.contact_client_nom, labelType(p.type_projet)]
+      return [p.no, p.nom, p.client, p.charge, p.surintendant, p.contact_client_nom]
         .some((v) => (v || '').toString().toLowerCase().includes(q));
     });
     list = [...list].sort((a, b) => {
@@ -136,11 +160,34 @@ export default function ListeProjetsPage() {
       return triDir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [projets, recherche, filtreType, triChamp, triDir, types]);
+  }, [projets, recherche, filtreType, inclureEstimation, triChamp, triDir]);
 
   function trierPar(champ) {
     if (triChamp === champ) setTriDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setTriChamp(champ); setTriDir('asc'); }
+  }
+
+  function exporterCSV() {
+    const entetes = ['No', 'Projet', 'Client', 'Contact client', 'Courriel contact client', 'Type', 'Chargé de projet', 'Surintendant', 'Contact inspection', 'Adresse'];
+    const lignes = projetsAffiches.map((p) => [
+      p.no, p.nom, p.client, p.contact_client_nom, p.contact_client_courriel,
+      types.find((t) => t.code === p.type_projet)?.label || '',
+      p.charge, p.surintendant, p.contact_inspection, p.adresse,
+    ].map(csvEchappe).join(','));
+    const csv = '\uFEFF' + [entetes.join(','), ...lignes].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `liste-projets-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  function exporterPDF() {
+    window.print();
   }
 
   async function sauvegarderProjet(form) {
@@ -269,82 +316,107 @@ export default function ListeProjetsPage() {
     <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: BG, minHeight: '100vh' }}>
       <Head><title>Liste des projets - Toolbox PEP</title></Head>
 
-      <div style={{ height: 4, background: RED }} />
-      <header style={{ background: NAVY, color: '#fff', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ color: '#AEC0F5', fontFamily: "'Oswald',sans-serif", fontSize: 11, letterSpacing: '0.14em', fontWeight: 600 }}>LES ENTREPRISES</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontFamily: "'Oswald',sans-serif", fontWeight: 700 }}>PEP2000 — Liste des projets</h1>
-        </div>
-        <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>&#8592; Retour au Toolbox PEP</a>
-      </header>
-
-      <main style={{ maxWidth: 1300, margin: '20px auto', padding: '0 16px 60px' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-          {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${personnel.length})`]].map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} style={tab === key ? btn : btnGhost}>{label}</button>
-          ))}
-          {!peutModifier && (
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: '#8a93a0' }}>Lecture seule</span>
-          )}
-        </div>
-
-        {erreur && (
-          <div style={{ background: '#FEECEC', border: '1px solid #f3b8b8', color: '#a31111', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 13.5 }}>
-            {erreur} <button onClick={() => setErreur('')} style={{ ...btnGhost, ...btnSmall, marginLeft: 10 }}>Fermer</button>
+      {/* En-tête PEP — figé en haut */}
+      <div ref={headerRef} className="no-print" style={{ position: 'sticky', top: 0, zIndex: 60 }}>
+        <div style={{ height: 4, background: RED }} />
+        <header style={{ background: NAVY, color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <img src={LOGO_PEP} alt="Les Entreprises PEP2000" style={{ height: 46, width: 'auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            <h1 style={{ margin: 0, fontSize: 19, fontFamily: "'Oswald',sans-serif", fontWeight: 700 }}>
+              Les Entreprises PEP2000 inc. — Liste des projets
+            </h1>
           </div>
-        )}
+          <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>&#8592; Retour au Toolbox PEP</a>
+        </header>
+      </div>
 
-        {tab === 'projets' && (
-          <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <div style={{ display: 'flex', gap: 10, padding: '14px 16px', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
+      <main style={{ maxWidth: 1300, margin: '0 auto', padding: '0 16px 60px' }}>
+        {/* Barre de contrôle (onglets + erreur + recherche/filtre) — figée juste sous l'en-tête */}
+        <div
+          ref={barreRef}
+          className="no-print"
+          style={{ position: 'sticky', top: headerH, zIndex: 55, background: BG, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
+        >
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${personnel.length})`]].map(([key, label]) => (
+              <button key={key} onClick={() => setTab(key)} style={tab === key ? btn : btnGhost}>{label}</button>
+            ))}
+            {!peutModifier && (
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#8a93a0' }}>Lecture seule</span>
+            )}
+          </div>
+
+          {erreur && (
+            <div style={{ background: '#FEECEC', border: '1px solid #f3b8b8', color: '#a31111', padding: '10px 14px', borderRadius: 6, marginBottom: 12, fontSize: 13.5 }}>
+              {erreur} <button onClick={() => setErreur('')} style={{ ...btnGhost, ...btnSmall, marginLeft: 10 }}>Fermer</button>
+            </div>
+          )}
+
+          {tab === 'projets' && (
+            <div style={{ background: '#fff', borderRadius: '8px 8px 0 0', display: 'flex', gap: 10, padding: '14px 16px', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
               <input
-                type="text" placeholder="Rechercher (numéro, nom, client, chargé, surintendant, type)..."
+                type="text" placeholder="Rechercher (numéro, nom, client, chargé, surintendant)..."
                 value={recherche} onChange={(e) => setRecherche(e.target.value)}
-                style={{ ...input, maxWidth: 360 }}
+                style={{ ...input, maxWidth: 320 }}
               />
-              <select value={filtreType} onChange={(e) => setFiltreType(e.target.value)} style={{ ...input, width: 'auto', maxWidth: 220 }}>
+              <select value={filtreType} onChange={(e) => setFiltreType(e.target.value)} style={{ ...input, width: 'auto', maxWidth: 200 }}>
                 <option value="">Tous les types</option>
                 {types.map((t) => <option key={t.code} value={t.code}>{TYPE_ICONES[t.code] || ''} {t.label}</option>)}
               </select>
-              {peutModifier && (
-                <button
-                  style={{ ...btn, marginLeft: 'auto' }}
-                  onClick={() => setEditProjet({ no: '', nom: '', client: '', charge: '', surintendant: '', type_projet: '', contact_client_nom: '', contact_client_courriel: '', contact_inspection: '', adresse: '' })}
-                >+ Nouveau projet</button>
-              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#444', whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={inclureEstimation} onChange={(e) => setInclureEstimation(e.target.checked)} />
+                Inclure les projets en estimation
+              </label>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <button style={btnGhost} onClick={exporterCSV}>Exporter CSV</button>
+                <button style={btnGhost} onClick={exporterPDF}>Exporter PDF</button>
+                {peutModifier && (
+                  <button
+                    style={btn}
+                    onClick={() => setEditProjet({ no: '', nom: '', client: '', charge: '', surintendant: '', type_projet: '', contact_client_nom: '', contact_client_courriel: '', contact_inspection: '', adresse: '' })}
+                  >+ Nouveau projet</button>
+                )}
+              </div>
             </div>
+          )}
+        </div>
+
+        {tab === 'projets' && (
+          <div id="zone-imprimable" style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr>
+                  <tr style={{ position: 'sticky', top: headerH + barreH, zIndex: 40 }}>
                     <th style={th} onClick={() => trierPar('no')}>No {triChamp === 'no' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
                     <th style={th} onClick={() => trierPar('nom')}>Projet {triChamp === 'nom' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
                     <th style={th} onClick={() => trierPar('client')}>Client</th>
+                    <th style={th}>Contact client</th>
                     <th style={th}>Type</th>
                     <th style={th} onClick={() => trierPar('charge')}>Chargé</th>
                     <th style={th} onClick={() => trierPar('surintendant')}>Surintendant</th>
-                    <th style={th}>Contact client</th>
-                    {peutModifier && <th style={th} />}
+                    <th style={th}>Contact inspection</th>
+                    {peutModifier && <th style={{ ...th, cursor: 'default' }} className="no-print" />}
                   </tr>
                 </thead>
                 <tbody>
                   {projetsAffiches.length === 0 && (
-                    <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 8 : 7}>Aucun projet trouvé.</td></tr>
+                    <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 9 : 8}>Aucun projet trouvé.</td></tr>
                   )}
                   {projetsAffiches.map((p, i) => (
                     <tr key={p.no} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
                       <td style={{ ...td, fontWeight: 700, color: NAVY }}>{p.no}</td>
                       <td style={{ ...td, whiteSpace: 'normal', minWidth: 160 }}>{p.nom}</td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>{p.client || '—'}</td>
-                      <td style={td}>{p.type_projet ? (TYPE_ICONES[p.type_projet] || '') : '—'}</td>
-                      <td style={td}>{p.charge || '—'}</td>
-                      <td style={td}>{p.surintendant || '—'}</td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>
                         {p.contact_client_nom || '—'}
                         {p.contact_client_courriel && <span style={{ color: '#8a93a0' }}> · {p.contact_client_courriel}</span>}
                       </td>
+                      <td style={td}>{p.type_projet ? (TYPE_ICONES[p.type_projet] || '') : '—'}</td>
+                      <td style={td}>{p.charge || '—'}</td>
+                      <td style={td}>{p.surintendant || '—'}</td>
+                      <td style={{ ...td, whiteSpace: 'normal' }}>{p.contact_inspection || '—'}</td>
                       {peutModifier && (
-                        <td style={td}>
+                        <td style={td} className="no-print">
                           <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditProjet({ ...p, type_projet: p.type_projet || '' })}>Modifier</button>
                           <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr({ type: 'projet', id: p.no, label: `${p.no} — ${p.nom}` })}>Suppr.</button>
                         </td>
@@ -454,6 +526,15 @@ export default function ListeProjetsPage() {
           }}
         />
       )}
+
+      <style jsx global>{`
+        @media print {
+          .no-print { display: none !important; }
+          body, #zone-imprimable { background: #fff !important; }
+          table { font-size: 10px !important; }
+          th { background: #14213D !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -498,8 +579,16 @@ function ModalProjet({ projet, personnel, types, emailDe, onSave, onCancel, savi
       <Champ label="Nom du projet *">
         <input style={input} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
       </Champ>
-      <Champ label="Client">
-        <input style={input} value={form.client || ''} onChange={(e) => setForm({ ...form, client: e.target.value })} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
+        <Champ label="Client (compagnie)">
+          <input style={input} value={form.client || ''} onChange={(e) => setForm({ ...form, client: e.target.value })} />
+        </Champ>
+        <Champ label="Nom du contact client">
+          <input style={input} value={form.contact_client_nom || ''} onChange={(e) => setForm({ ...form, contact_client_nom: e.target.value })} />
+        </Champ>
+      </div>
+      <Champ label="Courriel du contact client">
+        <input style={input} value={form.contact_client_courriel || ''} onChange={(e) => setForm({ ...form, contact_client_courriel: e.target.value })} />
       </Champ>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
         <Champ label="Chargé de projet">
@@ -516,18 +605,7 @@ function ModalProjet({ projet, personnel, types, emailDe, onSave, onCancel, savi
           </select>
         </Champ>
       </div>
-      <div style={{ borderTop: '1px solid #eee', margin: '14px 0 10px', paddingTop: 10, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#8a93a0' }}>
-        Contact client (externe)
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-        <Champ label="Nom du contact client">
-          <input style={input} value={form.contact_client_nom || ''} onChange={(e) => setForm({ ...form, contact_client_nom: e.target.value })} />
-        </Champ>
-        <Champ label="Courriel du contact client">
-          <input style={input} value={form.contact_client_courriel || ''} onChange={(e) => setForm({ ...form, contact_client_courriel: e.target.value })} />
-        </Champ>
-      </div>
-      <Champ label="Contact inspection (sécurité client — machines/inspections)">
+      <Champ label="Contact inspection (sécurité — inspections de machinerie)">
         <input style={input} value={form.contact_inspection || ''} onChange={(e) => setForm({ ...form, contact_inspection: e.target.value })} />
       </Champ>
       <Champ label="Adresse du projet">
