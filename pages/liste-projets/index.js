@@ -250,11 +250,11 @@ export default function ListeProjetsPage() {
       const titre = ws.getCell(1, C);
       titre.value = 'Les Entreprises PEP2000 inc. — Liste des projets';
       titre.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14, name: 'Calibri' };
-      titre.alignment = { vertical: 'middle' };
+      titre.alignment = { vertical: 'middle', horizontal: 'left', indent: 6 };
       for (let i = 1; i <= C + colonnes.length - 1; i++) {
         ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14213D' } };
       }
-      ws.getRow(1).height = 28;
+      ws.getRow(1).height = 56;
 
       ws.mergeCells(2, C, 2, C + colonnes.length - 1);
       const sousTitre = ws.getCell(2, C);
@@ -285,7 +285,9 @@ export default function ListeProjetsPage() {
       if (logoDataUrl) {
         const base64 = logoDataUrl.split(',')[1];
         const imageId = wb.addImage({ base64, extension: 'png' });
-        ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: 36, height: 36 } });
+        // Colonne B (index 1, 0-indexé) = même colonne que "No" — plus dans
+        // la colonne A toute seule, comme demandé.
+        ws.addImage(imageId, { tl: { col: 1, row: 0 }, ext: { width: 48, height: 48 } });
       }
 
       const buffer = await wb.xlsx.writeBuffer();
