@@ -239,23 +239,24 @@ export default function ListeProjetsPage() {
         { header: 'Contact inspection', key: 'contactInspection', width: 26 },
         { header: 'Adresse', key: 'adresse', width: 28 },
       ];
-      const C = 2; // colonne 1 (A) réservée au logo
+      const C = 1; // les donnees commencent en colonne A (No partage la colonne avec le logo, ligne 1)
 
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Projets', { views: [{ state: 'frozen', ySplit: 3 }] });
-      ws.getColumn(1).width = 6;
       colonnes.forEach((c, i) => { ws.getColumn(C + i).width = c.width; });
 
-      ws.mergeCells(1, C, 1, C + colonnes.length - 1);
-      const titre = ws.getCell(1, C);
+      // Ligne 1 : logo en colonne A (voir plus bas), titre en colonne B a I
+      ws.mergeCells(1, C + 1, 1, C + colonnes.length - 1);
+      const titre = ws.getCell(1, C + 1);
       titre.value = 'Les Entreprises PEP2000 inc. — Liste des projets';
       titre.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14, name: 'Calibri' };
-      titre.alignment = { vertical: 'middle', horizontal: 'left', indent: 6 };
-      for (let i = 1; i <= C + colonnes.length - 1; i++) {
+      titre.alignment = { vertical: 'middle', horizontal: 'left' };
+      for (let i = C; i <= C + colonnes.length - 1; i++) {
         ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14213D' } };
       }
       ws.getRow(1).height = 56;
 
+      // Ligne 2 : sous-titre pleine largeur, de A a I
       ws.mergeCells(2, C, 2, C + colonnes.length - 1);
       const sousTitre = ws.getCell(2, C);
       sousTitre.value = `Généré le ${new Date().toLocaleDateString('fr-CA')} — ${lignes.length} projet(s)`;
@@ -285,9 +286,8 @@ export default function ListeProjetsPage() {
       if (logoDataUrl) {
         const base64 = logoDataUrl.split(',')[1];
         const imageId = wb.addImage({ base64, extension: 'png' });
-        // Colonne B (index 1, 0-indexé) = même colonne que "No" — plus dans
-        // la colonne A toute seule, comme demandé.
-        ws.addImage(imageId, { tl: { col: 1, row: 0 }, ext: { width: 48, height: 48 } });
+        // Colonne A, ligne 1 — meme colonne que "No" (qui commence a la ligne 3/4).
+        ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: 48, height: 48 } });
       }
 
       const buffer = await wb.xlsx.writeBuffer();
