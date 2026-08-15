@@ -44,14 +44,6 @@ const th = {
 };
 const td = { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1', whiteSpace: 'nowrap' };
 
-const TYPE_ICONES = { pep_excavation: '⛏️', estimation: '📐', amenagement: '🌳', pep_pavage: '🛣️', adp: '🧱' };
-
-function csvEchappe(v) {
-  const s = (v ?? '').toString();
-  if (/[",\n;]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-  return s;
-}
-
 export default function ListeProjetsPage() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +58,7 @@ export default function ListeProjetsPage() {
   const [recherche, setRecherche] = useState('');
   const [filtreType, setFiltreType] = useState('');
   const [inclureEstimation, setInclureEstimation] = useState(false);
+  const [voirArchives, setVoirArchives] = useState(false);
   const [triChamp, setTriChamp] = useState('no');
   const [triDir, setTriDir] = useState('desc');
 
@@ -144,9 +137,10 @@ export default function ListeProjetsPage() {
     return personnel.find((p) => p.nom === nomPersonnel)?.courriel || null;
   }
 
-  const projetsAffiches = useMemo(() => {
+  const projetsActifsAffiches = useMemo(() => {
     const q = recherche.trim().toLowerCase();
     let list = projets.filter((p) => {
+      if (p.archive) return false;
       if (p.type_projet === 'estimation' && !inclureEstimation && !q && !filtreType) return false;
       if (filtreType && p.type_projet !== filtreType) return false;
       if (!q) return true;
@@ -162,38 +156,218 @@ export default function ListeProjetsPage() {
     return list;
   }, [projets, recherche, filtreType, inclureEstimation, triChamp, triDir]);
 
+  const projetsArchivesAffiches = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
+    let list = projets.filter((p) => {
+      if (!p.archive) return false;
+      if (filtreType && p.type_projet !== filtreType) return false;
+      if (!q) return true;
+      return [p.no, p.nom, p.client, p.charge, p.surintendant, p.contact_client_nom]
+        .some((v) => (v || '').toString().toLowerCase().includes(q));
+    });
+    return [...list].sort((a, b) => (a.no || '').localeCompare(b.no || '', 'fr', { numeric: true }));
+  }, [projets, recherche, filtreType]);
+
   function trierPar(champ) {
     if (triChamp === champ) setTriDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setTriChamp(champ); setTriDir('asc'); }
   }
 
-  function exporterCSV() {
-    const entetes = ['No', 'Projet', 'Client', 'Contact client', 'Courriel contact client', 'Type', 'Chargé de projet', 'Surintendant', 'Contact inspection', 'Adresse'];
-    const lignes = projetsAffiches.map((p) => [
-      p.no, p.nom, p.client, p.contact_client_nom, p.contact_client_courriel,
-      types.find((t) => t.code === p.type_projet)?.label || '',
-      p.charge, p.surintendant, p.contact_inspection, p.adresse,
-    ].map(csvEchappe).join(','));
-    const csv = '\uFEFF' + [
-      'Les Entreprises PEP2000 inc. - Liste des projets',
-      `Genere le ${new Date().toLocaleDateString('fr-CA')}`,
-      '',
-      entetes.join(','),
-      ...lignes,
-    ].join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `liste-projets-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  async function archiverProjet(no) {
+    setSaving(true);
+    try {
+      await supabaseLP.from('projets').update({ archive: true }).eq('no', no);
+      await chargerTout();
+    } catch (e) { setErreur(e.message); }
+    setSaving(false);
+  }
+  async function desarchiverProjet(no) {
+    setSaving(true);
+    try {
+      await supabaseLP.from('projets').update({ archive: false }).eq('no', no);
+      await chargerTout();
+    } catch (e) { setErreur(e.message); }
+    setSaving(false);
   }
 
-  function exporterPDF() {
-    window.print();
+  // Charge le logo en base64 pour l'inclure dans les exports (PDF/Excel).
+  // Si ça échoue (réseau, etc.), on continue l'export sans logo plutôt que
+  // de faire échouer tout le téléchargement.
+  async function chargerLogoBase64() {
+    try {
+      const resp = await fetch(LOGO_PEP);
+      const blob = await resp.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function lignesExport() {
+    return projetsActifsAffiches.map((p) => ({
+      no: p.no,
+      nom: p.nom,
+      client: p.client || '',
+      contactClient: [p.contact_client_nom, p.contact_client_courriel].filter(Boolean).join(' — '),
+      type: types.find((t) => t.code === p.type_projet)?.label || '',
+      charge: p.charge || '',
+      surintendant: p.surintendant || '',
+      contactInspection: p.contact_inspection || '',
+      adresse: p.adresse || '',
+    }));
+  }
+
+  async function exporterExcel() {
+    setSaving(true); setErreur('');
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const logoDataUrl = await chargerLogoBase64();
+      const lignes = lignesExport();
+      const colonnes = [
+        { header: 'No', key: 'no', width: 10 },
+        { header: 'Projet', key: 'nom', width: 30 },
+        { header: 'Client', key: 'client', width: 22 },
+        { header: 'Contact client', key: 'contactClient', width: 32 },
+        { header: 'Type', key: 'type', width: 16 },
+        { header: 'Chargé de projet', key: 'charge', width: 20 },
+        { header: 'Surintendant', key: 'surintendant', width: 16 },
+        { header: 'Contact inspection', key: 'contactInspection', width: 26 },
+        { header: 'Adresse', key: 'adresse', width: 28 },
+      ];
+      const C = 2; // colonne 1 (A) réservée au logo
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Projets', { views: [{ state: 'frozen', ySplit: 3 }] });
+      ws.getColumn(1).width = 6;
+      colonnes.forEach((c, i) => { ws.getColumn(C + i).width = c.width; });
+
+      ws.mergeCells(1, C, 1, C + colonnes.length - 1);
+      const titre = ws.getCell(1, C);
+      titre.value = 'Les Entreprises PEP2000 inc. — Liste des projets';
+      titre.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 14, name: 'Calibri' };
+      titre.alignment = { vertical: 'middle' };
+      for (let i = 1; i <= C + colonnes.length - 1; i++) {
+        ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14213D' } };
+      }
+      ws.getRow(1).height = 28;
+
+      ws.mergeCells(2, C, 2, C + colonnes.length - 1);
+      const sousTitre = ws.getCell(2, C);
+      sousTitre.value = `Généré le ${new Date().toLocaleDateString('fr-CA')} — ${lignes.length} projet(s)`;
+      sousTitre.font = { italic: true, color: { argb: 'FF666666' }, size: 9, name: 'Calibri' };
+
+      colonnes.forEach((c, i) => {
+        const cell = ws.getCell(3, C + i);
+        cell.value = c.header;
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Calibri' };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14213D' } };
+      });
+
+      lignes.forEach((p, idx) => {
+        const rangee = 4 + idx;
+        colonnes.forEach((c, i) => {
+          const cell = ws.getCell(rangee, C + i);
+          cell.value = p[c.key] || '';
+          cell.font = { name: 'Calibri', size: 11 };
+          if (idx % 2 === 1) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F8FA' } };
+          }
+        });
+      });
+
+      ws.autoFilter = { from: { row: 3, column: C }, to: { row: 3, column: C + colonnes.length - 1 } };
+
+      if (logoDataUrl) {
+        const base64 = logoDataUrl.split(',')[1];
+        const imageId = wb.addImage({ base64, extension: 'png' });
+        ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: 36, height: 36 } });
+      }
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `liste-projets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      setErreur('Erreur export Excel : ' + e.message);
+    }
+    setSaving(false);
+  }
+
+  async function exporterPDF() {
+    setSaving(true); setErreur('');
+    try {
+      const { pdf, Document, Page, View, Text, StyleSheet, Image, Font } = await import('@react-pdf/renderer');
+      const logoDataUrl = await chargerLogoBase64();
+      const lignes = lignesExport();
+
+      const colonnes = [
+        { label: 'No', key: 'no', width: '7%' },
+        { label: 'Projet', key: 'nom', width: '19%' },
+        { label: 'Client', key: 'client', width: '13%' },
+        { label: 'Contact client', key: 'contactClient', width: '17%' },
+        { label: 'Type', key: 'type', width: '10%' },
+        { label: 'Chargé', key: 'charge', width: '11%' },
+        { label: 'Surintendant', key: 'surintendant', width: '11%' },
+        { label: 'Contact inspection', key: 'contactInspection', width: '12%' },
+      ];
+
+      const styles = StyleSheet.create({
+        page: { paddingTop: 10, paddingBottom: 24, paddingHorizontal: 20, fontSize: 8 },
+        headerBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#14213D', padding: 8, marginBottom: 8 },
+        logo: { width: 26, height: 26, marginRight: 8 },
+        titre: { color: '#ffffff', fontSize: 12, fontWeight: 700 },
+        sousTitre: { color: '#B9C2CC', fontSize: 8, marginLeft: 'auto' },
+        row: { flexDirection: 'row' },
+        th: { backgroundColor: '#14213D', color: '#ffffff', padding: 4, fontSize: 7, fontWeight: 700 },
+        td: { padding: 4, fontSize: 7, borderBottomWidth: 0.5, borderBottomColor: '#EDEFF1' },
+        pied: { position: 'absolute', bottom: 10, left: 20, right: 20, fontSize: 7, color: '#8a93a0', textAlign: 'center' },
+      });
+
+      const Doc = (
+        <Document>
+          <Page size="A4" orientation="landscape" style={styles.page} wrap>
+            <View style={styles.headerBar} fixed>
+              {logoDataUrl && <Image style={styles.logo} src={logoDataUrl} />}
+              <Text style={styles.titre}>Les Entreprises PEP2000 inc. — Liste des projets</Text>
+              <Text style={styles.sousTitre}>{new Date().toLocaleDateString('fr-CA')} — {lignes.length} projet(s)</Text>
+            </View>
+            <View style={styles.row} fixed>
+              {colonnes.map((c) => <Text key={c.key} style={[styles.th, { width: c.width }]}>{c.label}</Text>)}
+            </View>
+            {lignes.map((p, i) => (
+              <View key={p.no} style={[styles.row, { backgroundColor: i % 2 === 0 ? '#ffffff' : '#FAFBFC' }]} wrap={false}>
+                {colonnes.map((c) => <Text key={c.key} style={[styles.td, { width: c.width }]}>{p[c.key] || ''}</Text>)}
+              </View>
+            ))}
+            <Text style={styles.pied} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} fixed />
+          </Page>
+        </Document>
+      );
+
+      const blob = await pdf(Doc).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `liste-projets-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      setErreur('Erreur export PDF : ' + e.message);
+    }
+    setSaving(false);
   }
 
   async function sauvegarderProjet(form) {
@@ -323,7 +497,7 @@ export default function ListeProjetsPage() {
       <Head><title>Liste des projets - Toolbox PEP</title></Head>
 
       {/* En-tête PEP — figé en haut */}
-      <div ref={headerRef} className="no-print" style={{ position: 'sticky', top: 0, zIndex: 60 }}>
+      <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 60 }}>
         <div style={{ height: 4, background: RED }} />
         <header style={{ background: NAVY, color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -340,7 +514,7 @@ export default function ListeProjetsPage() {
         {/* Barre de contrôle (onglets + erreur + recherche/filtre) — figée juste sous l'en-tête */}
         <div
           ref={barreRef}
-          className="no-print"
+         
           style={{ position: 'sticky', top: headerH, zIndex: 55, background: BG, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
         >
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -367,15 +541,15 @@ export default function ListeProjetsPage() {
               />
               <select value={filtreType} onChange={(e) => setFiltreType(e.target.value)} style={{ ...input, width: 'auto', maxWidth: 200 }}>
                 <option value="">Tous les types</option>
-                {types.map((t) => <option key={t.code} value={t.code}>{TYPE_ICONES[t.code] || ''} {t.label}</option>)}
+                {types.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
               </select>
               <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#444', whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={inclureEstimation} onChange={(e) => setInclureEstimation(e.target.checked)} />
                 Inclure les projets en estimation
               </label>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                <button style={btnGhost} onClick={exporterCSV}>Exporter CSV</button>
-                <button style={btnGhost} onClick={exporterPDF}>Exporter PDF</button>
+                <button style={btnGhost} onClick={exporterExcel} disabled={saving}>Exporter Excel</button>
+                <button style={btnGhost} onClick={exporterPDF} disabled={saving}>Exporter PDF</button>
                 {peutModifier && (
                   <button
                     style={btn}
@@ -389,15 +563,7 @@ export default function ListeProjetsPage() {
 
         {tab === 'projets' && (
           <>
-            <div className="print-only" style={{ display: 'none' }}>
-              <div style={{ height: 4, background: RED }} />
-              <div style={{ background: NAVY, color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <img src={LOGO_PEP} alt="" style={{ height: 32, width: 'auto' }} />
-                <strong style={{ fontSize: 14, fontFamily: "'Oswald',sans-serif" }}>Les Entreprises PEP2000 inc. — Liste des projets</strong>
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#B9C2CC' }}>Généré le {new Date().toLocaleDateString('fr-CA')}</span>
-              </div>
-            </div>
-            <div id="zone-imprimable" style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
+            <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
             <div style={{ overflow: 'auto', maxHeight: `calc(100vh - ${headerH + barreH + 20}px)` }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -410,14 +576,14 @@ export default function ListeProjetsPage() {
                     <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('charge')}>Chargé</th>
                     <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('surintendant')}>Surintendant</th>
                     <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }}>Contact inspection</th>
-                    {peutModifier && <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40, cursor: 'default' }} className="no-print" />}
+                    {peutModifier && <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40, cursor: 'default' }} />}
                   </tr>
                 </thead>
                 <tbody>
-                  {projetsAffiches.length === 0 && (
+                  {projetsActifsAffiches.length === 0 && (
                     <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 9 : 8}>Aucun projet trouvé.</td></tr>
                   )}
-                  {projetsAffiches.map((p, i) => (
+                  {projetsActifsAffiches.map((p, i) => (
                     <tr key={p.no} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
                       <td style={{ ...td, fontWeight: 700, color: NAVY }}>{p.no}</td>
                       <td style={{ ...td, whiteSpace: 'normal', minWidth: 160 }}>{p.nom}</td>
@@ -426,13 +592,14 @@ export default function ListeProjetsPage() {
                         {p.contact_client_nom || '—'}
                         {p.contact_client_courriel && <span style={{ color: '#8a93a0' }}> · {p.contact_client_courriel}</span>}
                       </td>
-                      <td style={td}>{p.type_projet ? (TYPE_ICONES[p.type_projet] || '') : '—'}</td>
+                      <td style={{ ...td, whiteSpace: 'normal' }}>{types.find((t) => t.code === p.type_projet)?.label || '—'}</td>
                       <td style={td}>{p.charge || '—'}</td>
                       <td style={td}>{p.surintendant || '—'}</td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>{p.contact_inspection || '—'}</td>
                       {peutModifier && (
-                        <td style={td} className="no-print">
+                        <td style={td}>
                           <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditProjet({ ...p, type_projet: p.type_projet || '' })}>Modifier</button>
+                          <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => archiverProjet(p.no)} disabled={saving}>Archiver</button>
                           <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr({ type: 'projet', id: p.no, label: `${p.no} — ${p.nom}` })}>Suppr.</button>
                         </td>
                       )}
@@ -442,6 +609,52 @@ export default function ListeProjetsPage() {
               </table>
             </div>
           </div>
+
+            <div style={{ marginTop: 20 }}>
+              <button style={btnGhost} onClick={() => setVoirArchives((v) => !v)}>
+                {voirArchives ? 'Masquer' : 'Afficher'} les projets archivés ({projetsArchivesAffiches.length})
+              </button>
+              {voirArchives && (
+                <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)', marginTop: 10 }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={th}>No</th>
+                          <th style={th}>Projet</th>
+                          <th style={th}>Client</th>
+                          <th style={th}>Type</th>
+                          <th style={th}>Chargé</th>
+                          <th style={th}>Surintendant</th>
+                          {peutModifier && <th style={th} />}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {projetsArchivesAffiches.length === 0 && (
+                          <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 7 : 6}>Aucun projet archivé.</td></tr>
+                        )}
+                        {projetsArchivesAffiches.map((p, i) => (
+                          <tr key={p.no} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC', color: '#8a93a0' }}>
+                            <td style={{ ...td, fontWeight: 700 }}>{p.no}</td>
+                            <td style={{ ...td, whiteSpace: 'normal' }}>{p.nom}</td>
+                            <td style={{ ...td, whiteSpace: 'normal' }}>{p.client || '—'}</td>
+                            <td style={{ ...td, whiteSpace: 'normal' }}>{types.find((t) => t.code === p.type_projet)?.label || '—'}</td>
+                            <td style={td}>{p.charge || '—'}</td>
+                            <td style={td}>{p.surintendant || '—'}</td>
+                            {peutModifier && (
+                              <td style={td}>
+                                <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => desarchiverProjet(p.no)} disabled={saving}>Désarchiver</button>
+                                <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr({ type: 'projet', id: p.no, label: `${p.no} — ${p.nom}` })}>Suppr.</button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -465,7 +678,7 @@ export default function ListeProjetsPage() {
               <tbody>
                 {types.map((t, i) => (
                   <tr key={t.code} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
-                    <td style={{ ...td, whiteSpace: 'normal' }}>{TYPE_ICONES[t.code] || ''} {t.label}</td>
+                    <td style={{ ...td, whiteSpace: 'normal' }}>{t.label}</td>
                     <td style={{ ...td, whiteSpace: 'normal' }}>{t.client || '—'}</td>
                     <td style={td}>{t.charge || '—'}</td>
                     {peutModifier && (
@@ -543,16 +756,6 @@ export default function ListeProjetsPage() {
         />
       )}
 
-      <style jsx global>{`
-        .print-only { display: none; }
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-          body, #zone-imprimable { background: #fff !important; }
-          table { font-size: 10px !important; }
-          th { background: #14213D !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -590,7 +793,7 @@ function ModalProjet({ projet, personnel, types, emailDe, onSave, onCancel, savi
         <Champ label="Type de projet">
           <select style={input} value={form.type_projet || ''} onChange={(e) => setForm({ ...form, type_projet: e.target.value })}>
             <option value="">—</option>
-            {types.map((t) => <option key={t.code} value={t.code}>{TYPE_ICONES[t.code] || ''} {t.label}</option>)}
+            {types.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
           </select>
         </Champ>
       </div>
