@@ -398,19 +398,19 @@ export default function ListeProjetsPage() {
               </div>
             </div>
             <div id="zone-imprimable" style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflow: 'auto', maxHeight: `calc(100vh - ${headerH + barreH + 20}px)` }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('no')}>No {triChamp === 'no' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('nom')}>Projet {triChamp === 'nom' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('client')}>Client</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Contact client</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Type</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('charge')}>Chargé</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }} onClick={() => trierPar('surintendant')}>Surintendant</th>
-                    <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40 }}>Contact inspection</th>
-                    {peutModifier && <th style={{ ...th, position: 'sticky', top: headerH + barreH, zIndex: 40, cursor: 'default' }} className="no-print" />}
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('no')}>No {triChamp === 'no' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('nom')}>Projet {triChamp === 'nom' ? (triDir === 'asc' ? '▲' : '▼') : ''}</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('client')}>Client</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }}>Contact client</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }}>Type</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('charge')}>Chargé</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }} onClick={() => trierPar('surintendant')}>Surintendant</th>
+                    <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40 }}>Contact inspection</th>
+                    {peutModifier && <th style={{ ...th, position: 'sticky', top: 0, zIndex: 40, cursor: 'default' }} className="no-print" />}
                   </tr>
                 </thead>
                 <tbody>
