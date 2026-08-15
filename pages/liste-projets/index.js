@@ -208,6 +208,21 @@ export default function ListeProjetsPage() {
     }
   }
 
+  // Comme chargerLogoBase64, mais renvoie aussi les dimensions réelles du
+  // logo pour pouvoir le redimensionner dans Excel en gardant ses
+  // proportions (plutôt qu'une taille fixe qui déforme ou rapetisse l'image).
+  async function chargerLogoInfo() {
+    const dataUrl = await chargerLogoBase64();
+    if (!dataUrl) return { dataUrl: null, width: null, height: null };
+    const dims = await new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({ width: null, height: null });
+      img.src = dataUrl;
+    });
+    return { dataUrl, width: dims.width, height: dims.height };
+  }
+
   function lignesExport() {
     return projetsActifsAffiches.map((p) => ({
       no: p.no,
@@ -226,7 +241,7 @@ export default function ListeProjetsPage() {
     setSaving(true); setErreur('');
     try {
       const ExcelJS = (await import('exceljs')).default;
-      const logoDataUrl = await chargerLogoBase64();
+      const logo = await chargerLogoInfo();
       const lignes = lignesExport();
       const colonnes = [
         { header: 'No', key: 'no', width: 10 },
@@ -254,7 +269,8 @@ export default function ListeProjetsPage() {
       for (let i = C; i <= C + colonnes.length - 1; i++) {
         ws.getCell(1, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14213D' } };
       }
-      ws.getRow(1).height = 56;
+      const HAUTEUR_LIGNE_1 = 56; // en points
+      ws.getRow(1).height = HAUTEUR_LIGNE_1;
 
       // Ligne 2 : sous-titre pleine largeur, de A a I
       ws.mergeCells(2, C, 2, C + colonnes.length - 1);
@@ -283,11 +299,16 @@ export default function ListeProjetsPage() {
 
       ws.autoFilter = { from: { row: 3, column: C }, to: { row: 3, column: C + colonnes.length - 1 } };
 
-      if (logoDataUrl) {
-        const base64 = logoDataUrl.split(',')[1];
+      if (logo.dataUrl) {
+        const base64 = logo.dataUrl.split(',')[1];
         const imageId = wb.addImage({ base64, extension: 'png' });
-        // Colonne A, ligne 1 — meme colonne que "No" (qui commence a la ligne 3/4).
-        ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: 48, height: 48 } });
+        // Hauteur = pleine hauteur de la ligne 1 (conversion points -> pixels,
+        // facteur standard 96/72), largeur calculee a partir des vraies
+        // proportions du logo pour ne pas le deformer ni le laisser trop petit.
+        const hauteurPx = HAUTEUR_LIGNE_1 * (96 / 72);
+        const ratio = logo.width && logo.height ? logo.width / logo.height : 1;
+        const largeurPx = hauteurPx * ratio;
+        ws.addImage(imageId, { tl: { col: 0, row: 0 }, ext: { width: largeurPx, height: hauteurPx } });
       }
 
       const buffer = await wb.xlsx.writeBuffer();
