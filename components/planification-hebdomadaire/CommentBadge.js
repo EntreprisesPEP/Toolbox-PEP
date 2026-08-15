@@ -9,14 +9,9 @@ function timeAgo(iso) {
 export default function CommentBadge({ project, comments, onAdd, onDelete }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
-  const [author, setAuthor] = useState('');
   const btnRef = useRef(null);
   const panelRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-
-  useEffect(() => {
-    if (open) setAuthor('');
-  }, [open]);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -78,13 +73,6 @@ export default function CommentBadge({ project, comments, onAdd, onDelete }) {
               </div>
             ))}
           </div>
-          <input
-            type="text"
-            placeholder="Ton nom (optionnel)"
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            style={{ width: '100%', marginBottom: 6 }}
-          />
           <textarea
             placeholder="Ex: ajouter 2 gars mardi"
             value={text}
@@ -97,7 +85,7 @@ export default function CommentBadge({ project, comments, onAdd, onDelete }) {
               className="btn small"
               onClick={async () => {
                 if (!text.trim()) return;
-                await onAdd(text.trim(), author.trim());
+                await onAdd(text.trim());
                 setText('');
               }}
             >Ajouter</button>

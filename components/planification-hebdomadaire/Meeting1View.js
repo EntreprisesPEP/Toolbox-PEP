@@ -4,7 +4,7 @@ import ConfirmModal from './ConfirmModal';
 import FullscreenView from './FullscreenView';
 import { fmtDateLong, mondayOf, dateKey } from '../../lib/planification-hebdomadaire/dates';
 
-export default function Meeting1View({ board, editable, theme }) {
+export default function Meeting1View({ board, editable, theme, nomUtilisateur }) {
   const { projects, settings, updateProject, switchNotesWeek, importPreviousWeek, clearMeeting1Week } = board;
   const [notice, setNotice] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
@@ -54,6 +54,7 @@ export default function Meeting1View({ board, editable, theme }) {
         editable={editable}
         theme={theme}
         board={board}
+        nomUtilisateur={nomUtilisateur}
         onUpdate={(id, patch) => updateProject(id, patch)}
         emptyLabel="Aucun projet actif. Ajoute-les dans Admin projets."
         highlightedId={settings.highlighted_project_id}

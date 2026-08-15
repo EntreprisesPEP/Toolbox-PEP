@@ -13,6 +13,7 @@ const ORDRE_DU_JOUR_ROLES = [
 ];
 const ORDRE_DU_JOUR_ACCES = ['tout', 'camions', 'machinerie'];
 const ORDRE_DU_JOUR_SLUG = 'ordre-du-jour';
+const PLANIF_HEBDO_SLUG = 'planification-hebdomadaire';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -66,6 +67,13 @@ export default async function handler(req, res) {
         .select('*');
       if (odjErr) throw odjErr;
 
+      // NOUVEAU — profils Planification hebdomadaire (juste le nom, pas de role)
+      const { data: planifProfils, error: planifErr } = await admin
+        .schema('planif_hebdo')
+        .from('profils')
+        .select('*');
+      if (planifErr) throw planifErr;
+
       const roleMap = Object.fromEntries((roles || []).map((r) => [r.user_id, r.role]));
 
       const appsMap = {};
@@ -87,6 +95,10 @@ export default async function handler(req, res) {
         }])
       );
 
+      const planifMap = Object.fromEntries(
+        (planifProfils || []).map((p) => [p.user_id, { nom: p.nom }])
+      );
+
       // NOUVEAU — profils en attente (pas encore de compte, references par courriel)
       const { data: profilsAttente, error: attenteErr } = await admin
         .schema('ordre_du_jour')
@@ -94,6 +106,21 @@ export default async function handler(req, res) {
         .select('*')
         .order('created_at');
       if (attenteErr) throw attenteErr;
+
+      // NOUVEAU — profils Planification hebdomadaire en attente
+      const { data: planifProfilsAttente, error: planifAttenteErr } = await admin
+        .schema('planif_hebdo')
+        .from('profils_attente')
+        .select('*')
+        .order('created_at');
+      if (planifAttenteErr) throw planifAttenteErr;
+
+      // NOUVEAU — acces en attente GENERIQUES (toutes apps), references par courriel
+      const { data: accesAttente, error: accesAttenteErr } = await admin
+        .from('pep_pending_access')
+        .select('*')
+        .order('created_at');
+      if (accesAttenteErr) throw accesAttenteErr;
 
       const users = authData.users.map((u) => ({
         id: u.id,
@@ -105,6 +132,7 @@ export default async function handler(req, res) {
         apps: appsMap[u.id] || [],
         features: featuresMap[u.id] || [],
         ordre_du_jour_profil: ordreDuJourMap[u.id] || null,
+        planif_hebdo_profil: planifMap[u.id] || null,
       }));
 
       const { data: apps } = await admin.from('pep_apps').select('*').order('sort_order');
@@ -117,6 +145,8 @@ export default async function handler(req, res) {
         ordre_du_jour_roles: ORDRE_DU_JOUR_ROLES,
         ordre_du_jour_acces: ORDRE_DU_JOUR_ACCES,
         ordre_du_jour_profils_attente: profilsAttente || [],
+        planif_hebdo_profils_attente: planifProfilsAttente || [],
+        acces_attente: accesAttente || [],
       });
     }
 
@@ -160,7 +190,62 @@ export default async function handler(req, res) {
         ordreDuJourLinked = true;
       }
 
-      return res.status(200).json({ success: true, user_id: newUserId, ordre_du_jour_linked: ordreDuJourLinked });
+      // NOUVEAU — meme principe pour Planification hebdomadaire (juste le nom,
+      // pas de role/acces special).
+      let planifLinked = false;
+      const { data: planifAttenteRow } = await admin
+        .schema('planif_hebdo')
+        .from('profils_attente')
+        .select('*')
+        .eq('email', emailNorm)
+        .maybeSingle();
+
+      if (planifAttenteRow) {
+        await admin.schema('planif_hebdo').from('profils').upsert({
+          user_id: newUserId,
+          nom: planifAttenteRow.nom,
+          updated_at: new Date().toISOString(),
+        });
+        await admin.from('pep_user_apps').upsert({
+          user_id: newUserId, app_slug: PLANIF_HEBDO_SLUG, granted_by: userData.user.id,
+        });
+        await admin.schema('planif_hebdo').from('profils_attente').delete().eq('email', emailNorm);
+        planifLinked = true;
+      }
+
+      // NOUVEAU — consomme aussi tout acces en attente GENERIQUE (n'importe
+      // quelle app) configure pour ce courriel avant que le compte existe.
+      const { data: accesAttenteRows } = await admin
+        .from('pep_pending_access')
+        .select('*')
+        .eq('email', emailNorm);
+
+      let accesGeneriquesLies = 0;
+      for (const row of accesAttenteRows || []) {
+        if (row.has_app_access) {
+          await admin.from('pep_user_apps').upsert({
+            user_id: newUserId, app_slug: row.app_slug, granted_by: userData.user.id,
+          });
+        }
+        if (Array.isArray(row.feature_keys) && row.feature_keys.length > 0) {
+          const rows = row.feature_keys.map((feature_key) => ({
+            user_id: newUserId, app_slug: row.app_slug, feature_key, granted_by: userData.user.id,
+          }));
+          await admin.from('pep_user_features').insert(rows);
+        }
+        accesGeneriquesLies++;
+      }
+      if (accesGeneriquesLies > 0) {
+        await admin.from('pep_pending_access').delete().eq('email', emailNorm);
+      }
+
+      return res.status(200).json({
+        success: true,
+        user_id: newUserId,
+        ordre_du_jour_linked: ordreDuJourLinked,
+        planif_hebdo_linked: planifLinked,
+        acces_generiques_lies: accesGeneriquesLies,
+      });
     }
 
     // NOUVEAU — creer/mettre a jour une regle en attente (courriel -> nom/role/acces)
@@ -271,6 +356,78 @@ export default async function handler(req, res) {
         email: targetUserOdj?.user?.email || null,
         updated_at: new Date().toISOString(),
       });
+      if (error) throw error;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // NOUVEAU — profil Planification hebdomadaire (juste le nom, pas de role).
+    if (action === 'update_planif_hebdo_profil') {
+      const { user_id, nom } = req.body;
+      if (!user_id || !nom) throw new Error('user_id et nom requis');
+
+      await admin.from('pep_user_apps').upsert({
+        user_id, app_slug: PLANIF_HEBDO_SLUG, granted_by: userData.user.id,
+      });
+
+      const { error: erreurPlanif } = await admin.schema('planif_hebdo').from('profils').upsert({
+        user_id,
+        nom: nom.trim(),
+        updated_at: new Date().toISOString(),
+      });
+      if (erreurPlanif) throw erreurPlanif;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // NOUVEAU — creer/mettre a jour une regle en attente (courriel -> nom)
+    // pour Planification hebdomadaire, pour une personne sans compte encore.
+    if (action === 'upsert_planif_profil_attente') {
+      const { email, nom } = req.body;
+      if (!email || !nom) throw new Error('email et nom requis');
+
+      const { error: erreurPlanifAttente } = await admin.schema('planif_hebdo').from('profils_attente').upsert({
+        email: email.trim().toLowerCase(),
+        nom: nom.trim(),
+      });
+      if (erreurPlanifAttente) throw erreurPlanifAttente;
+
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'delete_planif_profil_attente') {
+      const { email } = req.body;
+      if (!email) throw new Error('email requis');
+
+      const { error: erreurSupprPlanif } = await admin.schema('planif_hebdo').from('profils_attente').delete().eq('email', email.trim().toLowerCase());
+      if (erreurSupprPlanif) throw erreurSupprPlanif;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // NOUVEAU — creer/mettre a jour un acces en attente GENERIQUE (n'importe
+    // quelle app + fonctionnalites) pour un courriel qui n'a pas encore de compte.
+    if (action === 'upsert_pending_access') {
+      const { email, app_slug, has_app_access, feature_keys } = req.body;
+      if (!email || !app_slug) throw new Error('email et app_slug requis');
+
+      const { error } = await admin.from('pep_pending_access').upsert({
+        email: email.trim().toLowerCase(),
+        app_slug,
+        has_app_access: !!has_app_access,
+        feature_keys: Array.isArray(feature_keys) ? feature_keys : [],
+        granted_by: userData.user.id,
+      });
+      if (error) throw error;
+
+      return res.status(200).json({ success: true });
+    }
+
+    if (action === 'delete_pending_access') {
+      const { email, app_slug } = req.body;
+      if (!email || !app_slug) throw new Error('email et app_slug requis');
+
+      const { error } = await admin.from('pep_pending_access').delete().eq('email', email.trim().toLowerCase()).eq('app_slug', app_slug);
       if (error) throw error;
 
       return res.status(200).json({ success: true });

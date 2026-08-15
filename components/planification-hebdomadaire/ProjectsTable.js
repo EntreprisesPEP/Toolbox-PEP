@@ -26,7 +26,7 @@ function AutoTextarea({ value, editable, onChange }) {
   );
 }
 
-export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel, highlightedId, onHighlight }) {
+export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel, highlightedId, onHighlight, nomUtilisateur }) {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [filterCharge, setFilterCharge] = useState(null);
@@ -131,7 +131,7 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                   <CommentBadge
                     project={p}
                     comments={projComments}
-                    onAdd={(body, author) => board.addComment(p.id, body, author)}
+                    onAdd={(body) => board.addComment(p.id, body, nomUtilisateur)}
                     onDelete={(id) => board.deleteComment(id)}
                   />
                 </td>

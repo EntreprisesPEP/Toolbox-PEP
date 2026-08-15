@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import PasswordModal from './PasswordModal';
 
-export default function Header({ prefs, updatePrefs }) {
+export default function Header({ prefs, updatePrefs, nomUtilisateur, onDeconnexion }) {
   const [pwdOpen, setPwdOpen] = useState(false);
 
   function toggleRole() {
@@ -59,10 +59,17 @@ export default function Header({ prefs, updatePrefs }) {
             >JOUR</button>
           </div>
           <div className="h-meta">
+            {nomUtilisateur && <><span>{nomUtilisateur}</span><br /></>}
             Mode <strong>{prefs.role === 'edit' ? 'animateur' : 'participant'}</strong><br />
             <a onClick={toggleRole}>
               {prefs.role === 'edit' ? 'passer en mode participant' : 'passer en mode animateur'}
             </a>
+            {onDeconnexion && (
+              <>
+                {' · '}
+                <a onClick={onDeconnexion}>se déconnecter</a>
+              </>
+            )}
           </div>
         </div>
       </div>

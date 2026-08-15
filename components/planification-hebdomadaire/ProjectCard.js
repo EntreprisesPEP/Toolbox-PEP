@@ -13,7 +13,7 @@ function CardTextarea({ value, editable, onChange }) {
   );
 }
 
-export default function ProjectCard({ project: p, editable, theme, onUpdate, board }) {
+export default function ProjectCard({ project: p, editable, theme, onUpdate, board, nomUtilisateur }) {
   const col = statusColor(p.statut, theme);
   const projComments = board.commentsFor(p.id);
 
@@ -26,7 +26,7 @@ export default function ProjectCard({ project: p, editable, theme, onUpdate, boa
         <CommentBadge
           project={p}
           comments={projComments}
-          onAdd={(body, author) => board.addComment(p.id, body, author)}
+          onAdd={(body) => board.addComment(p.id, body, nomUtilisateur)}
           onDelete={(id) => board.deleteComment(id)}
         />
       </div>

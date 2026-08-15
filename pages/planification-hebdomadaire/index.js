@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import { createClient } from '@supabase/supabase-js';
 import Header from '../../components/planification-hebdomadaire/Header';
+import AuthGate from '../../components/planification-hebdomadaire/AuthGate';
 import AdminView from '../../components/planification-hebdomadaire/AdminView';
 import Meeting1View from '../../components/planification-hebdomadaire/Meeting1View';
 import Meeting2View from '../../components/planification-hebdomadaire/Meeting2View';
@@ -10,6 +12,8 @@ import { usePrefs } from '../../hooks/planification-hebdomadaire/usePrefs';
 import { useBoard } from '../../hooks/planification-hebdomadaire/useBoard';
 import { mondayOf, today, dateKey } from '../../lib/planification-hebdomadaire/dates';
 
+const supabaseAuth = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
 const TABS = [
   { key: 'admin', label: 'ADMIN PROJETS' },
   { key: '1', label: 'MEETING 1 - SUIVI PROJETS' },
@@ -18,17 +22,27 @@ const TABS = [
 ];
 
 export default function PlanificationHebdomadaire() {
+  const [profil, setProfil] = useState(null);
   const { prefs, update, ready } = usePrefs();
   const board = useBoard();
   const [tab, setTab] = useState('1');
   const [printOpen, setPrintOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  if (!profil) {
+    return <AuthGate onDone={setProfil} />;
+  }
+
   if (!ready || board.loading) {
     return <div style={{ padding: 40, fontFamily: 'Segoe UI, Arial, sans-serif' }}>Chargement...</div>;
   }
 
   const editable = prefs.role === 'edit';
+
+  async function seDeconnecter() {
+    await supabaseAuth.auth.signOut();
+    setProfil(null);
+  }
 
   async function handleGeneratePdf(selection) {
     setGenerating(true);
@@ -62,7 +76,7 @@ export default function PlanificationHebdomadaire() {
         <title>Planification Hebdomadaire - PEP2000</title>
       </Head>
 
-      <Header prefs={prefs} updatePrefs={update} />
+      <Header prefs={prefs} updatePrefs={update} nomUtilisateur={profil.nom} onDeconnexion={seDeconnecter} />
 
       <div className="wrap">
         <div className="toolbar">
@@ -90,9 +104,9 @@ export default function PlanificationHebdomadaire() {
         </div>
 
         {tab === 'admin' && <AdminView board={board} editable={editable} />}
-        {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} />}
+        {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={profil.nom} />}
         {tab === '2' && <Meeting2View board={board} editable={editable} theme={prefs.theme} />}
-        {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} />}
+        {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={profil.nom} />}
 
         <div className="footnote">
           Donnee partagee en temps reel via Supabase entre tous ceux qui ouvrent ce site.

@@ -1,6 +1,6 @@
 import ProjectsTable from './ProjectsTable';
 
-export default function TerminesView({ board, editable, theme }) {
+export default function TerminesView({ board, editable, theme, nomUtilisateur }) {
   const { projects, updateProject } = board;
   const done = projects.filter((p) => p.statut === 'Termine');
 
@@ -13,6 +13,7 @@ export default function TerminesView({ board, editable, theme }) {
         editable={editable}
         theme={theme}
         board={board}
+        nomUtilisateur={nomUtilisateur}
         onUpdate={(id, patch) => updateProject(id, patch)}
         emptyLabel="Aucun projet termine pour le moment."
       />

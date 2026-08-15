@@ -60,6 +60,8 @@ export default function AdministrationPage() {
   const [ordreDuJourRoles, setOrdreDuJourRoles] = useState([]);
   const [ordreDuJourAcces, setOrdreDuJourAcces] = useState([]);
   const [profilsAttente, setProfilsAttente] = useState([]);
+  const [planifProfilsAttente, setPlanifProfilsAttente] = useState([]);
+  const [accesAttente, setAccesAttente] = useState([]);
   const [expandedUser, setExpandedUser] = useState(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMsg, setInviteMsg] = useState('');
@@ -88,6 +90,8 @@ export default function AdministrationPage() {
     setOrdreDuJourRoles(data.ordre_du_jour_roles || []);
     setOrdreDuJourAcces(data.ordre_du_jour_acces || []);
     setProfilsAttente(data.ordre_du_jour_profils_attente || []);
+    setPlanifProfilsAttente(data.planif_hebdo_profils_attente || []);
+    setAccesAttente(data.acces_attente || []);
   }
 
   useEffect(() => {
@@ -163,6 +167,52 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
+  async function onSavePlanifProfilAttente(email, nom) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'upsert_planif_profil_attente', email, nom });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
+  async function onDeletePlanifProfilAttente(email) {
+    if (!confirm(`Retirer la regle en attente pour ${email} ?`)) return; // eslint-disable-line no-alert
+    setSaving(true);
+    try {
+      await callApi({ action: 'delete_planif_profil_attente', email });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
+  async function onSaveAccesAttente(email, appSlug, hasAppAccess, featureKeys) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'upsert_pending_access', email, app_slug: appSlug, has_app_access: hasAppAccess, feature_keys: featureKeys });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
+  async function onDeleteAccesAttente(email, appSlug) {
+    if (!confirm(`Retirer l'acces en attente pour ${email} (${appSlug}) ?`)) return; // eslint-disable-line no-alert
+    setSaving(true);
+    try {
+      await callApi({ action: 'delete_pending_access', email, app_slug: appSlug });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
   async function onRoleChange(user, newRole) {
     setSaving(true);
     try {
@@ -214,6 +264,17 @@ export default function AdministrationPage() {
         acces_special: accesSpecial,
         peut_previsualiser: peutPrevisualiser,
       });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
+  async function onSavePlanifHebdoProfil(user, nom) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'update_planif_hebdo_profil', user_id: user.id, nom });
       await loadAll();
     } catch (e) {
       alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
@@ -314,6 +375,84 @@ export default function AdministrationPage() {
         </Card>
 
         <Card>
+          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Profils Planification hebdomadaire en attente ({planifProfilsAttente.length})</h2>
+          <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
+            Pre-configure juste le nom affiché pour une personne qui n&apos;a pas encore de compte.
+            Dès que tu envoies son invitation ci-dessus avec le même courriel, la règle s&apos;applique automatiquement
+            (accès à l&apos;app inclus) et disparaît de cette liste.
+          </p>
+          <PlanifProfilAttenteForm onSave={onSavePlanifProfilAttente} saving={saving} />
+          {planifProfilsAttente.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <Th>Courriel</Th>
+                  <Th>Nom</Th>
+                  <Th />
+                </tr>
+              </thead>
+              <tbody>
+                {planifProfilsAttente.map((p) => (
+                  <tr key={p.email} style={{ borderBottom: '1px solid #eee' }}>
+                    <Td>{p.email}</Td>
+                    <Td>{p.nom}</Td>
+                    <Td>
+                      <button onClick={() => onDeletePlanifProfilAttente(p.email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
+                        Retirer
+                      </button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        <Card>
+          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Accès en attente — toutes les apps ({accesAttente.length})</h2>
+          <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
+            Pré-configure l&apos;accès à n&apos;importe quelle app (et ses fonctionnalités) pour un courriel qui
+            n&apos;a pas encore de compte. Dès que tu envoies son invitation ci-dessus avec le même courriel,
+            les droits s&apos;appliquent automatiquement.
+          </p>
+          <AccesAttenteForm apps={apps} features={features} onSave={onSaveAccesAttente} saving={saving} />
+          {accesAttente.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <Th>Courriel</Th>
+                  <Th>App</Th>
+                  <Th>Accès app</Th>
+                  <Th>Fonctionnalités</Th>
+                  <Th />
+                </tr>
+              </thead>
+              <tbody>
+                {accesAttente.map((a) => {
+                  const app = apps.find((x) => x.slug === a.app_slug);
+                  const featureLabels = (a.feature_keys || [])
+                    .map((k) => features.find((f) => f.app_slug === a.app_slug && f.feature_key === k)?.label || k)
+                    .join(', ');
+                  return (
+                    <tr key={`${a.email}:${a.app_slug}`} style={{ borderBottom: '1px solid #eee' }}>
+                      <Td>{a.email}</Td>
+                      <Td>{app?.label || a.app_slug}</Td>
+                      <Td>{a.has_app_access ? 'Oui' : 'Non'}</Td>
+                      <Td>{featureLabels || '—'}</Td>
+                      <Td>
+                        <button onClick={() => onDeleteAccesAttente(a.email, a.app_slug)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
+                          Retirer
+                        </button>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        <Card>
           <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Membres ({users.length})</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
@@ -340,6 +479,8 @@ export default function AdministrationPage() {
                   onDelete={() => onDeleteUser(u)}
                   onSavePermissions={(appSlug, hasAppAccess, featureKeys) => onSavePermissions(u, appSlug, hasAppAccess, featureKeys)}
                   onSaveOrdreDuJourProfil={(nom, role, accesSpecial, peutPrevisualiser) => onSaveOrdreDuJourProfil(u, nom, role, accesSpecial, peutPrevisualiser)}
+                  onSavePlanifHebdoProfil={(nom) => onSavePlanifHebdoProfil(u, nom)}
+
                   saving={saving}
                 />
               ))}
@@ -353,7 +494,7 @@ export default function AdministrationPage() {
 
 function UserRow({
   user, apps, features, ordreDuJourRoles, ordreDuJourAcces,
-  expanded, onToggleExpand, onRoleChange, onDelete, onSavePermissions, onSaveOrdreDuJourProfil, saving,
+  expanded, onToggleExpand, onRoleChange, onDelete, onSavePermissions, onSaveOrdreDuJourProfil, onSavePlanifHebdoProfil, saving,
 }) {
   const statusLabel = user.invited_not_active
     ? 'Invite - pas encore actif'
@@ -393,6 +534,7 @@ function UserRow({
               ordreDuJourAcces={ordreDuJourAcces}
               onSave={onSavePermissions}
               onSaveOrdreDuJourProfil={onSaveOrdreDuJourProfil}
+              onSavePlanifHebdoProfil={onSavePlanifHebdoProfil}
               saving={saving}
             />
           </td>
@@ -402,7 +544,7 @@ function UserRow({
   );
 }
 
-function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAcces, onSave, onSaveOrdreDuJourProfil, saving }) {
+function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAcces, onSave, onSaveOrdreDuJourProfil, onSavePlanifHebdoProfil, saving }) {
   const [localApps, setLocalApps] = useState(new Set(user.apps));
   const [localFeatures, setLocalFeatures] = useState(new Set(user.features));
 
@@ -427,6 +569,17 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id, user.ordre_du_jour_profil?.nom, user.ordre_du_jour_profil?.role, user.ordre_du_jour_profil?.acces_special, user.ordre_du_jour_profil?.peut_previsualiser]);
+
+  // NOUVEAU — champ du profil Planification hebdomadaire (juste le nom)
+  const [planifNom, setPlanifNom] = useState(user.planif_hebdo_profil?.nom || user.email?.split('@')[0] || '');
+  const [planifMsg, setPlanifMsg] = useState('');
+
+  useEffect(() => {
+    if (user.planif_hebdo_profil) {
+      setPlanifNom(user.planif_hebdo_profil.nom);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.planif_hebdo_profil?.nom]);
 
   function toggleApp(slug) {
     const next = new Set(localApps);
@@ -460,11 +613,23 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
     setTimeout(() => setOdjMsg(''), 2000);
   }
 
+  async function savePlanifProfil() {
+    if (!planifNom.trim()) {
+      setPlanifMsg('Le nom est requis.');
+      return;
+    }
+    setPlanifMsg('Enregistrement...');
+    await onSavePlanifHebdoProfil(planifNom);
+    setPlanifMsg('Enregistre ✓');
+    setTimeout(() => setPlanifMsg(''), 2000);
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
       {apps.map((app) => {
         const appFeatures = features.filter((f) => f.app_slug === app.slug);
         const isOrdreDuJour = app.slug === 'ordre-du-jour';
+        const isPlanifHebdo = app.slug === 'planification-hebdomadaire';
         return (
           <div key={app.slug} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 8 }}>
@@ -524,6 +689,40 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                 {!user.ordre_du_jour_profil && (
                   <div style={{ fontSize: 11, color: '#D69614', marginTop: 6 }}>
                     Aucun profil enregistre encore — cette personne ne pourra pas se connecter a Ordre du jour tant que ce n&apos;est pas sauvegarde.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bloc specifique Planification hebdomadaire: juste le nom affiche —
+                pas de role/acces special (tout le monde a les memes droits une
+                fois connecte; le mode edition reste gere par le mot de passe
+                "animateur" separe, inchange). */}
+            {isPlanifHebdo && localApps.has(app.slug) && (
+              <div style={{ background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#495260', marginBottom: 8 }}>
+                  Profil Planification hebdomadaire
+                </div>
+                <label style={{ display: 'block', fontSize: 12, color: '#444', marginBottom: 3 }}>Nom affiche</label>
+                <input
+                  type="text"
+                  value={planifNom}
+                  onChange={(e) => setPlanifNom(e.target.value)}
+                  placeholder="Ex: William Dubreuil"
+                  style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}
+                />
+                <button onClick={savePlanifProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>
+                  Enregistrer le profil
+                </button>
+                {planifMsg && <span style={{ marginLeft: 8, fontSize: 12, color: '#2E9F58' }}>{planifMsg}</span>}
+                {user.planif_hebdo_profil && (
+                  <div style={{ fontSize: 11, color: '#8a93a0', marginTop: 6 }}>
+                    Actuellement : {user.planif_hebdo_profil.nom}
+                  </div>
+                )}
+                {!user.planif_hebdo_profil && (
+                  <div style={{ fontSize: 11, color: '#D69614', marginTop: 6 }}>
+                    Aucun profil enregistre encore — cette personne ne pourra pas se connecter a Planification hebdomadaire tant que ce n&apos;est pas sauvegarde.
                   </div>
                 )}
               </div>
@@ -591,6 +790,109 @@ function ProfilAttenteForm({ ordreDuJourRoles, ordreDuJourAcces, onSave, saving 
       </select>
       <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
       {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
+    </div>
+  );
+}
+
+function PlanifProfilAttenteForm({ onSave, saving }) {
+  const [email, setEmail] = useState('');
+  const [nom, setNom] = useState('');
+  const [msg, setMsg] = useState('');
+
+  async function submit() {
+    if (!email.trim() || !nom.trim()) {
+      setMsg('Courriel et nom requis.');
+      return;
+    }
+    await onSave(email.trim(), nom.trim());
+    setEmail(''); setNom('');
+    setMsg('Ajoute ✓');
+    setTimeout(() => setMsg(''), 2000);
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10 }}>
+      <input
+        type="email"
+        placeholder="courriel@pep2000.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 200 }}
+      />
+      <input
+        type="text"
+        placeholder="Nom affiche"
+        value={nom}
+        onChange={(e) => setNom(e.target.value)}
+        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 170 }}
+      />
+      <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
+      {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
+    </div>
+  );
+}
+
+function AccesAttenteForm({ apps, features, onSave, saving }) {
+  const [email, setEmail] = useState('');
+  const [appSlug, setAppSlug] = useState('');
+  const [hasAppAccess, setHasAppAccess] = useState(true);
+  const [featureKeys, setFeatureKeys] = useState(new Set());
+  const [msg, setMsg] = useState('');
+
+  const appFeatures = features.filter((f) => f.app_slug === appSlug);
+
+  function toggleFeature(key) {
+    const next = new Set(featureKeys);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    setFeatureKeys(next);
+  }
+
+  async function submit() {
+    if (!email.trim() || !appSlug) {
+      setMsg('Courriel et app requis.');
+      return;
+    }
+    await onSave(email.trim(), appSlug, hasAppAccess, [...featureKeys]);
+    setEmail(''); setFeatureKeys(new Set());
+    setMsg('Ajouté ✓');
+    setTimeout(() => setMsg(''), 2000);
+  }
+
+  return (
+    <div style={{ background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: appSlug ? 8 : 0 }}>
+        <input
+          type="email"
+          placeholder="courriel@pep2000.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 200 }}
+        />
+        <select
+          value={appSlug}
+          onChange={(e) => { setAppSlug(e.target.value); setFeatureKeys(new Set()); }}
+          style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}
+        >
+          <option value="">— Choisir une app —</option>
+          {apps.map((a) => <option key={a.slug} value={a.slug}>{a.label}</option>)}
+        </select>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}>
+          <input type="checkbox" checked={hasAppAccess} onChange={(e) => setHasAppAccess(e.target.checked)} />
+          Accès à l&apos;app
+        </label>
+        <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
+        {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
+      </div>
+      {appSlug && appFeatures.length > 0 && (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {appFeatures.map((f) => (
+            <label key={f.feature_key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#444' }}>
+              <input type="checkbox" checked={featureKeys.has(f.feature_key)} onChange={() => toggleFeature(f.feature_key)} />
+              {f.label}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
