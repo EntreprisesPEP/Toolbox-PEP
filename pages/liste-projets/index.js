@@ -60,14 +60,22 @@ export default function ListeProjetsPage() {
   const [erreur, setErreur] = useState('');
 
   async function chargerTout() {
-    const [{ data: p }, { data: t }, { data: pers }] = await Promise.all([
+    const [resProjets, resTypes, resPersonnel] = await Promise.all([
       supabaseLP.from('projets').select('*'),
       supabaseLP.from('types_projets').select('*'),
       supabaseLP.from('personnel').select('*').order('nom'),
     ]);
-    setProjets(p || []);
-    setTypes(t || []);
-    setPersonnel(pers || []);
+    const erreurs = [resProjets.error, resTypes.error, resPersonnel.error].filter(Boolean);
+    if (erreurs.length > 0) {
+      setErreur(
+        'Erreur de chargement des données : ' +
+        erreurs.map((e) => e.message).join(' | ') +
+        ' — vérifie que le schéma "liste_projets" est bien exposé dans Supabase (Settings -> API -> Exposed schemas) et que les tables contiennent des données.'
+      );
+    }
+    setProjets(resProjets.data || []);
+    setTypes(resTypes.data || []);
+    setPersonnel(resPersonnel.data || []);
   }
 
   useEffect(() => {
