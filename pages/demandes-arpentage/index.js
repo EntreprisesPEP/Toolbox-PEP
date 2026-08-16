@@ -916,15 +916,18 @@ function DemandeArpentageApp({ userId, nom, email, accessToken }) {
     // Envoi des courriels de notification — la demande est déjà enregistrée
     // à ce stade, donc un échec ici n'annule rien, on informe juste.
     try {
-      const reponse = await fetch('/api/demandes-arpentage/notifier', {
+      const reponse = await fetch('/api/demandes-arpentage/notifier/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ numero: data.numero }),
       });
       if (!reponse.ok) {
+        const detail = await reponse.json().catch(() => ({}));
+        console.error('Notification arpentage — erreur serveur:', detail.error || reponse.status);
         setErreurNotification("La demande est enregistrée, mais l'envoi des courriels de notification a échoué.");
       }
     } catch (e) {
+      console.error('Notification arpentage — erreur réseau:', e);
       setErreurNotification("La demande est enregistrée, mais l'envoi des courriels de notification a échoué.");
     }
   }
@@ -1016,6 +1019,13 @@ function DemandeArpentageApp({ userId, nom, email, accessToken }) {
               </button>
             ))}
           </div>
+
+          <a href="/" style={{
+            color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px',
+            borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          }}>
+            &#8592; Retour au Toolbox PEP
+          </a>
         </header>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
