@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { fetchActivity, getValidAccessToken } from '../../../lib/defi-strava/stravaClient';
 import { getIsoWeek } from '../../../lib/defi-strava/weekUtils';
+import { detecterChangementMeneur } from '../../../lib/defi-strava/getMonthlyRanking';
+import { envoyerPushATous } from '../../../lib/defi-strava/push';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
@@ -17,9 +19,8 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    // IMPORTANT : on attend la fin du traitement AVANT de répondre.
-    // Sur Vercel, une fois la réponse envoyée, le traitement en arrière-plan
-    // peut être interrompu — donc on ne répond qu'une fois tout terminé.
+    // On attend la fin du traitement AVANT de répondre (voir explication
+    // précédente : sur Vercel, le code après la réponse peut être interrompu).
     try {
       await processEvent(req.body);
     } catch (err) {
@@ -70,5 +71,17 @@ async function processEvent(event) {
 
   if (upsertError) {
     console.error('Erreur upsert activité:', upsertError); // eslint-disable-line no-console
+    return;
+  }
+
+  // Vérifie si cette nouvelle activité vient de faire passer quelqu'un
+  // en première place du mois — si oui, notification immédiate à tous.
+  const nouveauMeneur = await detecterChangementMeneur();
+  if (nouveauMeneur) {
+    await envoyerPushATous({
+      title: '🥇 Nouveau meneur du Défi Strava !',
+      body: `${nouveauMeneur} vient de prendre la première place du mois. À vos souliers !`,
+      url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
+    });
   }
 }

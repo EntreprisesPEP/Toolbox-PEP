@@ -1,6 +1,7 @@
 .defi-scope {
   --fond: #14171a;
   --carte: #1c2024;
+  --carte-secondaire: #181b1e;
   --texte: #e8e8e6;
   --texte-att: #8a8f94;
   --accent: #fc4c02;
@@ -8,6 +9,7 @@
   --argent: #b0b3b8;
   --bronze: #b06a3a;
   --ligne: #2a2e33;
+  --vert: #2e9f58;
 }
 
 .defi-scope .defi-strava-page {
@@ -20,7 +22,7 @@
   border-radius: 12px;
 }
 
-.defi-scope .defi-header { margin-bottom: 32px; }
+.defi-scope .defi-header { margin-bottom: 24px; }
 
 .defi-scope .defi-eyebrow {
   display: inline-block;
@@ -36,10 +38,90 @@
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
 }
 
-.defi-scope .defi-header p { color: var(--texte-att); margin: 0; font-size: 14px; }
+.defi-scope .defi-intro {
+  color: var(--texte);
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.defi-scope .defi-intro-secondaire {
+  color: var(--texte-att);
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Barre de notifications */
+.defi-scope .defi-notif-bar {
+  margin: 20px 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.defi-scope .notif-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.defi-scope .notif-btn:hover { background: #e0430a; }
+
+.defi-scope .notif-ok {
+  font-size: 13px;
+  color: var(--vert);
+  font-weight: 600;
+}
+
+.defi-scope .notif-refuse {
+  font-size: 12px;
+  color: var(--texte-att);
+}
+
+/* Sections */
+.defi-scope .defi-section { margin-bottom: 20px; }
+
+.defi-scope .defi-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texte);
+  margin: 0 0 10px;
+}
+
+.defi-scope .defi-section-secondaire {
+  background: var(--carte-secondaire);
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.defi-scope .defi-section-title-petit {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texte-att);
+  margin: 0 0 10px;
+}
+
+.defi-scope .defi-texte-discret {
+  color: var(--texte-att);
+  font-size: 13px;
+  margin: 0;
+}
 
 .defi-scope .leaderboard-table {
   width: 100%;
@@ -47,6 +129,16 @@
   background: var(--carte);
   border-radius: 10px;
   overflow: hidden;
+}
+
+.defi-scope .leaderboard-table-compact {
+  background: transparent;
+}
+
+.defi-scope .leaderboard-table-compact td {
+  padding: 6px 4px;
+  border-bottom: none;
+  font-size: 13px;
 }
 
 .defi-scope .leaderboard-table thead th {
@@ -76,6 +168,5 @@
 .defi-scope .podium-3 { background: linear-gradient(90deg, rgba(176,106,58,0.1), transparent); border-left: 3px solid var(--bronze); }
 .defi-scope .podium td { font-weight: 600; }
 
-.defi-scope .maj-indicator { margin-top: 12px; font-family: 'Courier New', monospace; font-size: 11px; color: var(--texte-att); text-align: right; }
 .defi-scope .etat-vide { background: var(--carte); border-radius: 10px; padding: 40px 20px; text-align: center; color: var(--texte-att); }
 .defi-scope .defi-footer { margin-top: 32px; font-size: 13px; color: var(--texte-att); text-align: center; }
