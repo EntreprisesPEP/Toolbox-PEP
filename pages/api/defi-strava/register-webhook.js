@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/defi-strava/webhook`;
+  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/defi-strava/webhook/`;
 
   const form = new FormData();
   form.append('client_id', process.env.STRAVA_CLIENT_ID);
