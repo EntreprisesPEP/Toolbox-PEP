@@ -38,8 +38,9 @@ export default async function handler(req, res) {
   }
 
   const { numero } = req.body || {};
+  console.log('Notifier arpentage — numero reçu:', numero, typeof numero);
   if (!numero) {
-    return res.status(400).json({ error: 'numero manquant' });
+    return res.status(400).json({ error: `numero manquant ou invalide dans la requête (reçu: ${JSON.stringify(req.body)})` });
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -50,8 +51,15 @@ export default async function handler(req, res) {
       .from('demandes')
       .select('*')
       .eq('numero', numero)
-      .single();
-    if (eDemande || !demande) throw new Error('Demande introuvable');
+      .maybeSingle();
+
+    if (eDemande) {
+      console.error('Erreur lecture demande (numero=' + numero + '):', eDemande);
+      throw new Error(`Erreur lecture demande #${numero} : ${eDemande.message} (code ${eDemande.code || '?'})`);
+    }
+    if (!demande) {
+      throw new Error(`Demande #${numero} introuvable dans arpentage.demandes.`);
+    }
 
     const { data: projet } = await admin
       .schema('liste_projets')
