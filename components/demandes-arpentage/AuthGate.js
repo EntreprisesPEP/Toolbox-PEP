@@ -94,7 +94,7 @@ export default function AuthGate({ onDone }) {
 
       const nom = await resoudreNom(session);
       if (!actif) return;
-      onDone({ userId: session.user.id, nom, email: session.user.email });
+      onDone({ userId: session.user.id, nom, email: session.user.email, accessToken: session.access_token });
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -182,7 +182,7 @@ export default function AuthGate({ onDone }) {
       const estAdmin = roleRow?.role === "admin";
       if (!appAccess && !estAdmin) { setPhase("acces-refuse"); return; }
       const nom = await resoudreNom(session);
-      onDone({ userId: session.user.id, nom, email: session.user.email });
+      onDone({ userId: session.user.id, nom, email: session.user.email, accessToken: session.access_token });
     } else {
       setPhase("login");
     }

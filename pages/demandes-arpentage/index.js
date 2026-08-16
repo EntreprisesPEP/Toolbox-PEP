@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import AuthGate from '../../components/demandes-arpentage/AuthGate';
+import { DESTINATAIRES_FIXES_RAW } from '../../lib/arpentage-destinataires';
 import {
   Send, CheckCircle2, Users, FileText, Upload, Clock, MapPin, Moon, Sun,
   X, ChevronLeft, ChevronRight, CalendarDays,
@@ -23,13 +24,23 @@ const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema:
 // pour l'instant seulement à l'affichage "qui sera notifié" — voir la
 // note sur l'envoi réel des courriels dans LIS-MOI-DABORD.txt.)
 // ---------------------------------------------------------------------------
-const DESTINATAIRES_FIXES = [
-  { nom: 'André Pichette', email: 'apichette@pep2000.com' },
-  { nom: 'Anthony Pelliccia', email: 'apelliccia@pep2000.com' },
-  { nom: 'François Ouellet', email: 'fouellet@pep2000.com' },
-  { nom: 'Tony Moschetta', email: 'amoschetta@pep2000.com' },
-  { nom: 'William Dubreuil', email: 'wdubreuil@pep2000.com' },
-].map(p => `${p.nom} (${p.email})`);
+const DESTINATAIRES_FIXES = DESTINATAIRES_FIXES_RAW.map(p => `${p.nom} (${p.email})`);
+
+// Pour éviter qu'une même personne (ex : le demandeur qui est aussi le
+// chargé de projet) apparaisse 2 fois dans la liste "liés à cette
+// demande", ou qu'elle réapparaisse alors qu'elle est déjà "fixe".
+const NOMS_FIXES = DESTINATAIRES_FIXES.map(s => s.replace(/\s*\(.+\)$/, '').trim().toLowerCase());
+function dedupeDestinatairesVariables(liste) {
+  const vus = new Set();
+  const resultat = [];
+  for (const nom of liste) {
+    const cle = (nom || '').trim().toLowerCase();
+    if (!cle || vus.has(cle) || NOMS_FIXES.includes(cle)) continue;
+    vus.add(cle);
+    resultat.push(nom);
+  }
+  return resultat;
+}
 
 const TYPES_DEMANDE = [
   'BM', 'Décontamination', 'GPS', 'Implantation',
@@ -353,6 +364,88 @@ function Field({ label, error, children, th }) {
   );
 }
 
+// Sélecteur de projet avec recherche — tape un numéro ou un nom pour
+// réduire la liste, comme une recherche.
+function ComboboxProjet({ value, onChange, projets, th, error }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [recherche, setRecherche] = useState('');
+  const conteneurRef = useRef(null);
+
+  const projetSelectionne = projets.find(p => p.no === value);
+  const texteAffiche = ouvert ? recherche : (projetSelectionne ? `${projetSelectionne.no} — ${projetSelectionne.nom}` : '');
+
+  const filtres = projets.filter(p => {
+    const q = recherche.trim().toLowerCase();
+    if (!q) return true;
+    return p.no.toLowerCase().includes(q) || p.nom.toLowerCase().includes(q);
+  });
+
+  useEffect(() => {
+    function surClicExterieur(e) {
+      if (conteneurRef.current && !conteneurRef.current.contains(e.target)) setOuvert(false);
+    }
+    document.addEventListener('mousedown', surClicExterieur);
+    return () => document.removeEventListener('mousedown', surClicExterieur);
+  }, []);
+
+  return (
+    <div ref={conteneurRef} style={{ position: 'relative' }}>
+      <input
+        value={texteAffiche}
+        onChange={e => { setRecherche(e.target.value); setOuvert(true); }}
+        onFocus={() => { setRecherche(''); setOuvert(true); }}
+        placeholder="Tape un numéro ou un nom de projet…"
+        style={{
+          width: '100%', background: th.inputBg, border: `1px solid ${error ? BRAND_RED : th.line}`, color: th.text,
+          padding: '9px 12px', borderRadius: 4, fontSize: 13.5, boxSizing: 'border-box',
+        }}
+      />
+      {ouvert && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+          background: th.panel, border: `1px solid ${th.line}`, borderRadius: 4,
+          maxHeight: 260, overflowY: 'auto', marginTop: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+        }}>
+          {filtres.length === 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 12.5, color: th.textDim }}>Aucun projet trouvé</div>
+          )}
+          {filtres.map(p => (
+            <div key={p.no}
+              onMouseDown={() => { onChange(p.no); setOuvert(false); setRecherche(''); }}
+              style={{
+                padding: '9px 12px', fontSize: 13, cursor: 'pointer',
+                background: p.no === value ? `${BRAND_RED}22` : 'transparent',
+              }}
+            >
+              <strong>{p.no}</strong> — {p.nom}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Champ date — cliquer n'importe où dans le rectangle ouvre le calendrier,
+// pas seulement sur la petite icône.
+function ChampDate({ value, onChange, th, error }) {
+  const ref = useRef(null);
+  return (
+    <input
+      ref={ref}
+      type="date"
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onClick={() => { if (ref.current?.showPicker) { try { ref.current.showPicker(); } catch (e) {} } }}
+      style={{
+        width: '100%', background: th.inputBg, border: `1px solid ${error ? BRAND_RED : th.line}`, color: th.text,
+        padding: '9px 12px', borderRadius: 4, fontSize: 13.5, boxSizing: 'border-box', cursor: 'pointer',
+      }}
+    />
+  );
+}
+
+
 function StatutBadge({ demande, th, onToggleStatut, small }) {
   const accomplie = demande.statut === 'Accomplie';
   return (
@@ -384,7 +477,7 @@ function DemandeCard({ d, th, onOpen, onToggleStatut }) {
     }}>
       <div>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: accomplie ? '#fff' : th.text }}>
-          #{d.numero} · {d.projet?.no} — {d.projet?.nom}
+          #{d.numero} · {d.projet?.no} — {d.projet?.nom} · {d.typeDemande}
         </div>
         <div style={{ fontSize: 12, color: accomplie ? 'rgba(255,255,255,0.85)' : th.textDim, marginTop: 4 }}>
           Par {d.nom} · Type : {d.typeDemande} · <MapPin size={11} style={{ display: 'inline' }} /> {d.endroit}
@@ -452,9 +545,9 @@ function DetailModal({ demande, th, onClose, onToggleStatut }) {
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <h2 style={{ fontSize: 17, margin: '0 0 2px', color: th.text }}>Demande #{demande.numero}</h2>
+            <h2 style={{ fontSize: 17, margin: '0 0 2px', color: th.text }}>Demande #{demande.numero} · {demande.typeDemande}</h2>
             <p style={{ margin: 0, fontSize: 12.5, color: th.textDim }}>
-              {demande.projet?.no} — {demande.projet?.nom}
+              {demande.projet?.no} — {demande.projet?.nom} · {demande.endroit}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -695,7 +788,9 @@ function CalendarView({ demandesTriees, th, onOpen }) {
 
 function mapRowToDemande(row, projets) {
   const projet = projets.find(p => p.no === row.projet_no) || null;
-  const destinatairesVariables = [row.nom, projet?.charge, ...(row.personnes_additionnelles || [])].filter(Boolean);
+  const destinatairesVariables = dedupeDestinatairesVariables(
+    [row.nom, projet?.charge, ...(row.personnes_additionnelles || [])].filter(Boolean)
+  );
   return {
     numero: row.numero,
     dateJour: row.date_jour,
@@ -719,7 +814,7 @@ function mapRowToDemande(row, projets) {
   };
 }
 
-function DemandeArpentageApp({ userId, nom, email }) {
+function DemandeArpentageApp({ userId, nom, email, accessToken }) {
   const [mode, setMode] = useState('night');
   const th = THEMES[mode];
 
@@ -737,6 +832,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
   const [filtrePersonne, setFiltrePersonne] = useState('');
   const [filtreProjet, setFiltreProjet] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [erreurNotification, setErreurNotification] = useState('');
 
   useEffect(() => {
     let actif = true;
@@ -744,7 +840,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
       setChargement(true);
       setErreurChargement('');
       const [{ data: projetsData, error: eProjets }, { data: personnelData, error: ePersonnel }, { data: demandesData, error: eDemandes }] = await Promise.all([
-        supabaseLP.from('projets').select('no, nom, client, charge, courriel_cp, adresse').order('no'),
+        supabaseLP.from('projets').select('no, nom, client, charge, courriel_cp, adresse').order('no', { ascending: false }),
         supabaseLP.from('personnel').select('nom, courriel, actif').eq('actif', true).order('nom'),
         supabaseArp.from('demandes').select('*').order('numero', { ascending: false }),
       ]);
@@ -787,10 +883,12 @@ function DemandeArpentageApp({ userId, nom, email }) {
   async function handleSubmit() {
     if (!validate() || envoiEnCours) return;
     setEnvoiEnCours(true);
+    setErreurNotification('');
 
     const payload = {
       user_id: userId,
       nom: form.nom,
+      demandeur_email: email,
       projet_no: form.projetNo,
       personnes_additionnelles: form.personnesAdditionnelles,
       date_requise: form.dateRequise,
@@ -814,6 +912,21 @@ function DemandeArpentageApp({ userId, nom, email }) {
     setDemandes(prev => [demande, ...prev]);
     setConfirmation(demande);
     setForm({ ...initialForm, nom });
+
+    // Envoi des courriels de notification — la demande est déjà enregistrée
+    // à ce stade, donc un échec ici n'annule rien, on informe juste.
+    try {
+      const reponse = await fetch('/api/demandes-arpentage/notifier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ numero: data.numero }),
+      });
+      if (!reponse.ok) {
+        setErreurNotification("La demande est enregistrée, mais l'envoi des courriels de notification a échoué.");
+      }
+    } catch (e) {
+      setErreurNotification("La demande est enregistrée, mais l'envoi des courriels de notification a échoué.");
+    }
   }
 
   async function toggleStatut(numero) {
@@ -869,7 +982,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
       padding: '24px 16px',
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -883,7 +996,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
               <h1 style={{ fontSize: 19, fontWeight: 700, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Demande d'arpentage
               </h1>
-              <p style={{ margin: 0, fontSize: 12.5, color: th.textDim }}>Prototype de test — aucune donnée n'est réellement envoyée</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: th.textDim }}>Formulaire de demande d'arpentage — Les Entreprises PEP</p>
             </div>
           </div>
 
@@ -944,10 +1057,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
             </div>
 
             <Field th={th} label="Projet" error={errors.projetNo}>
-              <select value={form.projetNo} onChange={e => updateField('projetNo', e.target.value)} style={inputStyle}>
-                <option value="">— Choisir un projet —</option>
-                {projets.map(p => <option key={p.no} value={p.no}>{p.no} — {p.nom}</option>)}
-              </select>
+              <ComboboxProjet value={form.projetNo} onChange={v => updateField('projetNo', v)} projets={projets} th={th} error={errors.projetNo} />
             </Field>
 
             {projetSelectionne && (
@@ -994,12 +1104,12 @@ function DemandeArpentageApp({ userId, nom, email }) {
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1 }}>
                 <Field th={th} label="Date requise" error={errors.dateRequise}>
-                  <input type="date" value={form.dateRequise} onChange={e => updateField('dateRequise', e.target.value)} style={inputStyle} />
+                  <ChampDate value={form.dateRequise} onChange={v => updateField('dateRequise', v)} th={th} error={errors.dateRequise} />
                 </Field>
               </div>
               <div style={{ flex: 1 }}>
                 <Field th={th} label="Date autorisée" error={errors.dateAutorisee}>
-                  <input type="date" value={form.dateAutorisee} onChange={e => updateField('dateAutorisee', e.target.value)} style={inputStyle} />
+                  <ChampDate value={form.dateAutorisee} onChange={v => updateField('dateAutorisee', v)} th={th} error={errors.dateAutorisee} />
                 </Field>
               </div>
             </div>
@@ -1031,7 +1141,7 @@ function DemandeArpentageApp({ userId, nom, email }) {
                     background: form.typeDemande === t ? BRAND_RED : th.inputBg,
                     color: form.typeDemande === t ? '#fff' : th.textDim,
                     border: `1px solid ${th.line}`, borderRadius: 20, padding: '6px 14px',
-                    fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                    fontSize: 12, cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap',
                   }}>
                     {t}
                   </button>
@@ -1090,9 +1200,9 @@ function DemandeArpentageApp({ userId, nom, email }) {
         {tab === 'nouvelle' && confirmation && (
           <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 6, padding: 28, textAlign: 'center' }}>
             <CheckCircle2 size={40} color={BRAND_GREEN} style={{ marginBottom: 10 }} />
-            <h2 style={{ fontSize: 17, margin: '0 0 4px' }}>Demande #{confirmation.numero} soumise</h2>
+            <h2 style={{ fontSize: 17, margin: '0 0 4px' }}>Demande #{confirmation.numero} soumise · {confirmation.typeDemande}</h2>
             <p style={{ color: th.textDim, fontSize: 12.5, margin: '0 0 20px' }}>
-              Projet {confirmation.projet?.no} — {confirmation.projet?.nom}
+              Projet {confirmation.projet?.no} — {confirmation.projet?.nom} · {confirmation.endroit}
             </p>
 
             <div style={{ textAlign: 'left', background: th.inputBg, border: `1px solid ${th.line}`, borderRadius: 4, padding: 16 }}>
@@ -1110,6 +1220,15 @@ function DemandeArpentageApp({ userId, nom, email }) {
                 ))}
               </div>
             </div>
+
+            {erreurNotification && (
+              <div style={{
+                marginTop: 14, background: `${BRAND_RED}18`, color: BRAND_RED, borderRadius: 4,
+                padding: '10px 14px', fontSize: 12.5, textAlign: 'left',
+              }}>
+                ⚠️ {erreurNotification}
+              </div>
+            )}
 
             <button onClick={() => { setConfirmation(null); }} style={{
               marginTop: 20, background: 'transparent', color: th.text, border: `1px solid ${th.line}`,
@@ -1195,5 +1314,5 @@ export default function DemandesArpentagePage() {
     return <AuthGate onDone={(s) => setSession(s)} />;
   }
 
-  return <DemandeArpentageApp userId={session.userId} nom={session.nom} email={session.email} />;
+  return <DemandeArpentageApp userId={session.userId} nom={session.nom} email={session.email} accessToken={session.accessToken} />;
 }
