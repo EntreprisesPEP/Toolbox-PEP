@@ -9,6 +9,7 @@
 // prefixe de scope (.xxx-scope), scoper son CSS avec ce prefixe, puis
 // ajouter l'import ci-dessous.
 import '../styles/planification-hebdomadaire.css';
+import '../styles/defi-strava.css';
 
 export default function App({ Component, pageProps }) {
   return <Component {...pageProps} />;

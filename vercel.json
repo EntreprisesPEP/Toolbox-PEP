@@ -1,6 +1,8 @@
 {
   "crons": [
     { "path": "/api/ordre-du-jour/rappel-quotidien/", "schedule": "0 16 * * *" },
-    { "path": "/api/ordre-du-jour/rappel-quotidien/", "schedule": "0 20 * * *" }
+    { "path": "/api/ordre-du-jour/rappel-quotidien/", "schedule": "0 20 * * *" },
+    { "path": "/api/cron/defi-strava-daily-sync", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/defi-strava-weekly-email", "schedule": "0 7 * * 1" }
   ]
 }

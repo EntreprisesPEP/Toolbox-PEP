@@ -1,0 +1,81 @@
+.defi-scope {
+  --fond: #14171a;
+  --carte: #1c2024;
+  --texte: #e8e8e6;
+  --texte-att: #8a8f94;
+  --accent: #fc4c02;
+  --or: #d4af37;
+  --argent: #b0b3b8;
+  --bronze: #b06a3a;
+  --ligne: #2a2e33;
+}
+
+.defi-scope .defi-strava-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  border-radius: 12px;
+}
+
+.defi-scope .defi-header { margin-bottom: 32px; }
+
+.defi-scope .defi-eyebrow {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.defi-scope .defi-header h1 {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+
+.defi-scope .defi-header p { color: var(--texte-att); margin: 0; font-size: 14px; }
+
+.defi-scope .leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--carte);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.defi-scope .leaderboard-table thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texte-att);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ligne);
+  font-weight: 600;
+}
+
+.defi-scope .leaderboard-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ligne);
+  font-size: 15px;
+}
+
+.defi-scope .leaderboard-table tr:last-child td { border-bottom: none; }
+.defi-scope .align-right { text-align: right; }
+.defi-scope .rang-cell { font-family: 'Courier New', monospace; font-weight: 700; }
+.defi-scope .diff-cell { font-family: 'Courier New', monospace; color: var(--texte-att); }
+
+.defi-scope .podium-1 { background: linear-gradient(90deg, rgba(212,175,55,0.12), transparent); border-left: 3px solid var(--or); }
+.defi-scope .podium-2 { background: linear-gradient(90deg, rgba(176,179,184,0.1), transparent); border-left: 3px solid var(--argent); }
+.defi-scope .podium-3 { background: linear-gradient(90deg, rgba(176,106,58,0.1), transparent); border-left: 3px solid var(--bronze); }
+.defi-scope .podium td { font-weight: 600; }
+
+.defi-scope .maj-indicator { margin-top: 12px; font-family: 'Courier New', monospace; font-size: 11px; color: var(--texte-att); text-align: right; }
+.defi-scope .etat-vide { background: var(--carte); border-radius: 10px; padding: 40px 20px; text-align: center; color: var(--texte-att); }
+.defi-scope .defi-footer { margin-top: 32px; font-size: 13px; color: var(--texte-att); text-align: center; }
