@@ -46,6 +46,37 @@ function texteFichiers(fichiers) {
   return `Voir ci-joint les (${n}) attachements`;
 }
 
+const BUCKET_FICHIERS = 'arpentage-fichiers';
+const TAILLE_MAX_PIECE_JOINTE = 8 * 1024 * 1024; // 8 Mo par fichier, pour rester sous la limite de taille des courriels
+
+async function construireAttachments(admin, chemins) {
+  const attachments = [];
+  const rapport = [];
+  for (const chemin of chemins || []) {
+    try {
+      const { data: blob, error } = await admin.storage.from(BUCKET_FICHIERS).download(chemin);
+      if (error || !blob) {
+        console.error('Piece jointe introuvable dans le stockage:', chemin, error);
+        rapport.push({ chemin, statut: 'introuvable', detail: error?.message || 'inconnu' });
+        continue;
+      }
+      const arrayBuffer = await blob.arrayBuffer();
+      if (arrayBuffer.byteLength > TAILLE_MAX_PIECE_JOINTE) {
+        console.error('Piece jointe trop volumineuse, ignoree:', chemin, arrayBuffer.byteLength);
+        rapport.push({ chemin, statut: 'trop_volumineux', tailleOctets: arrayBuffer.byteLength });
+        continue;
+      }
+      const contenuBase64 = Buffer.from(arrayBuffer).toString('base64');
+      attachments.push({ filename: chemin.split('/').pop(), content: contenuBase64 });
+      rapport.push({ chemin, statut: 'inclus', tailleOctets: arrayBuffer.byteLength });
+    } catch (e) {
+      console.error('Erreur telechargement piece jointe:', chemin, e);
+      rapport.push({ chemin, statut: 'erreur', detail: e.message });
+    }
+  }
+  return { attachments, rapport };
+}
+
 function ouTiret(valeur) {
   return (valeur === null || valeur === undefined || valeur === '') ? '—' : valeur;
 }
@@ -193,22 +224,33 @@ export default async function handler(req, res) {
       emailsAdditionnels = (personnel || []).map((p) => p.courriel).filter(Boolean);
     }
 
-    const emailsBruts = [
-      ...DESTINATAIRES_FIXES_RAW.map((p) => p.email),
+    const emailsTo = DESTINATAIRES_FIXES_RAW.filter((p) => p.role === 'to').map((p) => p.email);
+    const emailsCcBruts = [
+      ...DESTINATAIRES_FIXES_RAW.filter((p) => p.role !== 'to').map((p) => p.email),
       demande.demandeur_email,
       projet?.courriel_cp,
       ...emailsAdditionnels,
     ].filter(Boolean);
 
-    const vus = new Set();
-    const destinataires = [];
-    for (const courriel of emailsBruts) {
-      const cle = courriel.trim().toLowerCase();
-      if (!vus.has(cle)) { vus.add(cle); destinataires.push(courriel); }
+    function dedupeCourriels(liste, exclureAussi = []) {
+      const exclus = new Set(exclureAussi.map((e) => e.trim().toLowerCase()));
+      const vus = new Set();
+      const resultat = [];
+      for (const courriel of liste) {
+        const cle = courriel.trim().toLowerCase();
+        if (vus.has(cle) || exclus.has(cle)) continue;
+        vus.add(cle);
+        resultat.push(courriel);
+      }
+      return resultat;
     }
+
+    const destinatairesTo = dedupeCourriels(emailsTo);
+    const destinatairesCc = dedupeCourriels(emailsCcBruts, destinatairesTo);
 
     const sujet = `Arpentage - Demande ${demande.numero} - ${projet?.no || demande.projet_no}`;
     const html = construireHtml(demande, projet);
+    const { attachments, rapport } = await construireAttachments(admin, demande.fichiers);
 
     const reponseResend = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -218,9 +260,11 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: EXPEDITEUR,
-        to: destinataires,
+        to: destinatairesTo,
+        cc: destinatairesCc,
         subject: sujet,
         html,
+        ...(attachments.length > 0 ? { attachments } : {}),
       }),
     });
 
@@ -229,7 +273,11 @@ export default async function handler(req, res) {
       throw new Error(`Resend a refusé l'envoi : ${detail}`);
     }
 
-    return res.status(200).json({ ok: true, destinataires });
+    return res.status(200).json({
+      ok: true,
+      destinataires: [...destinatairesTo, ...destinatairesCc],
+      piecesJointes: rapport,
+    });
   } catch (err) {
     console.error('Erreur notification demande arpentage:', err);
     return res.status(500).json({ error: err.message || 'Erreur inconnue' });
