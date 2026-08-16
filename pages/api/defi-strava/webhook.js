@@ -17,10 +17,15 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    // IMPORTANT : on attend la fin du traitement AVANT de répondre.
+    // Sur Vercel, une fois la réponse envoyée, le traitement en arrière-plan
+    // peut être interrompu — donc on ne répond qu'une fois tout terminé.
+    try {
+      await processEvent(req.body);
+    } catch (err) {
+      console.error('Erreur traitement webhook Strava:', err); // eslint-disable-line no-console
+    }
     res.status(200).json({ received: true });
-    processEvent(req.body).catch((err) =>
-      console.error('Erreur traitement webhook Strava:', err) // eslint-disable-line no-console
-    );
     return;
   }
 
@@ -31,14 +36,14 @@ async function processEvent(event) {
   if (event.object_type !== 'activity') return;
 
   const supabase = getSupabaseAdmin();
-  const { data: participant } = await supabase
+  const { data: participant, error: findError } = await supabase
     .from('participants')
     .select('id')
     .eq('strava_athlete_id', event.owner_id)
     .single();
 
-  if (!participant) {
-    console.warn(`Athlète Strava ${event.owner_id} inconnu — ignoré`); // eslint-disable-line no-console
+  if (findError || !participant) {
+    console.warn(`Athlète Strava ${event.owner_id} inconnu — ignoré`, findError); // eslint-disable-line no-console
     return;
   }
 
@@ -50,7 +55,7 @@ async function processEvent(event) {
   const accessToken = await getValidAccessToken(participant.id);
   const activity = await fetchActivity(accessToken, event.object_id);
 
-  await supabase.from('activities').upsert(
+  const { error: upsertError } = await supabase.from('activities').upsert(
     {
       participant_id: participant.id,
       strava_activity_id: activity.id,
@@ -62,4 +67,8 @@ async function processEvent(event) {
     },
     { onConflict: 'strava_activity_id' }
   );
+
+  if (upsertError) {
+    console.error('Erreur upsert activité:', upsertError); // eslint-disable-line no-console
+  }
 }
