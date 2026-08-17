@@ -38,6 +38,8 @@ export default async function handler(req, res) {
             nom: activity.name,
             duree_secondes: activity.moving_time,
             date_debut: activity.start_date,
+            date_debut_locale: activity.start_date_local || null,
+            total_photo_count: activity.total_photo_count || 0,
             semaine_iso: getIsoWeek(new Date(activity.start_date)),
           },
           { onConflict: 'strava_activity_id' }
