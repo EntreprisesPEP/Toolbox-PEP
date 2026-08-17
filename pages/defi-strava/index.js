@@ -33,6 +33,17 @@ async function fetchJson(url, accessToken, options = {}) {
   return data;
 }
 
+// Trouve, dans le mois affiché, la semaine qui contient AUJOURD'HUI —
+// et non systématiquement la dernière semaine du mois. Si le mois affiché
+// est un mois passé (navigation), retombe sur sa dernière semaine ; si
+// c'est un mois futur, sur sa première.
+function indexSemaineParDefaut(semaines) {
+  const aujourdHuiISO = new Date().toISOString().slice(0, 10);
+  const idx = semaines.findIndex((s) => s.debut <= aujourdHuiISO && aujourdHuiISO <= s.fin);
+  if (idx !== -1) return idx;
+  return aujourdHuiISO < semaines[0]?.debut ? 0 : semaines.length - 1;
+}
+
 function Callout({ classement, participantId, nom, libellePeriode, libellePeriodeCourt }) {
   const moi = classement.find((r) => r.participantId === participantId);
   if (!moi) return null;
@@ -89,7 +100,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
         accessToken
       );
       setDonneesMois(data);
-      setIndexSemaine(data.semaines.length - 1);
+      setIndexSemaine(indexSemaineParDefaut(data.semaines));
     } catch (e) {
       setErreur(e.message);
     } finally {
