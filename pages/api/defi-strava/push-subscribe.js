@@ -1,34 +1,51 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).end();
-    return;
-  }
-
-  const { participant_id, subscription } = req.body || {};
-
-  if (!subscription?.endpoint) {
-    res.status(400).json({ error: 'subscription requise' });
-    return;
-  }
-
   const supabase = getSupabaseAdmin();
 
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    {
-      participant_id: participant_id || null,
-      endpoint: subscription.endpoint,
-      p256dh: subscription.keys.p256dh,
-      auth: subscription.keys.auth,
-    },
-    { onConflict: 'endpoint' }
-  );
+  if (req.method === 'POST') {
+    const { participant_id, subscription } = req.body || {};
 
-  if (error) {
-    res.status(500).json({ error: error.message });
+    if (!subscription?.endpoint) {
+      res.status(400).json({ error: 'subscription requise' });
+      return;
+    }
+
+    const { error } = await supabase.from('push_subscriptions').upsert(
+      {
+        participant_id: participant_id || null,
+        endpoint: subscription.endpoint,
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+      { onConflict: 'endpoint' }
+    );
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.status(200).json({ succes: true });
     return;
   }
 
-  res.status(200).json({ succes: true });
+  if (req.method === 'DELETE') {
+    const { endpoint } = req.body || {};
+    if (!endpoint) {
+      res.status(400).json({ error: 'endpoint requis' });
+      return;
+    }
+
+    const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.status(200).json({ succes: true });
+    return;
+  }
+
+  res.status(405).end();
 }

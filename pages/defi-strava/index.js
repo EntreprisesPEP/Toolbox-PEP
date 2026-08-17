@@ -198,6 +198,30 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
     }
   }
 
+  async function desactiverNotifications() {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/sw-defi-strava.js');
+      if (registration) {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          try {
+            await fetch('/api/defi-strava/push-subscribe/', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: subscription.endpoint }),
+            });
+          } catch (e) {
+            // On désabonne quand même côté navigateur même si l'appel serveur échoue.
+          }
+          await subscription.unsubscribe();
+        }
+      }
+      setNotifState('inactif');
+    } catch (err) {
+      console.error('Erreur désactivation notifications:', err); // eslint-disable-line no-console
+    }
+  }
+
   async function changerMois(delta) {
     if (!donneesMois) return;
     const idx = donneesMois.moisDisponibles.indexOf(donneesMois.moisIso);
@@ -479,7 +503,19 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
             </p>
             {notifState !== 'non-supporte' && (
               notifState === 'actif' ? (
-                <span>🔔 Notifications activées sur cet appareil</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span>🔔 Notifications activées sur cet appareil</span>
+                  <button
+                    onClick={desactiverNotifications}
+                    style={{
+                      background: 'none', border: '1px solid var(--line)', color: 'var(--text-dim)',
+                      fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700, padding: '5px 10px',
+                      borderRadius: 7, cursor: 'pointer',
+                    }}
+                  >
+                    🔕 Désactiver
+                  </button>
+                </div>
               ) : (
                 <button className="btn-notif" onClick={activerNotifications}>🔔 Activer les notifications</button>
               )
