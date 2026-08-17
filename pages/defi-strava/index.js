@@ -63,7 +63,7 @@ function Callout({ classement, participantId, nom, libellePeriode, libellePeriod
 
 function DefiStravaApp({ nom, participantId, accessToken }) {
   const [mode, setMode] = useState('jour');
-  const [ongletActif, setOngletActif] = useState('piste');
+  const [ongletActif, setOngletActif] = useState('podium');
 
   const [donneesMois, setDonneesMois] = useState(null);
   const [indexSemaine, setIndexSemaine] = useState(0);
@@ -181,7 +181,6 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
   }
 
   const classementMois = donneesMois?.classementMois || [];
-  const maxMois = classementMois.length > 0 ? classementMois[0].total : 0;
   const semaineActuelle = donneesMois?.semaines?.[indexSemaine];
   const classementSemaine = semaineActuelle?.classement || [];
 
@@ -197,7 +196,6 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
         <div className="barre-controle">
           <div className="onglets">
             {[
-              { id: 'piste', label: 'Vue Progressive' },
               { id: 'podium', label: 'Vue Podium' },
               { id: 'palmares', label: '🏆 Hall of Fame / Shame' },
             ].map((o) => (
@@ -271,32 +269,6 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                   </div>
                 </div>
               </div>
-
-              {ongletActif === 'piste' && (
-                <div className="vue actif">
-                  <div className="pistes">
-                    {classementMois.length === 0 ? (
-                      <div className="etat-vide">Personne n&apos;a encore bougé ce mois-ci.</div>
-                    ) : classementMois.map((r) => {
-                      const pct = Math.max(12, Math.round((r.total / (maxMois || 1)) * 92));
-                      const ecart = r.rang === 1 ? null : maxMois - r.total;
-                      return (
-                        <div key={r.nom} className={`piste r${r.rang}`} style={{ '--pct': `${pct}%` }}>
-                          <div className="remplissage" />
-                          <div className="piste-contenu">
-                            <div className="rang-badge">{MEDAILLES[r.rang] || `#${r.rang}`}</div>
-                            <div className="nom">{r.nom}</div>
-                            <div className="stats">
-                              <div className="temps">{r.totalFormate}</div>
-                              <div className="ecart">{ecart ? `−${formatDuree(ecart)}` : '—'}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {ongletActif === 'podium' && (
                 <div className="vue actif">
