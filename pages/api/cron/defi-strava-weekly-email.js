@@ -4,7 +4,8 @@ import { getMonthlyRanking } from '../../../lib/defi-strava/getMonthlyRanking';
 import { sendResumeHebdomadaire } from '../../../lib/defi-strava/emailTemplate';
 import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-strava/push';
 import { semaineFinieLaPlusRecente, labelSemaine } from '../../../lib/defi-strava/weekUtils';
-import { getCurrentIsoMonth, formatMoisLisible } from '../../../lib/defi-strava/monthUtils';
+import { getCurrentIsoMonth, formatMoisLisible, moisAvecPreposition } from '../../../lib/defi-strava/monthUtils';
+import { texteClassementLignes } from '../../../lib/defi-strava/format';
 import { heureActuelleEst, dateDuJourEst } from '../../../lib/defi-strava/timezone';
 
 const CLE_ETAT = 'dernier_envoi_hebdo';
@@ -87,6 +88,7 @@ export default async function handler(req, res) {
   try {
     resultatEmail = await sendResumeHebdomadaire(destinataires, {
       semaine: semaineLabel,
+      semaineNumero: semaine.numero,
       top3Semaine,
       moisLisible,
       classementMois,
@@ -98,11 +100,11 @@ export default async function handler(req, res) {
   }
 
   const payloadPush = {
-    title: `📅 Résumé du Défi Strava — ${moisLisible}`,
+    title: `🏅 Résumé de la Semaine ${semaine.numero} ${moisAvecPreposition(moisIndex0)}`,
     body:
-      classementMois.length > 0
-        ? `En tête ce mois-ci : ${classementMois[0].nom} (${classementMois[0].totalFormate}). Regarde le classement complet !`
-        : "Personne n'a encore bougé ce mois-ci — sois le premier !",
+      top3Semaine.length > 0
+        ? `Cette semaine — Ne lâchez pas !\n${texteClassementLignes(top3Semaine)}\n\nLeaders du mois :\n${texteClassementLignes(classementMois)}`
+        : "Personne n'a bougé cette semaine — sois le premier !",
     url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
   };
 
