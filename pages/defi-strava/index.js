@@ -90,6 +90,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
   const [voteEnCours, setVoteEnCours] = useState(false);
 
   const [notifState, setNotifState] = useState('inconnu');
+  const [erreurNotifTech, setErreurNotifTech] = useState('');
 
   async function chargerMois(moisIso) {
     setChargement(true);
@@ -143,26 +144,57 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
   }, []);
 
   async function activerNotifications() {
+    setErreurNotifTech('');
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         setNotifState('refuse');
         return;
       }
-      const registration = await navigator.serviceWorker.register('/sw-defi-strava.js');
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      await fetch('/api/defi-strava/push-subscribe/', {
+
+      let registration;
+      try {
+        registration = await navigator.serviceWorker.register('/sw-defi-strava.js');
+        await navigator.serviceWorker.ready;
+      } catch (err) {
+        console.error('Erreur enregistrement du service worker:', err); // eslint-disable-line no-console
+        setErreurNotifTech(`Impossible d'enregistrer le service worker : ${err.message}`);
+        setNotifState('erreur-technique');
+        return;
+      }
+
+      let subscription;
+      try {
+        if (!VAPID_PUBLIC_KEY) throw new Error('Clé VAPID publique manquante côté serveur (variable NEXT_PUBLIC_DEFI_STRAVA_VAPID_PUBLIC_KEY).');
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+      } catch (err) {
+        console.error('Erreur abonnement push:', err); // eslint-disable-line no-console
+        setErreurNotifTech(`Impossible de s'abonner aux notifications : ${err.message}`);
+        setNotifState('erreur-technique');
+        return;
+      }
+
+      const reponse = await fetch('/api/defi-strava/push-subscribe/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription }),
       });
+      if (!reponse.ok) {
+        const detail = await reponse.json().catch(() => ({}));
+        console.error('Erreur enregistrement abonnement côté serveur:', detail); // eslint-disable-line no-console
+        setErreurNotifTech(`Le serveur a refusé l'abonnement : ${detail.error || reponse.status}`);
+        setNotifState('erreur-technique');
+        return;
+      }
+
       setNotifState('actif');
     } catch (err) {
       console.error('Erreur activation notifications:', err); // eslint-disable-line no-console
-      setNotifState('refuse');
+      setErreurNotifTech(err.message || 'Erreur inconnue.');
+      setNotifState('erreur-technique');
     }
   }
 
@@ -455,6 +487,11 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
             {notifState === 'refuse' && (
               <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                 Notifications bloquées — active-les dans les réglages de ton navigateur.
+              </p>
+            )}
+            {notifState === 'erreur-technique' && (
+              <p style={{ fontSize: 12, color: '#c41230' }}>
+                ⚠️ {erreurNotifTech || "Un problème technique a empêché l'activation. Regarde la console du navigateur (F12) pour le détail."}
               </p>
             )}
           </div>
