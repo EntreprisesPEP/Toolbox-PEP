@@ -180,7 +180,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       const reponse = await fetch('/api/defi-strava/push-subscribe/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription }),
+        body: JSON.stringify({ subscription, participant_id: participantId }),
       });
       if (!reponse.ok) {
         const detail = await reponse.json().catch(() => ({}));

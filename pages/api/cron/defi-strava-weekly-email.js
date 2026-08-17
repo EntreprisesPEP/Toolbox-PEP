@@ -2,24 +2,59 @@ import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { getRankingPourPeriode } from '../../../lib/defi-strava/getRanking';
 import { getMonthlyRanking } from '../../../lib/defi-strava/getMonthlyRanking';
 import { sendResumeHebdomadaire } from '../../../lib/defi-strava/emailTemplate';
-import { envoyerPushATous } from '../../../lib/defi-strava/push';
+import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-strava/push';
 import { semaineFinieLaPlusRecente, labelSemaine } from '../../../lib/defi-strava/weekUtils';
 import { getCurrentIsoMonth, formatMoisLisible } from '../../../lib/defi-strava/monthUtils';
+import { heureActuelleEst, dateDuJourEst } from '../../../lib/defi-strava/timezone';
+
+const CLE_ETAT = 'dernier_envoi_hebdo';
 
 export default async function handler(req, res) {
+  // Accepte soit l'en-tête Authorization (vrai déclenchement automatique
+  // par Vercel Cron), soit ?secret=... dans l'URL — pour pouvoir déclencher
+  // un test manuel directement depuis le navigateur.
   const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secretQuery = req.query.secret;
+  const autorise = authHeader === `Bearer ${process.env.CRON_SECRET}` || secretQuery === process.env.CRON_SECRET;
+  if (!autorise) {
     res.status(401).json({ error: 'Non autorisé' });
     return;
   }
 
+  const forcer = req.query.forcer === '1';
+  const destinataireTest = req.query.destinataireTest || null;
+
   const supabase = getSupabaseAdmin();
 
+  // Le cron Vercel (vercel.json) déclenche cette route à plusieurs heures
+  // UTC candidates chaque lundi (voir commentaire dans vercel.json) — on
+  // ne procède réellement que si c'est actuellement 8h heure de l'Est,
+  // peu importe si on est en heure avancée ou normale. C'est ÇA qui rend
+  // l'ajustement automatique au changement d'heure, plutôt qu'un horaire
+  // UTC fixe qui, lui, ne s'ajuste jamais tout seul.
+  if (!forcer && heureActuelleEst() !== 8) {
+    res.status(200).json({ ignore: true, raison: "Pas encore 8h heure de l'Est — ce n'est qu'un des essais horaires du cron." });
+    return;
+  }
+
+  // Évite un double envoi si jamais plus d'un essai horaire du cron tombe
+  // sur 8h (ne devrait normalement pas arriver, mais ne coûte rien).
+  const aujourdHuiEst = dateDuJourEst();
+  if (!forcer) {
+    try {
+      const { data: etat } = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
+      if (etat?.valeur === aujourdHuiEst) {
+        res.status(200).json({ ignore: true, raison: 'Déjà envoyé aujourd\'hui.' });
+        return;
+      }
+    } catch (err) {
+      // Si la clé n'existe pas encore, on continue simplement l'envoi.
+      console.error('Erreur lecture dernier_envoi_hebdo:', err); // eslint-disable-line no-console
+    }
+  }
+
   // La semaine qui vient de se terminer — jamais celle en cours (même
-  // logique que le vote). Corrige au passage un bug pré-existant qui
-  // utilisait la semaine ISO COURANTE (celle qui vient de commencer le
-  // lundi matin même, au moment où ce cron tourne) au lieu de la
-  // précédente.
+  // logique que le vote).
   const { semaine, annee, moisIndex0 } = semaineFinieLaPlusRecente();
   const { texte: semaineLabel } = labelSemaine(semaine, annee, moisIndex0);
 
@@ -33,7 +68,20 @@ export default async function handler(req, res) {
   ]);
 
   const top3Semaine = classementSemaine.slice(0, 3);
-  const destinataires = (participants || []).map((p) => p.email);
+  // Mode test sécuritaire : si ?destinataireTest=... est fourni, le
+  // courriel ET le push partent UNIQUEMENT à cette personne, plutôt qu'à
+  // tous les participants actifs / tous les abonnés — utile pour tester
+  // sans jamais déranger qui que ce soit d'autre.
+  let destinataires;
+  let participantTestId = null;
+  if (destinataireTest) {
+    destinataires = [destinataireTest];
+    const { data: participantTest } = await supabase
+      .from('participants').select('id').eq('email', destinataireTest).maybeSingle();
+    participantTestId = participantTest?.id || null;
+  } else {
+    destinataires = (participants || []).map((p) => p.email);
+  }
 
   await sendResumeHebdomadaire(destinataires, {
     semaine: semaineLabel,
@@ -42,19 +90,42 @@ export default async function handler(req, res) {
     classementMois,
   });
 
-  const resultatPush = await envoyerPushATous({
+  const payloadPush = {
     title: `📅 Résumé du Défi Strava — ${moisLisible}`,
     body:
       classementMois.length > 0
         ? `En tête ce mois-ci : ${classementMois[0].nom} (${classementMois[0].totalFormate}). Regarde le classement complet !`
         : "Personne n'a encore bougé ce mois-ci — sois le premier !",
     url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
-  });
+  };
+
+  let resultatPush;
+  if (destinataireTest) {
+    resultatPush = participantTestId
+      ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
+      : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
+  } else {
+    resultatPush = await envoyerPushATous(payloadPush);
+  }
+
+  if (!forcer) {
+    try {
+      await supabase.from('defi_state').upsert(
+        { cle: CLE_ETAT, valeur: aujourdHuiEst, updated_at: new Date().toISOString() },
+        { onConflict: 'cle' }
+      );
+    } catch (err) {
+      // Ne bloque jamais l'envoi réel si cette mémorisation échoue —
+      // au pire, un envoi en double est possible mais sans gravité.
+      console.error('Erreur enregistrement dernier_envoi_hebdo:', err); // eslint-disable-line no-console
+    }
+  }
 
   res.status(200).json({
-    courriel_envoye_a: destinataires.length,
+    courriel_envoye_a: destinataires,
     push: resultatPush,
     semaine: semaineLabel,
     mois: moisIso,
+    modeTest: !!destinataireTest,
   });
 }
