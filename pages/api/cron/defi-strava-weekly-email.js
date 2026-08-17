@@ -83,12 +83,19 @@ export default async function handler(req, res) {
     destinataires = (participants || []).map((p) => p.email);
   }
 
-  await sendResumeHebdomadaire(destinataires, {
-    semaine: semaineLabel,
-    top3Semaine,
-    moisLisible,
-    classementMois,
-  });
+  let resultatEmail;
+  try {
+    resultatEmail = await sendResumeHebdomadaire(destinataires, {
+      semaine: semaineLabel,
+      top3Semaine,
+      moisLisible,
+      classementMois,
+    });
+  } catch (err) {
+    console.error('Erreur envoi courriel Resend:', err); // eslint-disable-line no-console
+    res.status(500).json({ error: `Envoi du courriel échoué : ${err.message}` });
+    return;
+  }
 
   const payloadPush = {
     title: `📅 Résumé du Défi Strava — ${moisLisible}`,
@@ -123,6 +130,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     courriel_envoye_a: destinataires,
+    courriel_resultat: resultatEmail,
     push: resultatPush,
     semaine: semaineLabel,
     mois: moisIso,
