@@ -12,6 +12,7 @@ const CLE_ETAT = 'dernier_envoi_fin_mois';
 // déclenche le 1er du mois suivant à 8h heure de l'Est. Distincte du
 // résumé hebdomadaire du lundi (qui, lui, porte sur la semaine).
 export default async function handler(req, res) {
+  const debutExecution = Date.now();
   const authHeader = req.headers.authorization;
   const secretQuery = req.query.secret;
   const autorise = authHeader === `Bearer ${process.env.CRON_SECRET}` || secretQuery === process.env.CRON_SECRET;
@@ -22,6 +23,11 @@ export default async function handler(req, res) {
 
   const forcer = req.query.forcer === '1';
   const destinataireTest = req.query.destinataireTest || null;
+  // Interrupteurs de diagnostic temporaires — permettent d'isoler
+  // exactement quelle section cause le problème sans deviner davantage.
+  const sansHof = req.query.sansHof === '1';
+  const sansEmail = req.query.sansEmail === '1';
+  const sansPush = req.query.sansPush === '1';
 
   // Ne procède que le 1er du mois à 8h heure de l'Est (peu importe
   // l'heure d'été/hiver) — sauf si on force un test manuel.
@@ -69,34 +75,36 @@ export default async function handler(req, res) {
   })();
 
   let categoriesChangees = [];
-  try {
-    // Une seule récupération des données depuis Supabase, puis 2 calculs
-    // en mémoire (rapide) — au lieu de récupérer ET calculer 2 fois, ce
-    // qui doublait le temps d'exécution et risquait un dépassement de
-    // temps sur Vercel.
-    const donneesHof = await fetchDonneesHallOfFame();
-    const hofActuel = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisEcoule);
-    const hofAvant = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisPrecedent);
-    if (!hofActuel.pretePasEncore) {
-      categoriesChangees = hofActuel.categories
-        .map((cat, i) => {
-          const avant = hofAvant.pretePasEncore ? null : hofAvant.categories[i];
-          const aChange = !avant || avant.detenteur !== cat.detenteur || avant.valeur !== cat.valeur;
-          if (!aChange) return null;
-          const avantValide = avant && avant.detenteur !== 'Personne encore';
-          return {
-            icone: cat.icone,
-            titre: cat.titre,
-            detenteur: cat.detenteur,
-            valeur: cat.valeur,
-            ancienDetenteur: avantValide ? avant.detenteur : null,
-            ancienneValeur: avantValide ? avant.valeur : null,
-          };
-        })
-        .filter(Boolean);
+  if (!sansHof) {
+    try {
+      // Une seule récupération des données depuis Supabase, puis 2 calculs
+      // en mémoire (rapide) — au lieu de récupérer ET calculer 2 fois, ce
+      // qui doublait le temps d'exécution et risquait un dépassement de
+      // temps sur Vercel.
+      const donneesHof = await fetchDonneesHallOfFame();
+      const hofActuel = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisEcoule);
+      const hofAvant = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisPrecedent);
+      if (!hofActuel.pretePasEncore) {
+        categoriesChangees = hofActuel.categories
+          .map((cat, i) => {
+            const avant = hofAvant.pretePasEncore ? null : hofAvant.categories[i];
+            const aChange = !avant || avant.detenteur !== cat.detenteur || avant.valeur !== cat.valeur;
+            if (!aChange) return null;
+            const avantValide = avant && avant.detenteur !== 'Personne encore';
+            return {
+              icone: cat.icone,
+              titre: cat.titre,
+              detenteur: cat.detenteur,
+              valeur: cat.valeur,
+              ancienDetenteur: avantValide ? avant.detenteur : null,
+              ancienneValeur: avantValide ? avant.valeur : null,
+            };
+          })
+          .filter(Boolean);
+      }
+    } catch (err) {
+      console.error('Erreur calcul comparaison Hall of Fame:', err); // eslint-disable-line no-console
     }
-  } catch (err) {
-    console.error('Erreur calcul comparaison Hall of Fame:', err); // eslint-disable-line no-console
   }
 
   // Combien de mois d'affilée le gagnant du mois vient-il de remporter ?
@@ -141,33 +149,37 @@ export default async function handler(req, res) {
     url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/?mois=${moisIso}`,
   };
 
-  let resultatPush;
-  try {
-    if (destinataireTest) {
-      resultatPush = participantTestId
-        ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
-        : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
-    } else {
-      resultatPush = await envoyerPushATous(payloadPush);
+  let resultatPush = { ignore: true, raison: 'sansPush=1' };
+  if (!sansPush) {
+    try {
+      if (destinataireTest) {
+        resultatPush = participantTestId
+          ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
+          : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
+      } else {
+        resultatPush = await envoyerPushATous(payloadPush);
+      }
+    } catch (err) {
+      console.error('Erreur envoi push fin de mois:', err); // eslint-disable-line no-console
+      resultatPush = { envoyes: 0, echecs: 0, erreur: err.message };
     }
-  } catch (err) {
-    console.error('Erreur envoi push fin de mois:', err); // eslint-disable-line no-console
-    resultatPush = { envoyes: 0, echecs: 0, erreur: err.message };
   }
 
-  let resultatEmail;
-  try {
-    let destinatairesEmail;
-    if (destinataireTest) {
-      destinatairesEmail = [destinataireTest];
-    } else {
-      const { data: participantsActifs } = await supabase.from('participants').select('email').eq('actif', true);
-      destinatairesEmail = (participantsActifs || []).map((p) => p.email).filter(Boolean);
+  let resultatEmail = { ignore: true, raison: 'sansEmail=1' };
+  if (!sansEmail) {
+    try {
+      let destinatairesEmail;
+      if (destinataireTest) {
+        destinatairesEmail = [destinataireTest];
+      } else {
+        const { data: participantsActifs } = await supabase.from('participants').select('email').eq('actif', true);
+        destinatairesEmail = (participantsActifs || []).map((p) => p.email).filter(Boolean);
+      }
+      resultatEmail = await sendFinDeMois(destinatairesEmail, { moisLisible, moisIso, classementFinal, categoriesChangees, streakMois });
+    } catch (err) {
+      console.error('Erreur envoi courriel fin de mois:', err); // eslint-disable-line no-console
+      resultatEmail = { envoye: false, erreur: err.message };
     }
-    resultatEmail = await sendFinDeMois(destinatairesEmail, { moisLisible, moisIso, classementFinal, categoriesChangees, streakMois });
-  } catch (err) {
-    console.error('Erreur envoi courriel fin de mois:', err); // eslint-disable-line no-console
-    resultatEmail = { envoye: false, erreur: err.message };
   }
 
   if (!forcer) {
@@ -187,5 +199,7 @@ export default async function handler(req, res) {
     mois_annonce: moisIso,
     classement: classementFinal,
     modeTest: !!destinataireTest,
+    dureeMs: Date.now() - debutExecution,
+    interrupteurs: { sansHof, sansEmail, sansPush },
   });
 }
