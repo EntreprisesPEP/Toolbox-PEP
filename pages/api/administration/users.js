@@ -460,6 +460,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    // NOUVEAU — retire une personne en attente au complet (tous les
+    // acces par app + son profil Ordre du jour + son profil Planif
+    // Hebdo, en un seul appel), pour le bouton "Retirer cette personne".
+    if (action === 'delete_all_pending') {
+      const { email } = req.body;
+      if (!email) throw new Error('email requis');
+      const emailNorm = email.trim().toLowerCase();
+
+      await admin.from('pep_pending_access').delete().eq('email', emailNorm);
+      await admin.schema('ordre_du_jour').from('profils_attente').delete().eq('email', emailNorm);
+      await admin.schema('planif_hebdo').from('profils_attente').delete().eq('email', emailNorm);
+
+      return res.status(200).json({ success: true });
+    }
+
     if (action === 'delete_user') {
       const { user_id } = req.body;
       if (!user_id) throw new Error('user_id requis');

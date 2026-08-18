@@ -51,6 +51,28 @@ function isActiveRecently(iso) {
   return diffMs < 1000 * 60 * 60 * 24 * 14; // actif si connecte dans les 14 derniers jours
 }
 
+// Fusionne les 3 sources de donnees "en attente" (profil Ordre du jour,
+// profil Planif Hebdo, acces generiques par app) en un seul objet qui a
+// exactement la meme forme qu'un vrai membre — pour pouvoir reutiliser
+// PermissionsGrid telle quelle, sans dupliquer son affichage.
+function pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, accesAttente) {
+  const odj = profilsAttente.find((p) => p.email === email) || null;
+  const planif = planifProfilsAttente.find((p) => p.email === email) || null;
+  const accesRows = accesAttente.filter((a) => a.email === email);
+  const apps = accesRows.filter((a) => a.has_app_access).map((a) => a.app_slug);
+  const features = [];
+  accesRows.forEach((a) => {
+    (a.feature_keys || []).forEach((fk) => features.push(`${a.app_slug}:${fk}`));
+  });
+  return {
+    email,
+    apps,
+    features,
+    ordre_du_jour_profil: odj ? { nom: odj.nom, role: odj.role, acces_special: odj.acces_special, peut_previsualiser: false } : null,
+    planif_hebdo_profil: planif ? { nom: planif.nom } : null,
+  };
+}
+
 export default function AdministrationPage() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +85,8 @@ export default function AdministrationPage() {
   const [profilsAttente, setProfilsAttente] = useState([]);
   const [planifProfilsAttente, setPlanifProfilsAttente] = useState([]);
   const [accesAttente, setAccesAttente] = useState([]);
+  const [emailsTemporaires, setEmailsTemporaires] = useState([]);
+  const [nouvellePersonneEmail, setNouvellePersonneEmail] = useState('');
   const [expandedUser, setExpandedUser] = useState(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMsg, setInviteMsg] = useState('');
@@ -225,6 +249,19 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
+  async function onDeleteAllPending(email) {
+    if (!confirm(`Retirer ${email} au complet des personnes en attente (tous les acces, tous les profils) ?`)) return; // eslint-disable-line no-alert
+    setSaving(true);
+    try {
+      await callApi({ action: 'delete_all_pending', email });
+      setEmailsTemporaires((prev) => prev.filter((e) => e !== email));
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
   async function onRoleChange(user, newRole) {
     setSaving(true);
     try {
@@ -355,115 +392,70 @@ export default function AdministrationPage() {
         </Card>
 
         <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Profils Ordre du jour en attente ({profilsAttente.length})</h2>
+          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>
+            Personnes en attente — acces a toutes les apps ({new Set([
+              ...profilsAttente.map((p) => p.email),
+              ...planifProfilsAttente.map((p) => p.email),
+              ...accesAttente.map((a) => a.email),
+              ...emailsTemporaires,
+            ]).size})
+          </h2>
           <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
-            Pre-configure le nom, le role et l&apos;acces pour une personne qui n&apos;a pas encore de compte.
-            Des que tu envoies son invitation ci-dessus avec le meme courriel, la regle s&apos;applique automatiquement
-            et disparait de cette liste.
+            Pre-configure le nom, le role et l&apos;acces (par app, et par fonctionnalite a
+            l&apos;interieur de chaque app) pour une personne qui n&apos;a pas encore de compte —
+            exactement comme pour un vrai membre ci-dessous. Des que tu envoies son invitation
+            avec le meme courriel, tout s&apos;applique automatiquement et disparait de cette liste.
           </p>
-          <ProfilAttenteForm
-            ordreDuJourRoles={ordreDuJourRoles}
-            ordreDuJourAcces={ordreDuJourAcces}
-            onSave={onSaveProfilAttente}
-            saving={saving}
-          />
-          {profilsAttente.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              {profilsAttente.map((p) => (
-                <PendingProfileCard
-                  key={p.email}
-                  profil={p}
-                  apps={apps}
-                  accesAttente={accesAttente}
-                  ordreDuJourRoles={ordreDuJourRoles}
-                  ordreDuJourAcces={ordreDuJourAcces}
-                  onSaveProfil={onSaveProfilAttente}
-                  onDelete={onDeleteProfilAttente}
-                  onToggleApp={onTogglePendingApp}
-                  saving={saving}
-                />
-              ))}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 }}>
+            <input
+              type="email"
+              placeholder="courriel@pep2000.com"
+              value={nouvellePersonneEmail}
+              onChange={(e) => setNouvellePersonneEmail(e.target.value)}
+              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc', width: 260, fontFamily: 'inherit' }}
+            />
+            <button
+              onClick={() => {
+                const email = nouvellePersonneEmail.trim().toLowerCase();
+                if (!email) return;
+                setEmailsTemporaires((prev) => (prev.includes(email) ? prev : [...prev, email]));
+                setNouvellePersonneEmail('');
+              }}
+              style={btnStyle}
+            >
+              Ajouter une personne
+            </button>
+          </div>
+
+          {[...new Set([
+            ...profilsAttente.map((p) => p.email),
+            ...planifProfilsAttente.map((p) => p.email),
+            ...accesAttente.map((a) => a.email),
+            ...emailsTemporaires,
+          ])].sort().map((email) => (
+            <div key={email} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <strong>{email}</strong>
+                <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
+                  Retirer cette personne
+                </button>
+              </div>
+              <PermissionsGrid
+                user={pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, accesAttente)}
+                apps={apps}
+                features={features}
+                ordreDuJourRoles={ordreDuJourRoles}
+                ordreDuJourAcces={ordreDuJourAcces}
+                onSave={(appSlug, hasAppAccess, featureKeys) => onSaveAccesAttente(email, appSlug, hasAppAccess, featureKeys)}
+                onSaveOrdreDuJourProfil={(nom, role, accesSpecial) => onSaveProfilAttente(email, nom, role, accesSpecial)}
+                onSavePlanifHebdoProfil={(nom) => onSavePlanifProfilAttente(email, nom)}
+                saving={saving}
+              />
             </div>
-          )}
+          ))}
         </Card>
 
-        <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Profils Planification hebdomadaire en attente ({planifProfilsAttente.length})</h2>
-          <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
-            Pre-configure juste le nom affiché pour une personne qui n&apos;a pas encore de compte.
-            Dès que tu envoies son invitation ci-dessus avec le même courriel, la règle s&apos;applique automatiquement
-            (accès à l&apos;app inclus) et disparaît de cette liste.
-          </p>
-          <PlanifProfilAttenteForm onSave={onSavePlanifProfilAttente} saving={saving} />
-          {planifProfilsAttente.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginTop: 12 }}>
-              <thead>
-                <tr>
-                  <Th>Courriel</Th>
-                  <Th>Nom</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody>
-                {planifProfilsAttente.map((p) => (
-                  <tr key={p.email} style={{ borderBottom: '1px solid #eee' }}>
-                    <Td>{p.email}</Td>
-                    <Td>{p.nom}</Td>
-                    <Td>
-                      <button onClick={() => onDeletePlanifProfilAttente(p.email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
-                        Retirer
-                      </button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-
-        <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Accès en attente — toutes les apps ({accesAttente.length})</h2>
-          <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
-            Pré-configure l&apos;accès à n&apos;importe quelle app (et ses fonctionnalités) pour un courriel qui
-            n&apos;a pas encore de compte. Dès que tu envoies son invitation ci-dessus avec le même courriel,
-            les droits s&apos;appliquent automatiquement.
-          </p>
-          <AccesAttenteForm apps={apps} features={features} onSave={onSaveAccesAttente} saving={saving} />
-          {accesAttente.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginTop: 12 }}>
-              <thead>
-                <tr>
-                  <Th>Courriel</Th>
-                  <Th>App</Th>
-                  <Th>Accès app</Th>
-                  <Th>Fonctionnalités</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody>
-                {accesAttente.map((a) => {
-                  const app = apps.find((x) => x.slug === a.app_slug);
-                  const featureLabels = (a.feature_keys || [])
-                    .map((k) => features.find((f) => f.app_slug === a.app_slug && f.feature_key === k)?.label || k)
-                    .join(', ');
-                  return (
-                    <tr key={`${a.email}:${a.app_slug}`} style={{ borderBottom: '1px solid #eee' }}>
-                      <Td>{a.email}</Td>
-                      <Td>{app?.label || a.app_slug}</Td>
-                      <Td>{a.has_app_access ? 'Oui' : 'Non'}</Td>
-                      <Td>{featureLabels || '—'}</Td>
-                      <Td>
-                        <button onClick={() => onDeleteAccesAttente(a.email, a.app_slug)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
-                          Retirer
-                        </button>
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </Card>
 
         <Card>
           <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Membres ({users.length})</h2>
@@ -534,86 +526,6 @@ function NomCompletCell({ user, onSave, saving }) {
       />
       <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '4px 8px' }}>OK</button>
       {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
-    </div>
-  );
-}
-
-function PendingProfileCard({ profil, apps, accesAttente, ordreDuJourRoles, ordreDuJourAcces, onSaveProfil, onDelete, onToggleApp, saving }) {
-  const [nom, setNom] = useState(profil.nom);
-  const [role, setRole] = useState(profil.role);
-  const [accesSpecial, setAccesSpecial] = useState(profil.acces_special);
-  const [msg, setMsg] = useState('');
-  const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    setNom(profil.nom);
-    setRole(profil.role);
-    setAccesSpecial(profil.acces_special);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profil.email, profil.nom, profil.role, profil.acces_special]);
-
-  const accesParApp = new Set(
-    accesAttente.filter((a) => a.email === profil.email && a.has_app_access).map((a) => a.app_slug)
-  );
-
-  async function saveProfil() {
-    if (!nom.trim()) { setMsg('Le nom est requis.'); return; }
-    setMsg('Enregistrement...');
-    await onSaveProfil(profil.email, nom, role, accesSpecial);
-    setMsg('Enregistre ✓');
-    setTimeout(() => setMsg(''), 2000);
-  }
-
-  return (
-    <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <strong>{profil.email}</strong>
-        <div>
-          <button onClick={() => setExpanded(!expanded)} style={{ ...btnStyle, marginRight: 6 }}>
-            {expanded ? 'Fermer' : 'Droits par app'}
-          </button>
-          <button onClick={() => onDelete(profil.email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>Retirer</button>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, alignItems: 'end' }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Nom</label>
-          <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Role Ordre du jour</label>
-          <select value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
-            {ordreDuJourRoles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Acces special</label>
-          <select value={accesSpecial} onChange={(e) => setAccesSpecial(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
-            {ordreDuJourAcces.map((a) => <option key={a} value={a}>{ACCES_LABELS[a] || a}</option>)}
-          </select>
-        </div>
-        <div>
-          <button onClick={saveProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>Enregistrer</button>
-          {msg && <span style={{ marginLeft: 8, fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
-        </div>
-      </div>
-
-      {expanded && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #eee' }}>
-          {apps.map((app) => (
-            <label key={app.slug} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 8, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={accesParApp.has(app.slug)}
-                onChange={(e) => onToggleApp(profil.email, app.slug, e.target.checked)}
-                disabled={saving}
-              />
-              {app.label}
-            </label>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -871,155 +783,6 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function ProfilAttenteForm({ ordreDuJourRoles, ordreDuJourAcces, onSave, saving }) {
-  const [email, setEmail] = useState('');
-  const [nom, setNom] = useState('');
-  const [role, setRole] = useState('contremaitre');
-  const [acces, setAcces] = useState('tout');
-  const [msg, setMsg] = useState('');
-
-  async function submit() {
-    if (!email.trim() || !nom.trim()) {
-      setMsg('Courriel et nom requis.');
-      return;
-    }
-    await onSave(email.trim(), nom.trim(), role, acces);
-    setEmail(''); setNom('');
-    setMsg('Ajoute ✓');
-    setTimeout(() => setMsg(''), 2000);
-  }
-
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10 }}>
-      <input
-        type="email"
-        placeholder="courriel@pep2000.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 200 }}
-      />
-      <input
-        type="text"
-        placeholder="Nom affiche"
-        value={nom}
-        onChange={(e) => setNom(e.target.value)}
-        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 170 }}
-      />
-      <select value={role} onChange={(e) => setRole(e.target.value)} style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
-        {ordreDuJourRoles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
-      </select>
-      <select value={acces} onChange={(e) => setAcces(e.target.value)} style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
-        {ordreDuJourAcces.map((a) => <option key={a} value={a}>{ACCES_LABELS[a] || a}</option>)}
-      </select>
-      <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
-      {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
-    </div>
-  );
-}
-
-function PlanifProfilAttenteForm({ onSave, saving }) {
-  const [email, setEmail] = useState('');
-  const [nom, setNom] = useState('');
-  const [msg, setMsg] = useState('');
-
-  async function submit() {
-    if (!email.trim() || !nom.trim()) {
-      setMsg('Courriel et nom requis.');
-      return;
-    }
-    await onSave(email.trim(), nom.trim());
-    setEmail(''); setNom('');
-    setMsg('Ajoute ✓');
-    setTimeout(() => setMsg(''), 2000);
-  }
-
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10 }}>
-      <input
-        type="email"
-        placeholder="courriel@pep2000.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 200 }}
-      />
-      <input
-        type="text"
-        placeholder="Nom affiche"
-        value={nom}
-        onChange={(e) => setNom(e.target.value)}
-        style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 170 }}
-      />
-      <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
-      {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
-    </div>
-  );
-}
-
-function AccesAttenteForm({ apps, features, onSave, saving }) {
-  const [email, setEmail] = useState('');
-  const [appSlug, setAppSlug] = useState('');
-  const [hasAppAccess, setHasAppAccess] = useState(true);
-  const [featureKeys, setFeatureKeys] = useState(new Set());
-  const [msg, setMsg] = useState('');
-
-  const appFeatures = features.filter((f) => f.app_slug === appSlug);
-
-  function toggleFeature(key) {
-    const next = new Set(featureKeys);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    setFeatureKeys(next);
-  }
-
-  async function submit() {
-    if (!email.trim() || !appSlug) {
-      setMsg('Courriel et app requis.');
-      return;
-    }
-    await onSave(email.trim(), appSlug, hasAppAccess, [...featureKeys]);
-    setEmail(''); setFeatureKeys(new Set());
-    setMsg('Ajouté ✓');
-    setTimeout(() => setMsg(''), 2000);
-  }
-
-  return (
-    <div style={{ background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10 }}>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: appSlug ? 8 : 0 }}>
-        <input
-          type="email"
-          placeholder="courriel@pep2000.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 200 }}
-        />
-        <select
-          value={appSlug}
-          onChange={(e) => { setAppSlug(e.target.value); setFeatureKeys(new Set()); }}
-          style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}
-        >
-          <option value="">— Choisir une app —</option>
-          {apps.map((a) => <option key={a.slug} value={a.slug}>{a.label}</option>)}
-        </select>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5 }}>
-          <input type="checkbox" checked={hasAppAccess} onChange={(e) => setHasAppAccess(e.target.checked)} />
-          Accès à l&apos;app
-        </label>
-        <button onClick={submit} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>+ Ajouter</button>
-        {msg && <span style={{ fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
-      </div>
-      {appSlug && appFeatures.length > 0 && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {appFeatures.map((f) => (
-            <label key={f.feature_key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#444' }}>
-              <input type="checkbox" checked={featureKeys.has(f.feature_key)} onChange={() => toggleFeature(f.feature_key)} />
-              {f.label}
-            </label>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
