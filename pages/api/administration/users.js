@@ -132,6 +132,12 @@ export default async function handler(req, res) {
         .order('created_at');
       if (accesAttenteErr) throw accesAttenteErr;
 
+      // NOUVEAU — nom complet des personnes en attente (par courriel)
+      const { data: pendingProfiles, error: pendingProfilesErr } = await admin
+        .from('pep_pending_profile')
+        .select('*');
+      if (pendingProfilesErr) throw pendingProfilesErr;
+
       const users = authData.users.map((u) => ({
         id: u.id,
         email: u.email,
@@ -158,6 +164,7 @@ export default async function handler(req, res) {
         ordre_du_jour_profils_attente: profilsAttente || [],
         planif_hebdo_profils_attente: planifProfilsAttente || [],
         acces_attente: accesAttente || [],
+        pending_profiles: pendingProfiles || [],
       });
     }
 
@@ -471,6 +478,23 @@ export default async function handler(req, res) {
       await admin.from('pep_pending_access').delete().eq('email', emailNorm);
       await admin.schema('ordre_du_jour').from('profils_attente').delete().eq('email', emailNorm);
       await admin.schema('planif_hebdo').from('profils_attente').delete().eq('email', emailNorm);
+      await admin.from('pep_pending_profile').delete().eq('email', emailNorm);
+
+      return res.status(200).json({ success: true });
+    }
+
+    // NOUVEAU — nom complet general d'une personne EN ATTENTE (pas encore
+    // de compte, donc reference par courriel plutot que par user_id).
+    if (action === 'upsert_pending_nom_complet') {
+      const { email, nom_complet } = req.body;
+      if (!email || !nom_complet) throw new Error('email et nom_complet requis');
+
+      const { error } = await admin.from('pep_pending_profile').upsert({
+        email: email.trim().toLowerCase(),
+        nom_complet: nom_complet.trim(),
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
 
       return res.status(200).json({ success: true });
     }

@@ -85,6 +85,8 @@ export default function AdministrationPage() {
   const [profilsAttente, setProfilsAttente] = useState([]);
   const [planifProfilsAttente, setPlanifProfilsAttente] = useState([]);
   const [accesAttente, setAccesAttente] = useState([]);
+  const [pendingProfiles, setPendingProfiles] = useState([]);
+  const [expandedPending, setExpandedPending] = useState(new Set());
   const [emailsTemporaires, setEmailsTemporaires] = useState([]);
   const [nouvellePersonneEmail, setNouvellePersonneEmail] = useState('');
   const [expandedUser, setExpandedUser] = useState(null);
@@ -117,6 +119,7 @@ export default function AdministrationPage() {
     setProfilsAttente(data.ordre_du_jour_profils_attente || []);
     setPlanifProfilsAttente(data.planif_hebdo_profils_attente || []);
     setAccesAttente(data.acces_attente || []);
+    setPendingProfiles(data.pending_profiles || []);
   }
 
   useEffect(() => {
@@ -262,6 +265,25 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
+  async function onSavePendingNomComplet(email, nomComplet) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'upsert_pending_nom_complet', email, nom_complet: nomComplet });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
+  function toggleExpandedPending(email) {
+    setExpandedPending((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email); else next.add(email);
+      return next;
+    });
+  }
+
   async function onRoleChange(user, newRole) {
     setSaving(true);
     try {
@@ -397,6 +419,7 @@ export default function AdministrationPage() {
               ...profilsAttente.map((p) => p.email),
               ...planifProfilsAttente.map((p) => p.email),
               ...accesAttente.map((a) => a.email),
+              ...pendingProfiles.map((p) => p.email),
               ...emailsTemporaires,
             ]).size})
           </h2>
@@ -432,28 +455,50 @@ export default function AdministrationPage() {
             ...profilsAttente.map((p) => p.email),
             ...planifProfilsAttente.map((p) => p.email),
             ...accesAttente.map((a) => a.email),
+            ...pendingProfiles.map((p) => p.email),
             ...emailsTemporaires,
-          ])].sort().map((email) => (
-            <div key={email} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <strong>{email}</strong>
-                <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
-                  Retirer cette personne
-                </button>
+          ])].sort().map((email) => {
+            const estOuvert = expandedPending.has(email);
+            const nomCompletExistant = pendingProfiles.find((p) => p.email === email)?.nom_complet || '';
+            return (
+              <div key={email} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <strong>{email}</strong>
+                    <NomCompletPendingCell
+                      email={email}
+                      nomComplet={nomCompletExistant}
+                      onSave={(nomComplet) => onSavePendingNomComplet(email, nomComplet)}
+                      saving={saving}
+                    />
+                  </div>
+                  <div>
+                    <button onClick={() => toggleExpandedPending(email)} style={{ ...btnStyle, marginRight: 6 }}>
+                      {estOuvert ? 'Fermer' : 'Droits par app'}
+                    </button>
+                    <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
+                      Retirer cette personne
+                    </button>
+                  </div>
+                </div>
+                {estOuvert && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #eee' }}>
+                    <PermissionsGrid
+                      user={pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, accesAttente)}
+                      apps={apps}
+                      features={features}
+                      ordreDuJourRoles={ordreDuJourRoles}
+                      ordreDuJourAcces={ordreDuJourAcces}
+                      onSave={(appSlug, hasAppAccess, featureKeys) => onSaveAccesAttente(email, appSlug, hasAppAccess, featureKeys)}
+                      onSaveOrdreDuJourProfil={(nom, role, accesSpecial) => onSaveProfilAttente(email, nom, role, accesSpecial)}
+                      onSavePlanifHebdoProfil={(nom) => onSavePlanifProfilAttente(email, nom)}
+                      saving={saving}
+                    />
+                  </div>
+                )}
               </div>
-              <PermissionsGrid
-                user={pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, accesAttente)}
-                apps={apps}
-                features={features}
-                ordreDuJourRoles={ordreDuJourRoles}
-                ordreDuJourAcces={ordreDuJourAcces}
-                onSave={(appSlug, hasAppAccess, featureKeys) => onSaveAccesAttente(email, appSlug, hasAppAccess, featureKeys)}
-                onSaveOrdreDuJourProfil={(nom, role, accesSpecial) => onSaveProfilAttente(email, nom, role, accesSpecial)}
-                onSavePlanifHebdoProfil={(nom) => onSavePlanifProfilAttente(email, nom)}
-                saving={saving}
-              />
-            </div>
-          ))}
+            );
+          })}
         </Card>
 
 
@@ -525,6 +570,36 @@ function NomCompletCell({ user, onSave, saving }) {
         style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 150 }}
       />
       <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '4px 8px' }}>OK</button>
+      {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
+    </div>
+  );
+}
+
+function NomCompletPendingCell({ email, nomComplet, onSave, saving }) {
+  const [valeur, setValeur] = useState(nomComplet || '');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    setValeur(nomComplet || '');
+  }, [email, nomComplet]);
+
+  async function save() {
+    if (!valeur.trim()) return;
+    await onSave(valeur.trim());
+    setMsg('✓');
+    setTimeout(() => setMsg(''), 1500);
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input
+        type="text"
+        value={valeur}
+        onChange={(e) => setValeur(e.target.value)}
+        placeholder="Nom complet"
+        style={{ padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 180 }}
+      />
+      <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '5px 10px' }}>OK</button>
       {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
     </div>
   );
