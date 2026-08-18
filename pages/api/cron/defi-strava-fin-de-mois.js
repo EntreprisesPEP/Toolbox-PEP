@@ -49,7 +49,14 @@ export default async function handler(req, res) {
     }
   }
 
-  const classementFinal = await getMonthlyRanking(moisIso);
+  let classementFinal;
+  try {
+    classementFinal = await getMonthlyRanking(moisIso);
+  } catch (err) {
+    console.error('Erreur récupération classement final:', err); // eslint-disable-line no-console
+    res.status(500).json({ error: `Erreur récupération classement final : ${err.message}` });
+    return;
+  }
 
   // Compare le Hall of Fame "tel qu'il était" à la fin de ce mois-ci vs
   // à la fin du mois précédent, pour savoir quels records viennent de
@@ -100,10 +107,14 @@ export default async function handler(req, res) {
   }
 
   let participantTestId = null;
-  if (destinataireTest) {
-    const { data: participantTest } = await supabase
-      .from('participants').select('id').eq('email', destinataireTest).maybeSingle();
-    participantTestId = participantTest?.id || null;
+  try {
+    if (destinataireTest) {
+      const { data: participantTest } = await supabase
+        .from('participants').select('id').eq('email', destinataireTest).maybeSingle();
+      participantTestId = participantTest?.id || null;
+    }
+  } catch (err) {
+    console.error('Erreur résolution participant test:', err); // eslint-disable-line no-console
   }
 
   const [premier, deuxieme, troisieme] = classementFinal;
@@ -128,12 +139,17 @@ export default async function handler(req, res) {
   };
 
   let resultatPush;
-  if (destinataireTest) {
-    resultatPush = participantTestId
-      ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
-      : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
-  } else {
-    resultatPush = await envoyerPushATous(payloadPush);
+  try {
+    if (destinataireTest) {
+      resultatPush = participantTestId
+        ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
+        : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
+    } else {
+      resultatPush = await envoyerPushATous(payloadPush);
+    }
+  } catch (err) {
+    console.error('Erreur envoi push fin de mois:', err); // eslint-disable-line no-console
+    resultatPush = { envoyes: 0, echecs: 0, erreur: err.message };
   }
 
   let resultatEmail;

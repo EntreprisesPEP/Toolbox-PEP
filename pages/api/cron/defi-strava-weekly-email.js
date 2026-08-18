@@ -62,11 +62,21 @@ export default async function handler(req, res) {
   const moisIso = getCurrentIsoMonth();
   const moisLisible = formatMoisLisible(moisIso);
 
-  const [classementSemaine, classementMois, { data: participants }] = await Promise.all([
-    getRankingPourPeriode(semaine.debut, semaine.fin),
-    getMonthlyRanking(moisIso),
-    supabase.from('participants').select('email').eq('actif', true),
-  ]);
+  let classementSemaine, classementMois, participants;
+  try {
+    const resultats = await Promise.all([
+      getRankingPourPeriode(semaine.debut, semaine.fin),
+      getMonthlyRanking(moisIso),
+      supabase.from('participants').select('email').eq('actif', true),
+    ]);
+    classementSemaine = resultats[0];
+    classementMois = resultats[1];
+    participants = resultats[2].data;
+  } catch (err) {
+    console.error('Erreur récupération des classements:', err); // eslint-disable-line no-console
+    res.status(500).json({ error: `Erreur récupération des classements : ${err.message}` });
+    return;
+  }
 
   const top3Semaine = classementSemaine.slice(0, 3);
 
@@ -87,13 +97,19 @@ export default async function handler(req, res) {
   // sans jamais déranger qui que ce soit d'autre.
   let destinataires;
   let participantTestId = null;
-  if (destinataireTest) {
-    destinataires = [destinataireTest];
-    const { data: participantTest } = await supabase
-      .from('participants').select('id').eq('email', destinataireTest).maybeSingle();
-    participantTestId = participantTest?.id || null;
-  } else {
-    destinataires = (participants || []).map((p) => p.email);
+  try {
+    if (destinataireTest) {
+      destinataires = [destinataireTest];
+      const { data: participantTest } = await supabase
+        .from('participants').select('id').eq('email', destinataireTest).maybeSingle();
+      participantTestId = participantTest?.id || null;
+    } else {
+      destinataires = (participants || []).map((p) => p.email);
+    }
+  } catch (err) {
+    console.error('Erreur résolution destinataires:', err); // eslint-disable-line no-console
+    res.status(500).json({ error: `Erreur résolution destinataires : ${err.message}` });
+    return;
   }
 
   let resultatEmail;
@@ -126,12 +142,17 @@ export default async function handler(req, res) {
   };
 
   let resultatPush;
-  if (destinataireTest) {
-    resultatPush = participantTestId
-      ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
-      : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
-  } else {
-    resultatPush = await envoyerPushATous(payloadPush);
+  try {
+    if (destinataireTest) {
+      resultatPush = participantTestId
+        ? await envoyerPushAUnParticipant(participantTestId, payloadPush)
+        : { envoyes: 0, echecs: 0, note: 'Aucun participant trouvé avec ce courriel — push ignoré.' };
+    } else {
+      resultatPush = await envoyerPushATous(payloadPush);
+    }
+  } catch (err) {
+    console.error('Erreur envoi push:', err); // eslint-disable-line no-console
+    resultatPush = { envoyes: 0, echecs: 0, erreur: err.message };
   }
 
   if (!forcer) {
