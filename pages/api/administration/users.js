@@ -74,6 +74,12 @@ export default async function handler(req, res) {
         .select('*');
       if (planifErr) throw planifErr;
 
+      // NOUVEAU — nom complet general du membre (independant de chaque app)
+      const { data: userProfiles, error: profilesErr } = await admin
+        .from('pep_user_profile')
+        .select('*');
+      if (profilesErr) throw profilesErr;
+
       const roleMap = Object.fromEntries((roles || []).map((r) => [r.user_id, r.role]));
 
       const appsMap = {};
@@ -97,6 +103,10 @@ export default async function handler(req, res) {
 
       const planifMap = Object.fromEntries(
         (planifProfils || []).map((p) => [p.user_id, { nom: p.nom }])
+      );
+
+      const nomCompletMap = Object.fromEntries(
+        (userProfiles || []).map((p) => [p.user_id, p.nom_complet])
       );
 
       // NOUVEAU — profils en attente (pas encore de compte, references par courriel)
@@ -133,6 +143,7 @@ export default async function handler(req, res) {
         features: featuresMap[u.id] || [],
         ordre_du_jour_profil: ordreDuJourMap[u.id] || null,
         planif_hebdo_profil: planifMap[u.id] || null,
+        nom_complet: nomCompletMap[u.id] || null,
       }));
 
       const { data: apps } = await admin.from('pep_apps').select('*').order('sort_order');
@@ -288,6 +299,22 @@ export default async function handler(req, res) {
         email: targetUser?.user?.email || '',
         role,
         updated_by: userData.user.id,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+
+      return res.status(200).json({ success: true });
+    }
+
+    // NOUVEAU — nom complet general d'un membre (independant des noms
+    // propres a chaque app comme le profil Ordre du jour ou Planif Hebdo).
+    if (action === 'update_nom_complet') {
+      const { user_id, nom_complet } = req.body;
+      if (!user_id || !nom_complet) throw new Error('user_id et nom_complet requis');
+
+      const { error } = await admin.from('pep_user_profile').upsert({
+        user_id,
+        nom_complet: nom_complet.trim(),
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;

@@ -168,6 +168,17 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
+  async function onTogglePendingApp(email, appSlug, hasAccess) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'upsert_pending_access', email, app_slug: appSlug, has_app_access: hasAccess });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
   async function onSavePlanifProfilAttente(email, nom) {
     setSaving(true);
     try {
@@ -283,6 +294,17 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
+  async function onSaveNomComplet(user, nomComplet) {
+    setSaving(true);
+    try {
+      await callApi({ action: 'update_nom_complet', user_id: user.id, nom_complet: nomComplet });
+      await loadAll();
+    } catch (e) {
+      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+    }
+    setSaving(false);
+  }
+
   if (loading) {
     return <Center><Spinner /><p>Chargement...</p></Center>;
   }
@@ -346,32 +368,22 @@ export default function AdministrationPage() {
             saving={saving}
           />
           {profilsAttente.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginTop: 12 }}>
-              <thead>
-                <tr>
-                  <Th>Courriel</Th>
-                  <Th>Nom</Th>
-                  <Th>Role</Th>
-                  <Th>Acces</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody>
-                {profilsAttente.map((p) => (
-                  <tr key={p.email} style={{ borderBottom: '1px solid #eee' }}>
-                    <Td>{p.email}</Td>
-                    <Td>{p.nom}</Td>
-                    <Td>{ROLE_LABELS[p.role] || p.role}</Td>
-                    <Td>{ACCES_LABELS[p.acces_special] || p.acces_special}</Td>
-                    <Td>
-                      <button onClick={() => onDeleteProfilAttente(p.email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
-                        Retirer
-                      </button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ marginTop: 12 }}>
+              {profilsAttente.map((p) => (
+                <PendingProfileCard
+                  key={p.email}
+                  profil={p}
+                  apps={apps}
+                  accesAttente={accesAttente}
+                  ordreDuJourRoles={ordreDuJourRoles}
+                  ordreDuJourAcces={ordreDuJourAcces}
+                  onSaveProfil={onSaveProfilAttente}
+                  onDelete={onDeleteProfilAttente}
+                  onToggleApp={onTogglePendingApp}
+                  saving={saving}
+                />
+              ))}
+            </div>
           )}
         </Card>
 
@@ -459,6 +471,7 @@ export default function AdministrationPage() {
             <thead>
               <tr>
                 <Th>Courriel</Th>
+                <Th>Nom complet</Th>
                 <Th>Statut</Th>
                 <Th>Derniere connexion</Th>
                 <Th>Role</Th>
@@ -481,6 +494,7 @@ export default function AdministrationPage() {
                   onSavePermissions={(appSlug, hasAppAccess, featureKeys) => onSavePermissions(u, appSlug, hasAppAccess, featureKeys)}
                   onSaveOrdreDuJourProfil={(nom, role, accesSpecial, peutPrevisualiser) => onSaveOrdreDuJourProfil(u, nom, role, accesSpecial, peutPrevisualiser)}
                   onSavePlanifHebdoProfil={(nom) => onSavePlanifHebdoProfil(u, nom)}
+                  onSaveNomComplet={(nomComplet) => onSaveNomComplet(u, nomComplet)}
 
                   saving={saving}
                 />
@@ -493,9 +507,120 @@ export default function AdministrationPage() {
   );
 }
 
+function NomCompletCell({ user, onSave, saving }) {
+  const [valeur, setValeur] = useState(user.nom_complet || user.ordre_du_jour_profil?.nom || '');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    setValeur(user.nom_complet || user.ordre_du_jour_profil?.nom || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.nom_complet, user.ordre_du_jour_profil?.nom]);
+
+  async function save() {
+    if (!valeur.trim()) return;
+    await onSave(valeur.trim());
+    setMsg('✓');
+    setTimeout(() => setMsg(''), 1500);
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input
+        type="text"
+        value={valeur}
+        onChange={(e) => setValeur(e.target.value)}
+        placeholder="Nom complet"
+        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 150 }}
+      />
+      <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '4px 8px' }}>OK</button>
+      {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
+    </div>
+  );
+}
+
+function PendingProfileCard({ profil, apps, accesAttente, ordreDuJourRoles, ordreDuJourAcces, onSaveProfil, onDelete, onToggleApp, saving }) {
+  const [nom, setNom] = useState(profil.nom);
+  const [role, setRole] = useState(profil.role);
+  const [accesSpecial, setAccesSpecial] = useState(profil.acces_special);
+  const [msg, setMsg] = useState('');
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    setNom(profil.nom);
+    setRole(profil.role);
+    setAccesSpecial(profil.acces_special);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profil.email, profil.nom, profil.role, profil.acces_special]);
+
+  const accesParApp = new Set(
+    accesAttente.filter((a) => a.email === profil.email && a.has_app_access).map((a) => a.app_slug)
+  );
+
+  async function saveProfil() {
+    if (!nom.trim()) { setMsg('Le nom est requis.'); return; }
+    setMsg('Enregistrement...');
+    await onSaveProfil(profil.email, nom, role, accesSpecial);
+    setMsg('Enregistre ✓');
+    setTimeout(() => setMsg(''), 2000);
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <strong>{profil.email}</strong>
+        <div>
+          <button onClick={() => setExpanded(!expanded)} style={{ ...btnStyle, marginRight: 6 }}>
+            {expanded ? 'Fermer' : 'Droits par app'}
+          </button>
+          <button onClick={() => onDelete(profil.email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>Retirer</button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, alignItems: 'end' }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Nom</label>
+          <input type="text" value={nom} onChange={(e) => setNom(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, boxSizing: 'border-box' }} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Role Ordre du jour</label>
+          <select value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
+            {ordreDuJourRoles.map((r) => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#666' }}>Acces special</label>
+          <select value={accesSpecial} onChange={(e) => setAccesSpecial(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13 }}>
+            {ordreDuJourAcces.map((a) => <option key={a} value={a}>{ACCES_LABELS[a] || a}</option>)}
+          </select>
+        </div>
+        <div>
+          <button onClick={saveProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>Enregistrer</button>
+          {msg && <span style={{ marginLeft: 8, fontSize: 12, color: '#2E9F58' }}>{msg}</span>}
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #eee' }}>
+          {apps.map((app) => (
+            <label key={app.slug} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 8, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={accesParApp.has(app.slug)}
+                onChange={(e) => onToggleApp(profil.email, app.slug, e.target.checked)}
+                disabled={saving}
+              />
+              {app.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserRow({
   user, apps, features, ordreDuJourRoles, ordreDuJourAcces,
-  expanded, onToggleExpand, onRoleChange, onDelete, onSavePermissions, onSaveOrdreDuJourProfil, onSavePlanifHebdoProfil, saving,
+  expanded, onToggleExpand, onRoleChange, onDelete, onSavePermissions, onSaveOrdreDuJourProfil, onSavePlanifHebdoProfil, onSaveNomComplet, saving,
 }) {
   const statusLabel = user.invited_not_active
     ? 'Invite - pas encore actif'
@@ -508,6 +633,7 @@ function UserRow({
     <>
       <tr style={{ borderBottom: '1px solid #eee' }}>
         <Td>{user.email}</Td>
+        <Td><NomCompletCell user={user} onSave={onSaveNomComplet} saving={saving} /></Td>
         <Td><span style={{ color: statusColor, fontWeight: 600 }}>&#9679; {statusLabel}</span></Td>
         <Td>{relativeTime(user.last_sign_in_at)}</Td>
         <Td>
@@ -526,7 +652,7 @@ function UserRow({
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={5} style={{ background: '#f7f8fa', padding: 16 }}>
+          <td colSpan={6} style={{ background: '#f7f8fa', padding: 16 }}>
             <PermissionsGrid
               user={user}
               apps={apps}
