@@ -21,6 +21,7 @@ const ROLE_LABELS = {
   dispatch_camions: 'Dispatch camions',
   dispatch_machines: 'Dispatch machines',
   contremaitre: 'Contremaître',
+  arpenteur: 'Arpenteur',
 };
 const ACCES_LABELS = {
   tout: 'Tout',

@@ -38,6 +38,7 @@ const ROLES = [
   { value: "dispatch_machines", label: "Dispatch — Transport petites machines", groupe: "Dispatch" },
   { value: "surintendant", label: "Surintendant", groupe: "Direction" },
   { value: "charge_projet", label: "Chargé de projet", groupe: "Direction" },
+  { value: "arpenteur", label: "Arpenteur", groupe: "Direction" },
   { value: "coordonnateur", label: "Coordonnateur de projet", groupe: "Direction" },
   { value: "estimateur", label: "Estimateur", groupe: "Direction" },
   { value: "directeur", label: "Directeur construction", groupe: "Direction" },

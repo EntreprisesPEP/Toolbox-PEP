@@ -9,7 +9,7 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // et avec la logique de components/ordre-du-jour/App.jsx.
 const ORDRE_DU_JOUR_ROLES = [
   'president', 'directeur', 'charge_projet', 'coordonnateur', 'estimateur',
-  'surintendant', 'dispatch_camions', 'dispatch_machines', 'contremaitre',
+  'surintendant', 'dispatch_camions', 'dispatch_machines', 'contremaitre', 'arpenteur',
 ];
 const ORDRE_DU_JOUR_ACCES = ['tout', 'camions', 'machinerie'];
 const ORDRE_DU_JOUR_SLUG = 'ordre-du-jour';
