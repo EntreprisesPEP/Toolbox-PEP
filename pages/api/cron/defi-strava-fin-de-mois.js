@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { getMonthlyRanking, calculerStreakMensuelle } from '../../../lib/defi-strava/getMonthlyRanking';
-import { calculerHallOfFame } from '../../../lib/defi-strava/hallOfFame';
+import { fetchDonneesHallOfFame, calculerHallOfFameDepuisDonnees } from '../../../lib/defi-strava/hallOfFame';
 import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-strava/push';
 import { sendFinDeMois } from '../../../lib/defi-strava/emailTemplate';
 import { getMoisPrecedent, formatMoisLisible } from '../../../lib/defi-strava/monthUtils';
@@ -70,10 +70,13 @@ export default async function handler(req, res) {
 
   let categoriesChangees = [];
   try {
-    const [hofActuel, hofAvant] = await Promise.all([
-      calculerHallOfFame(dateFinMoisEcoule),
-      calculerHallOfFame(dateFinMoisPrecedent),
-    ]);
+    // Une seule récupération des données depuis Supabase, puis 2 calculs
+    // en mémoire (rapide) — au lieu de récupérer ET calculer 2 fois, ce
+    // qui doublait le temps d'exécution et risquait un dépassement de
+    // temps sur Vercel.
+    const donneesHof = await fetchDonneesHallOfFame();
+    const hofActuel = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisEcoule);
+    const hofAvant = calculerHallOfFameDepuisDonnees(donneesHof, dateFinMoisPrecedent);
     if (!hofActuel.pretePasEncore) {
       categoriesChangees = hofActuel.categories
         .map((cat, i) => {
