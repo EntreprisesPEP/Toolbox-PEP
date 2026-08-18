@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
+import { useRouter } from 'next/router';
 import AuthGate from '../../components/defi-strava/AuthGate';
 import { formatDuree } from '../../lib/defi-strava/format';
 
@@ -85,6 +86,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
 
   const [hallOfFame, setHallOfFame] = useState(null);
   const [carteOuverte, setCarteOuverte] = useState(null);
+  const [mesStats, setMesStats] = useState(null);
 
   const [voteData, setVoteData] = useState(null);
   const [voteEnCours, setVoteEnCours] = useState(false);
@@ -123,8 +125,23 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
     } catch (e) { /* pas critique */ }
   }
 
+  async function chargerMesStats() {
+    try {
+      const data = await fetchJson('/api/defi-strava/mes-stats/', accessToken);
+      setMesStats(data);
+    } catch (e) { /* pas critique, on laisse juste l'onglet vide */ }
+  }
+
+  const router = useRouter();
+
   useEffect(() => {
-    chargerMois();
+    if (!router.isReady) return;
+    // Si on arrive via le lien d'une notification "fin de mois", ?mois=
+    // pointe directement vers le mois qui vient de se terminer plutôt que
+    // de charger le mois en cours (qui vient tout juste de commencer et
+    // serait vide).
+    const moisInitial = typeof router.query.mois === 'string' ? router.query.mois : undefined;
+    chargerMois(moisInitial);
     chargerHallOfFame();
     chargerVote();
 
@@ -141,7 +158,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router.isReady]);
 
   async function activerNotifications() {
     setErreurNotifTech('');
@@ -258,26 +275,32 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       </Head>
 
       <div className="page">
-        <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
+        <div className="barre-haut">
+          <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
+          <div className="toggle-theme">
+            <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')}>JOUR</button>
+            <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')}>NUIT</button>
+          </div>
+        </div>
 
-        <div className="barre-controle">
+        <div className="barre-onglets">
           <div className="onglets">
             {[
               { id: 'podium', label: 'Vue Podium' },
               { id: 'palmares', label: '🏆 Hall of Fame / Shame' },
+              { id: 'stats', label: '📊 Mes stats' },
             ].map((o) => (
               <button
                 key={o.id}
                 className={`onglet${ongletActif === o.id ? ' actif' : ''}`}
-                onClick={() => setOngletActif(o.id)}
+                onClick={() => {
+                  setOngletActif(o.id);
+                  if (o.id === 'stats' && !mesStats) chargerMesStats();
+                }}
               >
                 {o.label}
               </button>
             ))}
-          </div>
-          <div className="toggle-theme">
-            <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')}>JOUR</button>
-            <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')}>NUIT</button>
           </div>
         </div>
 
@@ -288,8 +311,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
               <h1>Défi Strava - PEPTalk</h1>
             </div>
             <div className="logos-header">
-              <img className="logo-strava" src="/strava-logo.png" alt="Strava" />
-              <img className="logo-pep" src="/pep-logo-noir.png" alt="Les Entreprises PEP" />
+              <img className="logo-defi" src="/logo-pep-x-strava.png" alt="Les Entreprises PEP x Strava" />
             </div>
           </div>
 
@@ -370,7 +392,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                 </div>
               )}
 
-              {ongletActif !== 'palmares' && (
+              {ongletActif === 'podium' && (
                 <>
                   <Callout
                     classement={classementMois}
@@ -486,6 +508,85 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {ongletActif === 'stats' && (
+                <div className="vue actif">
+                  <p className="stats-intro">Tes statistiques personnelles seulement — personne d&apos;autre ne voit ça.</p>
+                  {!mesStats ? (
+                    <div className="etat-vide">Chargement…</div>
+                  ) : mesStats.pasEncoreActif ? (
+                    <div className="etat-vide">Pas encore d&apos;activité enregistrée — bouge un peu et reviens voir tes statistiques !</div>
+                  ) : (
+                    <>
+                      {[
+                        {
+                          titre: '⏱️ Moyennes et volumes',
+                          items: [
+                            ['Moyenne de minutes/jour (depuis le début)', mesStats.moyennesEtVolumes.moyenneMinutesParJour],
+                            ["Moyenne d'heures/semaine (depuis le début)", mesStats.moyennesEtVolumes.moyenneHeuresParSemaine],
+                            ['Total cumulé depuis le début', mesStats.moyennesEtVolumes.totalCumule],
+                            ['Total cumulé ce mois-ci', mesStats.moyennesEtVolumes.totalCumuleCeMois],
+                            ["Nombre total d'activités enregistrées", mesStats.moyennesEtVolumes.nombreActivites],
+                            ["Nombre d'activités ce mois-ci", mesStats.moyennesEtVolumes.nombreActivitesCeMois],
+                            ['Durée moyenne par activité', mesStats.moyennesEtVolumes.dureeMoyenneParActivite],
+                            ['Nombre de sports différents pratiqués', mesStats.moyennesEtVolumes.nombreSportsDifferents],
+                          ],
+                        },
+                        {
+                          titre: '📅 Régularité',
+                          items: [
+                            ['Jours actifs ce mois-ci', mesStats.regularite.joursActifsCeMois],
+                            ['% de jours actifs depuis le début', mesStats.regularite.pourcentageJoursActifsDepuisDebut],
+                            ['Plus longue séquence (record)', mesStats.regularite.meilleureSequence],
+                            ['Séquence actuelle en cours', mesStats.regularite.sequenceActuelle],
+                            ['Plus long jeûne (record)', mesStats.regularite.plusLongJeune],
+                            ['Jours fériés actifs', mesStats.regularite.feriesActifs],
+                          ],
+                        },
+                        {
+                          titre: '🏆 Records personnels',
+                          items: [
+                            ['Meilleure journée jamais faite', mesStats.recordsPersonnels.meilleureJournee],
+                            ['Meilleure semaine jamais faite', mesStats.recordsPersonnels.meilleureSemaine],
+                            ['Meilleur mois jamais fait', mesStats.recordsPersonnels.meilleurMois],
+                            ['Date de ta meilleure journée', mesStats.recordsPersonnels.dateMeilleureJournee],
+                            ['Activité la plus longue jamais enregistrée', mesStats.recordsPersonnels.activitePlusLongue],
+                          ],
+                        },
+                        {
+                          titre: '📊 Classement',
+                          items: [
+                            ['Fois fini 1er (mois)', mesStats.classement.foisPremierMois],
+                            ['Fois fini 1er (semaine)', mesStats.classement.foisPremierSemaine],
+                            ['Podiums (top 3) au total', mesStats.classement.foisPodiumMois],
+                          ],
+                        },
+                        {
+                          titre: '🕐 Habitudes horaires',
+                          items: [
+                            ['Heure moyenne de début', mesStats.habitudesHoraires.heureMoyenneDebut],
+                            ['Répartition matin / midi / soir', mesStats.habitudesHoraires.repartitionMatinMidiSoir],
+                            ['Activités après 22 h', mesStats.habitudesHoraires.activitesApres22h],
+                            ['Activités entre 3 h et 7 h', mesStats.habitudesHoraires.activitesEntre3h7h],
+                            ['Jour le plus actif', mesStats.habitudesHoraires.jourPlusActif],
+                            ['Jour le moins actif', mesStats.habitudesHoraires.jourMoinsActif],
+                          ],
+                        },
+                      ].map((groupe, i) => (
+                        <div key={i} className="stats-groupe">
+                          <div className="stats-groupe-titre">{groupe.titre}</div>
+                          {groupe.items.map(([label, valeur], j) => (
+                            <div key={j} className="stats-ligne">
+                              <div className="stats-label">{label}</div>
+                              <div className="stats-valeur">{valeur}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               )}

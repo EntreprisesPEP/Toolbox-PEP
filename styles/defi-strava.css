@@ -143,6 +143,13 @@
 .defi-scope .reste-temps { font-family: 'Courier New', monospace; font-weight: 700; }
 
 .defi-scope .palmares-intro { font-size: 13px; color: var(--text-dim); margin: 4px 0 18px; }
+.defi-scope .stats-intro { font-size: 13px; color: var(--text-dim); margin: 4px 0 20px; }
+.defi-scope .stats-groupe { background: var(--panel-alt); border: 1px solid var(--line); border-radius: 12px; padding: 6px 18px; margin-bottom: 16px; }
+.defi-scope .stats-groupe-titre { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--strava); padding: 12px 0 4px; }
+.defi-scope .stats-ligne { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 13px; }
+.defi-scope .stats-ligne + .stats-ligne { border-top: 1px solid var(--line); }
+.defi-scope .stats-label { color: var(--text); }
+.defi-scope .stats-valeur { font-family: 'Courier New', monospace; font-weight: 700; color: var(--text); white-space: nowrap; }
 .defi-scope .hf-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 480px) { .defi-scope .hf-grille { grid-template-columns: 1fr; } }
 .defi-scope .hf-carte { background: var(--panel-alt); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; position: relative; overflow: hidden; cursor: pointer; }
