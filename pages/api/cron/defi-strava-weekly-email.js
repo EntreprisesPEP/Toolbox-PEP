@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
-import { getRankingPourPeriode } from '../../../lib/defi-strava/getRanking';
+import { getRankingPourPeriode, calculerStreakHebdomadaire } from '../../../lib/defi-strava/getRanking';
 import { getMonthlyRanking } from '../../../lib/defi-strava/getMonthlyRanking';
 import { sendResumeHebdomadaire } from '../../../lib/defi-strava/emailTemplate';
 import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-strava/push';
@@ -69,6 +69,18 @@ export default async function handler(req, res) {
   ]);
 
   const top3Semaine = classementSemaine.slice(0, 3);
+
+  // Combien de semaines d'affilée le gagnant de cette semaine vient-il
+  // de remporter ?
+  let streakSemaine = 1;
+  try {
+    if (top3Semaine[0]?.nom) {
+      streakSemaine = await calculerStreakHebdomadaire(top3Semaine[0].nom, semaine);
+    }
+  } catch (err) {
+    console.error('Erreur calcul streak hebdomadaire:', err); // eslint-disable-line no-console
+  }
+
   // Mode test sécuritaire : si ?destinataireTest=... est fourni, le
   // courriel ET le push partent UNIQUEMENT à cette personne, plutôt qu'à
   // tous les participants actifs / tous les abonnés — utile pour tester
@@ -92,6 +104,7 @@ export default async function handler(req, res) {
       top3Semaine,
       moisLisible,
       classementMois,
+      streakSemaine,
     });
   } catch (err) {
     console.error('Erreur envoi courriel Resend:', err); // eslint-disable-line no-console
@@ -99,11 +112,15 @@ export default async function handler(req, res) {
     return;
   }
 
+  const mentionBravoSemaine = top3Semaine[0]
+    ? `🎉 Bravo ${top3Semaine[0].nom} qui remporte la première place de la semaine${streakSemaine >= 2 ? `, une ${streakSemaine}e fois de suite` : ''} !!\n\n`
+    : '';
+
   const payloadPush = {
     title: `🏅 Résumé de la Semaine ${semaine.numero} ${moisAvecPreposition(moisIndex0)}`,
     body:
       top3Semaine.length > 0
-        ? `Cette semaine — Ne lâchez pas !\n${texteClassementLignes(top3Semaine)}\n\nLeaders du mois :\n${texteClassementLignes(classementMois)}`
+        ? `${mentionBravoSemaine}Cette semaine — Ne lâchez pas !\n${texteClassementLignes(top3Semaine)}\n\nLeaders du mois :\n${texteClassementLignes(classementMois)}`
         : "Personne n'a bougé cette semaine — sois le premier !",
     url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
   };

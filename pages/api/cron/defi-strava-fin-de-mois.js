@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
-import { getMonthlyRanking } from '../../../lib/defi-strava/getMonthlyRanking';
+import { getMonthlyRanking, calculerStreakMensuelle } from '../../../lib/defi-strava/getMonthlyRanking';
+import { calculerHallOfFame } from '../../../lib/defi-strava/hallOfFame';
 import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-strava/push';
+import { sendFinDeMois } from '../../../lib/defi-strava/emailTemplate';
 import { getMoisPrecedent, formatMoisLisible } from '../../../lib/defi-strava/monthUtils';
 import { heureActuelleEst, jourDuMoisEst, dateDuJourEst } from '../../../lib/defi-strava/timezone';
 
@@ -49,6 +51,54 @@ export default async function handler(req, res) {
 
   const classementFinal = await getMonthlyRanking(moisIso);
 
+  // Compare le Hall of Fame "tel qu'il était" à la fin de ce mois-ci vs
+  // à la fin du mois précédent, pour savoir quels records viennent de
+  // changer ce mois-ci précisément.
+  const [annee, moisNum] = moisIso.split('-').map(Number);
+  const dateFinMoisEcoule = `${annee}-${String(moisNum).padStart(2, '0')}-${String(new Date(annee, moisNum, 0).getDate()).padStart(2, '0')}`;
+  const dateFinMoisPrecedent = (() => {
+    const d = new Date(annee, moisNum - 1, 0); // dernier jour du mois précédent
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  let categoriesChangees = [];
+  try {
+    const [hofActuel, hofAvant] = await Promise.all([
+      calculerHallOfFame(dateFinMoisEcoule),
+      calculerHallOfFame(dateFinMoisPrecedent),
+    ]);
+    if (!hofActuel.pretePasEncore) {
+      categoriesChangees = hofActuel.categories
+        .map((cat, i) => {
+          const avant = hofAvant.pretePasEncore ? null : hofAvant.categories[i];
+          const aChange = !avant || avant.detenteur !== cat.detenteur || avant.valeur !== cat.valeur;
+          if (!aChange) return null;
+          const avantValide = avant && avant.detenteur !== 'Personne encore';
+          return {
+            icone: cat.icone,
+            titre: cat.titre,
+            detenteur: cat.detenteur,
+            valeur: cat.valeur,
+            ancienDetenteur: avantValide ? avant.detenteur : null,
+            ancienneValeur: avantValide ? avant.valeur : null,
+          };
+        })
+        .filter(Boolean);
+    }
+  } catch (err) {
+    console.error('Erreur calcul comparaison Hall of Fame:', err); // eslint-disable-line no-console
+  }
+
+  // Combien de mois d'affilée le gagnant du mois vient-il de remporter ?
+  let streakMois = 1;
+  try {
+    if (classementFinal[0]?.nom) {
+      streakMois = await calculerStreakMensuelle(classementFinal[0].nom, moisIso);
+    }
+  } catch (err) {
+    console.error('Erreur calcul streak mensuelle:', err); // eslint-disable-line no-console
+  }
+
   let participantTestId = null;
   if (destinataireTest) {
     const { data: participantTest } = await supabase
@@ -58,10 +108,13 @@ export default async function handler(req, res) {
 
   const [premier, deuxieme, troisieme] = classementFinal;
   const medailleTexte = (r, medaille) => (r ? `${medaille} ${r.nom} avec ${r.totalFormate}` : null);
+  const mentionBravo = premier
+    ? `🎉 Bravo ${premier.nom} qui remporte la première place du mois${streakMois >= 2 ? `, une ${streakMois}e fois de suite` : ''} !!`
+    : '';
 
   const corps = classementFinal.length === 0
     ? "Personne n'a bougé ce mois-ci — le prochain mois nous appartient !"
-    : [medailleTexte(premier, '🥇'), medailleTexte(deuxieme, '🥈'), medailleTexte(troisieme, '🥉')]
+    : mentionBravo + '\n\n' + [medailleTexte(premier, '🥇'), medailleTexte(deuxieme, '🥈'), medailleTexte(troisieme, '🥉')]
         .filter(Boolean)
         .join('\n') + '\n\nFélicitations à tout le monde d\'avoir participé ! Cliquez pour voir les résultats complets.';
 
@@ -83,6 +136,21 @@ export default async function handler(req, res) {
     resultatPush = await envoyerPushATous(payloadPush);
   }
 
+  let resultatEmail;
+  try {
+    let destinatairesEmail;
+    if (destinataireTest) {
+      destinatairesEmail = [destinataireTest];
+    } else {
+      const { data: participantsActifs } = await supabase.from('participants').select('email').eq('actif', true);
+      destinatairesEmail = (participantsActifs || []).map((p) => p.email).filter(Boolean);
+    }
+    resultatEmail = await sendFinDeMois(destinatairesEmail, { moisLisible, moisIso, classementFinal, categoriesChangees, streakMois });
+  } catch (err) {
+    console.error('Erreur envoi courriel fin de mois:', err); // eslint-disable-line no-console
+    resultatEmail = { envoye: false, erreur: err.message };
+  }
+
   if (!forcer) {
     try {
       await supabase.from('defi_state').upsert(
@@ -96,6 +164,7 @@ export default async function handler(req, res) {
 
   res.status(200).json({
     push: resultatPush,
+    email: resultatEmail,
     mois_annonce: moisIso,
     classement: classementFinal,
     modeTest: !!destinataireTest,
