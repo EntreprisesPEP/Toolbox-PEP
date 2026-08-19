@@ -1,6 +1,10 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { fetchRecentActivities, getValidAccessToken } from '../../../lib/defi-strava/stravaClient';
 import { getIsoWeek } from '../../../lib/defi-strava/weekUtils';
+import { detecterChangementMeneur } from '../../../lib/defi-strava/getMonthlyRanking';
+import { envoyerPushATous } from '../../../lib/defi-strava/push';
+import { texteNouveauMeneur } from '../../../lib/defi-strava/format';
+import { sendNouveauMeneur } from '../../../lib/defi-strava/emailTemplate';
 
 export default async function handler(req, res) {
   const authHeader = req.headers.authorization;
@@ -51,5 +55,38 @@ export default async function handler(req, res) {
     }
   }
 
-  res.status(200).json({ synchronise: resultats });
+  // Filet de sécurité : si un webhook Strava a été manqué et que cette
+  // synchro de rattrapage vient de faire changer la tête du classement,
+  // on notifie quand même (push + courriel) — avant, seul le webhook
+  // temps réel le faisait.
+  let resultatMeneur = null;
+  try {
+    resultatMeneur = await detecterChangementMeneur();
+    if (resultatMeneur) {
+      try {
+        await envoyerPushATous({
+          title: '🏎️ Nouveau meneur du Défi Strava !',
+          body: texteNouveauMeneur(resultatMeneur.classement, resultatMeneur.ancienMeneurNom),
+          url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
+        });
+      } catch (err) {
+        resultats.erreur_push_meneur = err.message;
+      }
+
+      try {
+        const { data: participantsActifs } = await supabase.from('participants').select('email').eq('actif', true);
+        const emails = (participantsActifs || []).map((p) => p.email).filter(Boolean);
+        await sendNouveauMeneur(emails, {
+          classement: resultatMeneur.classement,
+          ancienMeneurNom: resultatMeneur.ancienMeneurNom,
+        });
+      } catch (err) {
+        resultats.erreur_courriel_meneur = err.message;
+      }
+    }
+  } catch (err) {
+    resultats.erreur_detection_meneur = err.message;
+  }
+
+  res.status(200).json({ synchronise: resultats, nouveau_meneur_detecte: resultatMeneur?.nom || null });
 }

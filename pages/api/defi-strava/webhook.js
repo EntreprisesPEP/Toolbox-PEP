@@ -3,6 +3,8 @@ import { fetchActivity, getValidAccessToken } from '../../../lib/defi-strava/str
 import { getIsoWeek } from '../../../lib/defi-strava/weekUtils';
 import { detecterChangementMeneur } from '../../../lib/defi-strava/getMonthlyRanking';
 import { envoyerPushATous } from '../../../lib/defi-strava/push';
+import { texteNouveauMeneur } from '../../../lib/defi-strava/format';
+import { sendNouveauMeneur } from '../../../lib/defi-strava/emailTemplate';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
@@ -77,13 +79,29 @@ async function processEvent(event) {
   }
 
   // Vérifie si cette nouvelle activité vient de faire passer quelqu'un
-  // en première place du mois — si oui, notification immédiate à tous.
-  const nouveauMeneur = await detecterChangementMeneur();
-  if (nouveauMeneur) {
-    await envoyerPushATous({
-      title: '🥇 Nouveau meneur du Défi Strava !',
-      body: `${nouveauMeneur} vient de prendre la première place du mois. À vos souliers !`,
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
-    });
+  // en première place du mois — si oui, notification immédiate (push +
+  // courriel) à tous.
+  const resultatMeneur = await detecterChangementMeneur();
+  if (resultatMeneur) {
+    try {
+      await envoyerPushATous({
+        title: '🏎️ Nouveau meneur du Défi Strava !',
+        body: texteNouveauMeneur(resultatMeneur.classement, resultatMeneur.ancienMeneurNom),
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
+      });
+    } catch (err) {
+      console.error('Erreur envoi push nouveau meneur:', err); // eslint-disable-line no-console
+    }
+
+    try {
+      const { data: participantsActifs } = await supabase.from('participants').select('email').eq('actif', true);
+      const emails = (participantsActifs || []).map((p) => p.email).filter(Boolean);
+      await sendNouveauMeneur(emails, {
+        classement: resultatMeneur.classement,
+        ancienMeneurNom: resultatMeneur.ancienMeneurNom,
+      });
+    } catch (err) {
+      console.error('Erreur envoi courriel nouveau meneur:', err); // eslint-disable-line no-console
+    }
   }
 }

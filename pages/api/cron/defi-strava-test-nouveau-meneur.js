@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     }
 
     const payloadPush = {
-      title: '🥇 Nouveau meneur du Défi Strava !',
+      title: '🏎️ Nouveau meneur du Défi Strava !',
       body: texteNouveauMeneur(classement, ancienMeneurNom),
       url: `${process.env.NEXT_PUBLIC_APP_URL}/defi-strava/`,
     };
