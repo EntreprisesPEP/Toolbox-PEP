@@ -46,6 +46,13 @@
   color: var(--text); background: var(--panel); border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px;
 }
 
+.defi-scope .bouton-guide {
+  display: inline-block; text-decoration: none; font-size: 11.5px; font-weight: 700;
+  letter-spacing: 0.03em; color: #fff; background: var(--strava); padding: 7px 13px; border-radius: 8px;
+  transition: filter .15s ease;
+}
+.defi-scope .bouton-guide:hover { filter: brightness(1.08); }
+
 .defi-scope .logos-header { display: flex; align-items: center; gap: 16px; flex-shrink: 0; margin-top: -10px; }
 .defi-scope .logo-defi { height: 96px; width: auto; }
 .defi-scope .logo-pep { height: 76px; width: auto; }
@@ -172,6 +179,7 @@
   .defi-scope .toggle-theme button { padding: 7px 9px; font-size: 10px; }
 
   .defi-scope .retour-toolbox { font-size: 12px; padding: 7px 11px; }
+  .defi-scope .bouton-guide { font-size: 10.5px; padding: 6px 10px; }
 
   .defi-scope .podium-zone { gap: 6px; margin: 8px 0 16px; }
   .defi-scope .colonne-podium { width: 31%; }
