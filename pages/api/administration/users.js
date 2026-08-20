@@ -257,6 +257,10 @@ export default async function handler(req, res) {
         await admin.from('pep_pending_access').delete().eq('email', emailNorm);
       }
 
+      // Nettoyage du nom complet en attente (sinon la personne reste
+      // affichee dans "Personnes en attente" meme apres l'invitation).
+      await admin.from('pep_pending_profile').delete().eq('email', emailNorm);
+
       return res.status(200).json({
         success: true,
         user_id: newUserId,

@@ -92,6 +92,7 @@ export default function AdministrationPage() {
   const [expandedUser, setExpandedUser] = useState(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteMsg, setInviteMsg] = useState('');
+  const [inviteStatuts, setInviteStatuts] = useState({});
   const [saving, setSaving] = useState(false);
 
   async function callApi(payload) {
@@ -169,6 +170,22 @@ export default function AdministrationPage() {
       await loadAll();
     } catch (e) {
       setInviteMsg(`Erreur: ${e.message}`);
+    }
+  }
+
+  async function onInviterDepuisAttente(email) {
+    setInviteStatuts((s) => ({ ...s, [email]: 'Envoi en cours...' }));
+    try {
+      const result = await callApi({ action: 'invite', email });
+      setInviteStatuts((s) => ({
+        ...s,
+        [email]: result.ordre_du_jour_linked
+          ? 'Invitation envoyée — profil Ordre du jour appliqué automatiquement.'
+          : 'Invitation envoyée !',
+      }));
+      await loadAll();
+    } catch (e) {
+      setInviteStatuts((s) => ({ ...s, [email]: `Erreur: ${e.message}` }));
     }
   }
 
@@ -476,11 +493,19 @@ export default function AdministrationPage() {
                     <button onClick={() => toggleExpandedPending(email)} style={{ ...btnStyle, marginRight: 6 }}>
                       {estOuvert ? 'Fermer' : 'Droits par app'}
                     </button>
+                    <button onClick={() => onInviterDepuisAttente(email)} style={{ ...btnStyle, background: '#2E9F58', marginRight: 6 }} disabled={saving}>
+                      Inviter
+                    </button>
                     <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
                       Retirer cette personne
                     </button>
                   </div>
                 </div>
+                {inviteStatuts[email] && (
+                  <div style={{ marginTop: 8, fontSize: 13, color: inviteStatuts[email].startsWith('Erreur') ? '#C23B3B' : '#2E9F58' }}>
+                    {inviteStatuts[email]}
+                  </div>
+                )}
                 {estOuvert && (
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #eee' }}>
                     <PermissionsGrid
