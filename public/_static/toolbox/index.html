@@ -734,7 +734,16 @@ let currentTheme = localStorage.getItem('toolbox-theme') === 'day' ? 'day' : 'ni
 function renderTiles(){
   const grid = document.getElementById('tileGrid');
   grid.className = 'tile-grid format-' + currentFormat;
-  grid.innerHTML = APPS.map((app, index) => {
+  const appsVisibles = APPS
+    .map((app, index) => ({ app, index }))
+    .filter(({ app }) => {
+      const isLive = app.status === 'live' && app.url;
+      if (!isLive) return true; // tuiles "a venir" toujours visibles
+      if (jeSuisAdmin) return true;
+      const slug = app.url.replace(/^\/|\/$/g, '');
+      return mesAppsAutorisees.has(slug);
+    });
+  grid.innerHTML = appsVisibles.map(({ app, index }) => {
     const isLive = app.status === 'live' && app.url;
     const useAltIcon = app.dayStickerIcon && (
       (currentFormat === 'sticker' && currentTheme === 'day') ||
@@ -903,6 +912,28 @@ function showHub(user){
   document.getElementById('hubWrap').classList.add('show');
   document.getElementById('userEmailLabel').textContent = user.email;
   currentUserEmail = (user.email || '').toLowerCase();
+  chargerAppsAutoriseesEtAfficher(user);
+}
+
+// NOUVEAU — ne montre que les tuiles des apps auxquelles cette personne
+// a vraiment accès (pep_user_apps), + un admin voit tout. Les tuiles
+// "à venir" (non fonctionnelles) restent visibles à tout le monde.
+let mesAppsAutorisees = new Set();
+let jeSuisAdmin = false;
+
+async function chargerAppsAutoriseesEtAfficher(user){
+  try {
+    const [{ data: appAccessRows }, { data: roleRow }] = await Promise.all([
+      sb.from('pep_user_apps').select('app_slug').eq('user_id', user.id),
+      sb.from('pep_user_roles').select('role').eq('user_id', user.id).maybeSingle(),
+    ]);
+    mesAppsAutorisees = new Set((appAccessRows || []).map(r => r.app_slug));
+    jeSuisAdmin = roleRow?.role === 'admin';
+  } catch (e) {
+    // En cas d'erreur reseau, on n'affiche rien plutot que tout par erreur.
+    mesAppsAutorisees = new Set();
+    jeSuisAdmin = false;
+  }
   renderTiles();
 }
 
