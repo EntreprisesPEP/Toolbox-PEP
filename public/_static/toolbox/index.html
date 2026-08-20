@@ -728,8 +728,8 @@ function setNoteItems(app, index, items){
   } catch(e){}
 }
 
-let currentFormat = localStorage.getItem('toolbox-format') === 'sticker' ? 'sticker' : 'list';
-let currentTheme = localStorage.getItem('toolbox-theme') === 'day' ? 'day' : 'night';
+let currentFormat = localStorage.getItem('toolbox-format') === 'list' ? 'list' : 'sticker';
+let currentTheme = localStorage.getItem('toolbox-theme') === 'night' ? 'night' : 'day';
 
 function renderTiles(){
   const grid = document.getElementById('tileGrid');
