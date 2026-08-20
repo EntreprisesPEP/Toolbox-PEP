@@ -737,9 +737,9 @@ function renderTiles(){
   const appsVisibles = APPS
     .map((app, index) => ({ app, index }))
     .filter(({ app }) => {
+      if (jeSuisAdmin || currentUserEmail === OWNER_EMAIL) return true;
       const isLive = app.status === 'live' && app.url;
-      if (!isLive) return true; // tuiles "a venir" toujours visibles
-      if (jeSuisAdmin) return true;
+      if (!isLive) return false; // les tuiles "a venir" restent cachees pour l'instant, sauf owner/admin
       const slug = app.url.replace(/^\/|\/$/g, '');
       return mesAppsAutorisees.has(slug);
     });
