@@ -539,6 +539,15 @@
   </div>
 </div>
 
+<div class="login-wrap" id="confirmGateWrap" style="display:none;">
+  <div class="login-card">
+    <h1>Un instant</h1>
+    <p class="sub" id="confirmGateSub">Clique ci-dessous pour continuer.</p>
+    <div class="login-error" id="confirmGateError"></div>
+    <button class="login-btn" id="confirmGateBtn">Continuer</button>
+  </div>
+</div>
+
 <div class="hub-wrap" id="hubWrap">
   <header class="hub-header">
     <div class="hub-brand">
@@ -908,6 +917,7 @@ applyFormat();
 function showLogin(){
   document.getElementById('setPasswordWrap').style.display = 'none';
   document.getElementById('forgotPasswordWrap').style.display = 'none';
+  document.getElementById('confirmGateWrap').style.display = 'none';
   document.getElementById('loginWrap').style.display = 'flex';
   document.getElementById('hubWrap').classList.remove('show');
 }
@@ -915,6 +925,7 @@ function showHub(user){
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('setPasswordWrap').style.display = 'none';
   document.getElementById('forgotPasswordWrap').style.display = 'none';
+  document.getElementById('confirmGateWrap').style.display = 'none';
   document.getElementById('hubWrap').style.display = '';
   document.getElementById('hubWrap').classList.add('show');
   document.getElementById('userEmailLabel').textContent = user.email;
@@ -957,6 +968,7 @@ function hideLoginError(){
 function showForgotPassword(){
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('setPasswordWrap').style.display = 'none';
+  document.getElementById('confirmGateWrap').style.display = 'none';
   document.getElementById('hubWrap').style.display = 'none';
   document.getElementById('hubWrap').classList.remove('show');
   document.getElementById('forgotPasswordError').classList.remove('show');
@@ -1054,7 +1066,22 @@ function showSetPassword(){
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('hubWrap').style.display = 'none';
   document.getElementById('forgotPasswordWrap').style.display = 'none';
+  document.getElementById('confirmGateWrap').style.display = 'none';
   document.getElementById('setPasswordWrap').style.display = 'flex';
+}
+
+function showConfirmGate(){
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('hubWrap').style.display = 'none';
+  document.getElementById('forgotPasswordWrap').style.display = 'none';
+  document.getElementById('setPasswordWrap').style.display = 'none';
+  document.getElementById('confirmGateWrap').style.display = 'flex';
+}
+
+function showConfirmGateError(msg){
+  const el = document.getElementById('confirmGateError');
+  el.textContent = msg;
+  el.classList.add('show');
 }
 
 function showSetPasswordError(msg){
@@ -1094,8 +1121,63 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
 });
 
 (async function init(){
-  // Detecte un lien d'invitation ou de reinitialisation de mot de passe
-  // (Supabase met le type dans le fragment #... de l'adresse)
+  // ---------------------------------------------------------------
+  // MÉTHODE 1 (nouvelle, résistante aux scanners de sécurité
+  // corporatifs type Microsoft Safe Links) : le lien du courriel
+  // pointe vers CE site avec un jeton en paramètre d'adresse
+  // (?token_hash=...&type=...), MAIS ne consomme PAS ce jeton
+  // automatiquement au chargement de la page. Un scanner qui visite
+  // le lien pour l'inspecter ne fait que charger cette page passive
+  // -- rien n'est consommé tant qu'un humain ne clique pas
+  // explicitement sur le bouton "Continuer" ci-dessous.
+  // ---------------------------------------------------------------
+  const params = new URLSearchParams(window.location.search);
+  const tokenHash = params.get('token_hash');
+  const otpType = params.get('type');
+
+  if(tokenHash && otpType){
+    // Nettoie l'adresse tout de suite pour ne pas garder le jeton
+    // visible ni le laisser trainer si la page est rechargee.
+    const proprePath = window.location.pathname;
+    history.replaceState(null, '', proprePath);
+
+    document.getElementById('confirmGateSub').textContent =
+      (otpType === 'recovery')
+        ? 'Clique ci-dessous pour réinitialiser ton mot de passe.'
+        : 'Clique ci-dessous pour créer ton mot de passe.';
+    showConfirmGate();
+
+    document.getElementById('confirmGateBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('confirmGateBtn');
+      btn.disabled = true;
+      btn.textContent = 'Vérification...';
+      const { data, error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: otpType });
+      btn.disabled = false;
+      btn.textContent = 'Continuer';
+      if(error){
+        showConfirmGateError(
+          "Ce lien a expiré ou a déjà été utilisé. Demande un nouveau lien (nouvelle invitation, ou 'Mot de passe oublié' sur l'écran de connexion)."
+        );
+        return;
+      }
+      if(otpType === 'recovery' || otpType === 'invite'){
+        showSetPassword();
+      } else if(data.session && data.session.user){
+        showHub(data.session.user);
+      } else {
+        showLogin();
+      }
+    }, { once: true });
+
+    return;
+  }
+
+  // ---------------------------------------------------------------
+  // MÉTHODE 2 (ancienne, gardée pour les courriels déjà envoyés avant
+  // ce correctif, ou si jamais le gabarit du courriel n'a pas encore
+  // été mis à jour) : Supabase place le jeton directement dans le
+  // fragment #... de l'adresse et crée la session automatiquement.
+  // ---------------------------------------------------------------
   const hash = window.location.hash || '';
   // On ne se fie plus au texte exact 'type=invite' / 'type=recovery' --
   // Supabase utilise parfois 'type=signup' pour les invitations selon
