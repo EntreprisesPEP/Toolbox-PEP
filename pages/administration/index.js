@@ -161,12 +161,18 @@ export default function AdministrationPage() {
     setInviteMsg('Envoi en cours...');
     try {
       const result = await callApi({ action: 'invite', email: inviteEmail.trim() });
+      const emailNorm = inviteEmail.trim().toLowerCase();
       setInviteMsg(
         result.ordre_du_jour_linked
           ? `Invitation envoyee a ${inviteEmail.trim()} — profil Ordre du jour pre-configure applique automatiquement.`
           : `Invitation envoyee a ${inviteEmail.trim()}`
       );
       setInviteEmail('');
+      // Retire ce courriel de la liste "a inviter" (memoire locale) --
+      // sinon il y reste pour toujours meme une fois le compte cree,
+      // et cocher des acces dessus ensuite n'aurait plus aucun effet
+      // reel (voir onInviterDepuisAttente ci-dessous pour le detail).
+      setEmailsTemporaires((prev) => prev.filter((e) => e !== emailNorm));
       await loadAll();
     } catch (e) {
       setInviteMsg(`Erreur: ${e.message}`);
@@ -183,6 +189,13 @@ export default function AdministrationPage() {
           ? 'Invitation envoyée — profil Ordre du jour appliqué automatiquement.'
           : 'Invitation envoyée !',
       }));
+      // Meme correctif : sans ca, ce courriel restait affiche dans "a
+      // inviter" pour toujours (memoire locale jamais videe), et cocher
+      // des acces dessus ensuite ecrivait dans la table des acces EN
+      // ATTENTE -- qui n'est consommee qu'une seule fois, a
+      // l'invitation. Une fois la personne deja invitee, ces cases
+      // cochees n'avaient donc plus aucun effet reel sur son compte.
+      setEmailsTemporaires((prev) => prev.filter((e) => e !== email));
       await loadAll();
     } catch (e) {
       setInviteStatuts((s) => ({ ...s, [email]: `Erreur: ${e.message}` }));
