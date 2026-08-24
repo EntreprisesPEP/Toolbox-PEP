@@ -334,7 +334,7 @@ let state = {
 
 // ---- chargement ----
 async function loadProjects(){
-  const { data, error } = await sb.from('cost_projects').select('*').order('numero');
+  const { data, error } = await sb.from('cost_projects').select('*').order('numero', { ascending: false });
   if(error){ console.error(error); showAlert("Erreur au chargement des projets : "+error.message); return; }
   state.projects = data.map(mapProject);
 }
