@@ -1097,7 +1097,13 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
   // Detecte un lien d'invitation ou de reinitialisation de mot de passe
   // (Supabase met le type dans le fragment #... de l'adresse)
   const hash = window.location.hash || '';
-  const isInviteOrRecovery = hash.includes('type=invite') || hash.includes('type=recovery');
+  // On ne se fie plus au texte exact 'type=invite' / 'type=recovery' --
+  // Supabase utilise parfois 'type=signup' pour les invitations selon
+  // la version de son service, ce qui faisait rater la detection.
+  // Cette page ne genere un lien avec un jeton (access_token=) que pour
+  // ces 2 cas precis (invitation ou reinitialisation), donc sa simple
+  // presence suffit, peu importe le mot exact utilise pour 'type'.
+  const isInviteOrRecovery = hash.includes('access_token=');
 
   const { data } = await sb.auth.getSession();
 
