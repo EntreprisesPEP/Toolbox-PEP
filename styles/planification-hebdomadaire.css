@@ -48,6 +48,28 @@ body {
 .ph-scope .h-meta a { color: var(--link); text-decoration: none; cursor: pointer; }
 .ph-scope .h-meta a:hover { text-decoration: underline; }
 
+.ph-scope .header-right-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.ph-scope .theme-toggle { display: inline-flex; gap: 2px; background: rgba(255,255,255,0.08); border-radius: 20px; padding: 3px; }
+.ph-scope .theme-toggle button {
+  border: none; background: transparent; color: #9AA5C0; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, color .15s;
+}
+.ph-scope .theme-toggle button:hover { background: rgba(255,255,255,0.12); }
+.ph-scope .theme-toggle button.active { background: var(--red); color: #fff; }
+
+.ph-scope .role-toggle { display: inline-flex; gap: 2px; background: rgba(255,255,255,0.08); border-radius: 16px; padding: 3px; }
+.ph-scope .role-toggle button {
+  border: none; background: transparent; color: #C7CEDC; font-size: 11.5px; font-weight: 500;
+  padding: 5px 12px; border-radius: 13px; cursor: pointer; transition: background .15s, color .15s;
+}
+.ph-scope .role-toggle button:hover { background: rgba(255,255,255,0.12); }
+.ph-scope .role-toggle button.active { background: var(--red); color: #fff; }
+
+.ph-scope .h-meta-name { color: #fff; font-size: 12.5px; font-weight: 500; }
+.ph-scope .h-meta-name a { color: var(--link); text-decoration: none; cursor: pointer; font-weight: 400; }
+.ph-scope .h-meta-name a:hover { text-decoration: underline; }
+
 .ph-scope .toolbar {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px;
   margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;
@@ -143,6 +165,65 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
 .ph-scope .name-add { display: flex; gap: 8px; max-width: 420px; }
 .ph-scope .name-add input { flex: 1; }
 .ph-scope .admin-add { display: grid; grid-template-columns: 1fr 2fr 1.2fr 1.2fr auto; gap: 8px; margin-top: 12px; }
+
+.ph-scope .admin-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+.ph-scope .admin-card-title { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ph-scope .admin-card-title .lucide { flex-shrink: 0; }
+.ph-scope .admin-card-title span.label { font-size: 14px; font-weight: 500; }
+.ph-scope .admin-card-title span.count { color: var(--ink-dim); font-size: 12px; }
+.ph-scope .admin-card .card-desc { font-size: 11.5px; color: var(--ink-dim); margin: 0 0 12px; }
+
+.ph-scope .admin-add-grid { display: grid; grid-template-columns: 90px 1.6fr 1fr 1fr auto; gap: 10px; align-items: end; }
+.ph-scope .admin-add-grid label { font-size: 11px; color: var(--ink-dim); display: block; margin-bottom: 4px; }
+.ph-scope .admin-add-grid input, .ph-scope .admin-add-grid select {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 8px; font-size: 13px; background: var(--panel-2); color: var(--ink);
+}
+.ph-scope .admin-add-grid .btn { padding: 8px 16px; border-radius: 8px; white-space: nowrap; }
+
+.ph-scope .suggestion-card { background: var(--panel); border: 1px solid #EF9F27; border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; }
+.ph-scope .suggestion-badge { background: #FAEEDA; color: #854F0B; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.ph-scope .suggestion-row {
+  display: flex; align-items: center; justify-content: space-between; background: #FAEEDA;
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+}
+.ph-scope .suggestion-row:last-child { margin-bottom: 0; }
+.ph-scope .suggestion-row .titre { font-weight: 500; font-size: 13px; color: #854F0B; }
+.ph-scope .suggestion-row .sous { font-size: 11.5px; color: #854F0B; opacity: .85; }
+.ph-scope .suggestion-row .actions { display: flex; gap: 6px; }
+.ph-scope .suggestion-row .btn-importer {
+  background: #fff; border: 1px solid #EF9F27; color: #854F0B; border-radius: 6px; padding: 6px 10px;
+  font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+}
+.ph-scope .suggestion-row .btn-ignorer { background: transparent; border: none; color: #854F0B; opacity: .7; cursor: pointer; padding: 6px; }
+.ph-scope .suggestion-empty { font-size: 12.5px; color: #854F0B; opacity: .8; }
+
+.ph-scope .admin-table-wrap { border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+.ph-scope .admin-table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ph-scope .admin-table-wrap thead tr { background: var(--panel-2); }
+.ph-scope .admin-table-wrap th {
+  text-align: left; padding: 8px 10px; font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--ink-dim); font-weight: 700;
+}
+.ph-scope .admin-table-wrap td { padding: 4px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+.ph-scope .admin-table-wrap tbody tr:nth-child(even) { background: var(--panel-2); }
+
+.ph-scope .admin-input-ghost {
+  width: 100%; box-sizing: border-box; padding: 5px 7px; border: 1px solid transparent;
+  border-radius: 6px; font-size: 13px; background: transparent; color: var(--ink);
+  transition: background .1s, border-color .1s;
+}
+.ph-scope .admin-input-ghost:focus { border-color: var(--red); background: var(--panel-2); outline: none; }
+.ph-scope .admin-input-ghost.no { width: 74px; color: var(--ink-dim); font-weight: 500; }
+
+.ph-scope .avatar-chip { display: inline-flex; align-items: center; gap: 6px; }
+.ph-scope .avatar-circle {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--panel-2); color: var(--navy);
+  font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+.ph-scope .admin-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) { .ph-scope .admin-grid-3 { grid-template-columns: 1fr; } }
 
 .ph-scope .filter-btn { cursor: pointer; margin-left: 4px; opacity: .6; font-size: 9px; user-select: none; display: inline-block; }
 .ph-scope .filter-btn:hover { opacity: 1; }

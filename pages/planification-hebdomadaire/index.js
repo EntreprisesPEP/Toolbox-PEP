@@ -15,7 +15,7 @@ import { mondayOf, today, dateKey } from '../../lib/planification-hebdomadaire/d
 const supabaseAuth = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 const TABS = [
-  { key: 'admin', label: 'ADMIN PROJETS' },
+  { key: 'admin', label: 'ADMIN' },
   { key: '1', label: 'MEETING 1 - SUIVI PROJETS' },
   { key: '2', label: 'MEETING 2 - ATTRIBUTION' },
   { key: '3', label: 'PROJETS TERMINES' },
@@ -76,7 +76,7 @@ export default function PlanificationHebdomadaire() {
         <title>Planification Hebdomadaire - PEP2000</title>
       </Head>
 
-      <Header prefs={prefs} updatePrefs={update} nomUtilisateur={profil.nom} onDeconnexion={seDeconnecter} />
+      <Header prefs={prefs} updatePrefs={update} nomUtilisateur={profil.nom} emailUtilisateur={profil.email} onDeconnexion={seDeconnecter} />
 
       <div className="wrap">
         <div className="toolbar">

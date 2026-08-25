@@ -101,7 +101,7 @@ export default function AuthGate({ onDone }) {
         setPhase("sans-profil");
         return;
       }
-      onDone({ userId: session.user.id, nom: profil.nom });
+      onDone({ userId: session.user.id, nom: profil.nom, email: session.user.email });
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -190,7 +190,7 @@ export default function AuthGate({ onDone }) {
       if (!appAccess && !estAdmin) { setPhase("acces-refuse"); return; }
       const { data: profil } = await supabasePH.from("profils").select("*").eq("user_id", session.user.id).maybeSingle();
       if (profil) {
-        onDone({ userId: session.user.id, nom: profil.nom });
+        onDone({ userId: session.user.id, nom: profil.nom, email: session.user.email });
       } else {
         setPhase("sans-profil");
       }

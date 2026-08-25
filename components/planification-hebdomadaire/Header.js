@@ -1,12 +1,22 @@
 import { useState } from 'react';
+import { Sun, Moon } from 'lucide-react';
 import PasswordModal from './PasswordModal';
 
-export default function Header({ prefs, updatePrefs, nomUtilisateur, onDeconnexion }) {
+// Ce compte n'a jamais besoin du mot de passe partage pour passer en
+// mode admin -- comparaison insensible a la casse par prudence.
+const COMPTE_SANS_MOT_DE_PASSE = 'wdubreuil@pep2000.com';
+
+export default function Header({ prefs, updatePrefs, nomUtilisateur, emailUtilisateur, onDeconnexion }) {
   const [pwdOpen, setPwdOpen] = useState(false);
 
   function toggleRole() {
     if (prefs.role === 'edit') {
       updatePrefs({ role: 'view' }); // repasser en participant ne demande jamais de mot de passe
+      return;
+    }
+    const estExempte = (emailUtilisateur || '').trim().toLowerCase() === COMPTE_SANS_MOT_DE_PASSE;
+    if (estExempte) {
+      updatePrefs({ role: 'edit' });
       return;
     }
     setPwdOpen(true);
@@ -47,23 +57,40 @@ export default function Header({ prefs, updatePrefs, nomUtilisateur, onDeconnexi
             <a href="/" style={{ fontSize: 11, color: '#4a7cf6', textDecoration: 'underline' }}>→ Retour au Toolbox PEP</a>
           </div>
         </div>
-        <div className="header-right">
-          <div className="pill-toggle">
+
+        <div className="header-right-stack">
+          <div className="theme-toggle" role="group" aria-label="Theme jour ou nuit">
             <button
-              className={prefs.theme === 'nuit' ? 'active' : ''}
-              onClick={() => updatePrefs({ theme: 'nuit' })}
-            >NUIT</button>
-            <button
+              type="button"
               className={prefs.theme === 'jour' ? 'active' : ''}
               onClick={() => updatePrefs({ theme: 'jour' })}
-            >JOUR</button>
+              aria-label="Mode jour"
+              title="Mode jour"
+            ><Sun size={14} /></button>
+            <button
+              type="button"
+              className={prefs.theme === 'nuit' ? 'active' : ''}
+              onClick={() => updatePrefs({ theme: 'nuit' })}
+              aria-label="Mode nuit"
+              title="Mode nuit"
+            ><Moon size={14} /></button>
           </div>
-          <div className="h-meta">
-            {nomUtilisateur && <><span>{nomUtilisateur}</span><br /></>}
-            Mode <strong>{prefs.role === 'edit' ? 'animateur' : 'participant'}</strong><br />
-            <a onClick={toggleRole}>
-              {prefs.role === 'edit' ? 'passer en mode participant' : 'passer en mode animateur'}
-            </a>
+
+          <div className="role-toggle" role="group" aria-label="Mode participant ou admin">
+            <button
+              type="button"
+              className={prefs.role !== 'edit' ? 'active' : ''}
+              onClick={() => prefs.role === 'edit' && toggleRole()}
+            >Participant</button>
+            <button
+              type="button"
+              className={prefs.role === 'edit' ? 'active' : ''}
+              onClick={() => prefs.role !== 'edit' && toggleRole()}
+            >Admin</button>
+          </div>
+
+          <div className="h-meta-name">
+            {nomUtilisateur}
             {onDeconnexion && (
               <>
                 {' · '}

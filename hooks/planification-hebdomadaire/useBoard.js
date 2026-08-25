@@ -12,6 +12,7 @@ export function useBoard() {
   const [charges, setCharges] = useState([]);
   const [surintendants, setSurintendants] = useState([]);
   const [comments, setComments] = useState([]); // project_comments rows
+  const [projetsSuggeres, setProjetsSuggeres] = useState([]);
   const [settings, setSettings] = useState({ range_start: null, notes_week_start: null });
   const [loading, setLoading] = useState(true);
   const [syncState, setSyncState] = useState('synchronise');
@@ -30,7 +31,7 @@ export function useBoard() {
   nameOverridesRef.current = nameOverrides;
 
   const loadAll = useCallback(async () => {
-    const [p, cm, asg, ch, su, st, cmts, no] = await Promise.all([
+    const [p, cm, asg, ch, su, st, cmts, no, sugg] = await Promise.all([
       supabase.from('projects').select('*').order('sort_order', { ascending: true }),
       supabase.from('contremaitres').select('*').order('sort_order', { ascending: true }),
       supabase.from('assignments').select('*'),
@@ -39,6 +40,7 @@ export function useBoard() {
       supabase.from('app_settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('project_comments').select('*').order('created_at', { ascending: false }),
       supabase.from('contremaitre_name_overrides').select('*'),
+      supabase.from('projets_suggeres').select('*').eq('statut', 'en_attente').order('created_at', { ascending: false }),
     ]);
     if (!mounted.current) return;
     if (p.data) setProjects(p.data);
@@ -48,6 +50,7 @@ export function useBoard() {
     if (su.data) setSurintendants(su.data.map((s) => s.nom));
     if (cmts.data) setComments(cmts.data);
     if (no.data) setNameOverrides(no.data);
+    if (sugg.data) setProjetsSuggeres(sugg.data);
     if (st.data) {
       setSettings(st.data);
     } else {
@@ -117,13 +120,40 @@ export function useBoard() {
   // ---------- Projects ----------
   async function addProject({ no, projet, charge, surintendant }) {
     await withSync(async () => {
-      const sortOrder = projectsRef.current.length ? Math.max(...projectsRef.current.map((p) => p.sort_order || 0)) + 1 : 0;
+      const noFinal = no || '00-000';
+      const existants = projectsRef.current;
+
+      // Place le nouveau projet en ordre decroissant de numero parmi les
+      // existants (numeric:true compare correctement "8-045" vs "20-003"
+      // peu importe le nombre de chiffres), plutot que de toujours
+      // l'ajouter en dernier (comportement precedent).
+      const combines = [
+        ...existants.map((p) => ({ id: p.id, no: p.no, sort_order: p.sort_order })),
+        { id: null, no: noFinal },
+      ];
+      combines.sort((a, b) => String(b.no).localeCompare(String(a.no), undefined, { numeric: true }));
+
+      const nouveauSortOrder = combines.findIndex((p) => p.id === null);
+
       const row = {
-        no: no || '00-000', projet, charge: charge || '', surintendant: surintendant || '',
-        statut: 'A venir', s1: false, s2: false, commentaire: '', sort_order: sortOrder,
+        no: noFinal, projet, charge: charge || '', surintendant: surintendant || '',
+        statut: 'A venir', s1: false, s2: false, commentaire: '', sort_order: nouveauSortOrder,
       };
       const { data, error } = await supabase.from('projects').insert(row).select().single();
       if (error) throw error;
+
+      // Decale le sort_order des projets existants dont la position
+      // change a cause de l'insertion, pour que l'ordre reste bien
+      // decroissant par numero une fois le nouveau projet intercale.
+      const misesAJour = [];
+      combines.forEach((p, idx) => {
+        if (p.id === null) return;
+        if (p.sort_order !== idx) misesAJour.push({ id: p.id, sort_order: idx });
+      });
+      await Promise.all(
+        misesAJour.map((p) => supabase.from('projects').update({ sort_order: p.sort_order }).eq('id', p.id))
+      );
+
       pushHistory({ undo: () => rawDeleteProject(data.id), redo: () => rawInsertProjectRow(data) });
       await loadAll();
     });
@@ -404,6 +434,22 @@ export function useBoard() {
     });
   }
 
+  // ---------- Suggestions de projets (venant de Liste des projets) ----------
+  async function importerSuggestion(suggestion) {
+    await addProject({
+      no: suggestion.projet_no,
+      projet: suggestion.nom,
+      charge: suggestion.charge || '',
+      surintendant: suggestion.surintendant || '',
+    });
+    await supabase.from('projets_suggeres').update({ statut: 'importe' }).eq('id', suggestion.id);
+    setProjetsSuggeres((prev) => prev.filter((s) => s.id !== suggestion.id));
+  }
+  async function ignorerSuggestion(id) {
+    await supabase.from('projets_suggeres').update({ statut: 'ignore' }).eq('id', id);
+    setProjetsSuggeres((prev) => prev.filter((s) => s.id !== id));
+  }
+
   return {
     projects, contremaitres, assignments, charges, surintendants, settings, loading, syncState,
     addProject, updateProject, deleteProject,
@@ -416,5 +462,6 @@ export function useBoard() {
     commentsFor, addComment, deleteComment,
     undo, redo, canUndo: undoStack.length > 0, canRedo: redoStack.length > 0,
     reload: loadAll,
+    projetsSuggeres, importerSuggestion, ignorerSuggestion,
   };
 }
