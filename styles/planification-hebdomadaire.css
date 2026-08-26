@@ -98,7 +98,7 @@ body {
 .ph-scope tbody tr:last-child td { border-bottom: none; }
 .ph-scope tbody tr:nth-child(odd) { background: var(--panel); }
 .ph-scope tbody tr:nth-child(even) { background: var(--panel-2); }
-.ph-scope .scrollx { overflow-x: auto; border-radius: 8px; border: 1px solid var(--line); }
+.ph-scope .scrollx { overflow-x: auto; border-radius: 8px; border: 1px solid var(--line); margin-top: 16px; }
 .ph-scope .projtable { table-layout: auto; }
 .ph-scope .jobline { font-weight: 700; white-space: nowrap; display: block; }
 .ph-scope .jobline .no { font-weight: 700; color: var(--ink-dim); font-size: 11.5px; margin-right: 6px; }
