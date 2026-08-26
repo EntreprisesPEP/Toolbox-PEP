@@ -294,6 +294,12 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
     <div className="defi-scope" data-theme={mode}>
       <Head>
         <title>Défi Strava - PEP2000</title>
+        <link rel="manifest" href="/_static/defi-strava/manifest.json" />
+        <link rel="apple-touch-icon" href="/defi-strava-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Défi Strava" />
+        <meta name="theme-color" content="#0F2138" />
       </Head>
 
       <div className="page">
@@ -660,7 +666,15 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
               <p style={{ fontSize: 12, color: '#c41230' }}>
                 ⚠️ Les notifications nécessitent d&apos;abord un profil participant configuré (voir ci-dessus).
               </p>
-            ) : notifState !== 'non-supporte' && (
+            ) : notifState === 'non-supporte' ? (
+              <p style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                📱 Sur iPhone, les notifications web ne fonctionnent que si Défi Strava a été ajouté à l&apos;écran
+                d&apos;accueil (limitation d&apos;Apple, pas de l&apos;app) : appuie sur le bouton de partage
+                <span style={{ fontWeight: 700 }}> (⬆️ carré avec une flèche)</span> dans Safari, puis
+                <span style={{ fontWeight: 700 }}> « Sur l&apos;écran d&apos;accueil »</span>. Ouvre ensuite
+                l&apos;app depuis cette icône (pas depuis Safari) pour pouvoir activer les notifications.
+              </p>
+            ) : (
               notifState === 'actif' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span>🔔 Notifications activées sur cet appareil</span>

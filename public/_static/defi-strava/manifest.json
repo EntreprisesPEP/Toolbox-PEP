@@ -1,0 +1,16 @@
+{
+  "name": "Défi Strava",
+  "short_name": "Défi Strava",
+  "description": "Classement hebdomadaire du défi Strava du bureau — Les Entreprises PEP2000",
+  "start_url": "/defi-strava/",
+  "display": "standalone",
+  "background_color": "#0F2138",
+  "theme_color": "#0F2138",
+  "icons": [
+    {
+      "src": "/defi-strava-icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
