@@ -94,6 +94,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
 
   const [notifState, setNotifState] = useState('inconnu');
   const [erreurNotifTech, setErreurNotifTech] = useState('');
+  const [messageConnexionStrava, setMessageConnexionStrava] = useState(null); // { type: 'ok'|'erreur', texte }
 
   async function chargerMois(moisIso) {
     setChargement(true);
@@ -146,6 +147,21 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
     chargerHallOfFame();
     chargerVote();
 
+    // Message de retour apres l'autorisation Strava (callback OAuth) --
+    // avant ce correctif, ce parametre etait recu mais jamais affiche,
+    // donc la personne n'avait aucune confirmation que ca avait
+    // fonctionne (ou echoue).
+    if (router.query.connexion) {
+      const msg = {
+        reussie: { type: 'ok', texte: '✅ Ton compte Strava est bien connecté !' },
+        refusee: { type: 'erreur', texte: "L'autorisation Strava a été refusée. Réessaie si c'était une erreur." },
+        erreur: { type: 'erreur', texte: "Une erreur est survenue pendant la connexion à Strava. Réessaie, ou contacte William si ça persiste." },
+      }[router.query.connexion];
+      if (msg) setMessageConnexionStrava(msg);
+      const { connexion, ...resteQuery } = router.query; // eslint-disable-line no-unused-vars
+      router.replace({ pathname: router.pathname, query: resteQuery }, undefined, { shallow: true });
+    }
+
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       setNotifState('non-supporte');
     } else {
@@ -163,6 +179,11 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
 
   async function activerNotifications() {
     setErreurNotifTech('');
+    if (!participantId) {
+      setErreurNotifTech("Ton profil participant n'est pas encore configuré — contacte William avant d'activer les notifications.");
+      setNotifState('erreur-technique');
+      return;
+    }
     try {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
@@ -598,6 +619,35 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
           )}
 
           <div className="bloc-notif">
+            <div className="titre-section" style={{ marginBottom: 8 }}>🚴 Connexion Strava</div>
+            {participantId ? (
+              <>
+                <p className="horaire">
+                  Connecte ton compte Strava pour que tes activités comptent automatiquement dans le défi.
+                </p>
+                <a
+                  href={`/api/defi-strava/connect?participant_id=${participantId}`}
+                  className="btn-notif"
+                  style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
+                >
+                  🔗 Connecter mon compte Strava
+                </a>
+              </>
+            ) : (
+              <p style={{ fontSize: 12, color: '#c41230' }}>
+                ⚠️ Ton profil participant n&apos;est pas encore configuré pour le Défi Strava — contacte William
+                pour qu&apos;il t&apos;ajoute à la liste, tu pourras ensuite connecter ton compte Strava
+                directement ici.
+              </p>
+            )}
+            {messageConnexionStrava && (
+              <p style={{ fontSize: 12.5, color: messageConnexionStrava.type === 'ok' ? '#2E9F58' : '#c41230', marginTop: 8 }}>
+                {messageConnexionStrava.texte}
+              </p>
+            )}
+          </div>
+
+          <div className="bloc-notif">
             <div className="titre-section" style={{ marginBottom: 8 }}>🔔 Notifications</div>
             <p className="horaire">
               Si vous voulez joindre l&apos;expérience à 100&nbsp;%, cochez le bouton «&nbsp;Activer les
@@ -606,7 +656,11 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
               plus, à chaque fois qu&apos;un changement aura lieu à la tête du classement, des éloges seront lancés
               pour féliciter la personne ayant pris les devants, et motiver le reste du groupe à la dépasser!
             </p>
-            {notifState !== 'non-supporte' && (
+            {!participantId ? (
+              <p style={{ fontSize: 12, color: '#c41230' }}>
+                ⚠️ Les notifications nécessitent d&apos;abord un profil participant configuré (voir ci-dessus).
+              </p>
+            ) : notifState !== 'non-supporte' && (
               notifState === 'actif' ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span>🔔 Notifications activées sur cet appareil</span>
@@ -636,8 +690,6 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
               </p>
             )}
           </div>
-
-          <p className="pied">Pas encore connecté? Contacte William pour recevoir ton lien d&apos;autorisation Strava.</p>
         </div>
       </div>
     </div>
