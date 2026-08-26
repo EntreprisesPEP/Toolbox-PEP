@@ -1069,14 +1069,13 @@ function DemandeArpentageApp({ userId, nom, email, accessToken }) {
               { id: 'night', label: 'Nuit', Icon: Moon },
               { id: 'day', label: 'Jour', Icon: Sun },
             ].map(({ id, label, Icon }) => (
-              <button key={id} onClick={() => setMode(id)} style={{
+              <button key={id} onClick={() => setMode(id)} title={label} aria-label={label} style={{
                 background: mode === id ? BRAND_RED : 'transparent',
                 color: mode === id ? '#fff' : th.toggleInactiveText,
-                border: 'none', padding: '7px 14px', fontSize: 11.5,
-                textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600,
+                border: 'none', padding: '9px 12px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Icon size={13} /> {label}
+                <Icon size={14} />
               </button>
             ))}
           </div>

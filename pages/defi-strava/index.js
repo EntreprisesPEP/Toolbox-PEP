@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
+import { Sun, Moon } from 'lucide-react';
 import AuthGate from '../../components/defi-strava/AuthGate';
 import { formatDuree } from '../../lib/defi-strava/format';
 
@@ -279,8 +280,8 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
           <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <div className="toggle-theme">
-              <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')}>JOUR</button>
-              <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')}>NUIT</button>
+              <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')} title="Jour" aria-label="Jour"><Sun size={13} /></button>
+              <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')} title="Nuit" aria-label="Nuit"><Moon size={13} /></button>
             </div>
             <a href="/guide-defi-strava.html" target="_blank" rel="noopener" className="bouton-guide">📖 Guide</a>
           </div>
