@@ -27,6 +27,7 @@ export default async function handler(req, res) {
       await processEvent(req.body);
     } catch (err) {
       console.error('Erreur traitement webhook Strava:', err); // eslint-disable-line no-console
+      await journaliser(req.body, 'erreur', err.message || String(err));
     }
     res.status(200).json({ received: true });
     return;
@@ -35,8 +36,31 @@ export default async function handler(req, res) {
   res.status(405).end();
 }
 
+// Journalise CHAQUE évènement reçu (même ignoré/en échec) pour pouvoir
+// diagnostiquer sans avoir besoin des logs Vercel -- voir l'onglet
+// "Journal webhook" (admin) dans Défi Strava.
+async function journaliser(event, resultat, detail) {
+  try {
+    const supabase = getSupabaseAdmin();
+    await supabase.from('webhook_log').insert({
+      owner_id: event?.owner_id ?? null,
+      object_id: event?.object_id ?? null,
+      object_type: event?.object_type ?? null,
+      aspect_type: event?.aspect_type ?? null,
+      resultat,
+      detail: detail || null,
+      payload_brut: event || null,
+    });
+  } catch (errLog) {
+    console.error('Erreur journalisation webhook:', errLog); // eslint-disable-line no-console
+  }
+}
+
 async function processEvent(event) {
-  if (event.object_type !== 'activity') return;
+  if (event.object_type !== 'activity') {
+    await journaliser(event, 'ignore_type', `object_type=${event.object_type}`);
+    return;
+  }
 
   const supabase = getSupabaseAdmin();
   const { data: participant, error: findError } = await supabase
@@ -47,11 +71,13 @@ async function processEvent(event) {
 
   if (findError || !participant) {
     console.warn(`Athlète Strava ${event.owner_id} inconnu — ignoré`, findError); // eslint-disable-line no-console
+    await journaliser(event, 'athlete_inconnu', findError?.message);
     return;
   }
 
   if (event.aspect_type === 'delete') {
     await supabase.from('activities').delete().eq('strava_activity_id', event.object_id);
+    await journaliser(event, 'traite', 'suppression');
     return;
   }
 
@@ -75,8 +101,11 @@ async function processEvent(event) {
 
   if (upsertError) {
     console.error('Erreur upsert activité:', upsertError); // eslint-disable-line no-console
+    await journaliser(event, 'erreur', 'upsert: ' + upsertError.message);
     return;
   }
+
+  await journaliser(event, 'traite', `${activity.type} - ${activity.moving_time}s`);
 
   // Vérifie si cette nouvelle activité vient de faire passer quelqu'un
   // en première place du mois — si oui, notification immédiate (push +
