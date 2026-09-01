@@ -14,6 +14,7 @@ const ORDRE_DU_JOUR_ROLES = [
 const ORDRE_DU_JOUR_ACCES = ['tout', 'camions', 'machinerie'];
 const ORDRE_DU_JOUR_SLUG = 'ordre-du-jour';
 const PLANIF_HEBDO_SLUG = 'planification-hebdomadaire';
+const DEFI_STRAVA_SLUG = 'defi-strava';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -108,6 +109,9 @@ export default async function handler(req, res) {
       const nomCompletMap = Object.fromEntries(
         (userProfiles || []).map((p) => [p.user_id, p.nom_complet])
       );
+      const posteMap = Object.fromEntries(
+        (userProfiles || []).map((p) => [p.user_id, p.poste])
+      );
 
       // NOUVEAU — profils en attente (pas encore de compte, references par courriel)
       const { data: profilsAttente, error: attenteErr } = await admin
@@ -150,6 +154,7 @@ export default async function handler(req, res) {
         ordre_du_jour_profil: ordreDuJourMap[u.id] || null,
         planif_hebdo_profil: planifMap[u.id] || null,
         nom_complet: nomCompletMap[u.id] || null,
+        poste: posteMap[u.id] || null,
       }));
 
       const { data: apps } = await admin.from('pep_apps').select('*').order('sort_order');
@@ -257,6 +262,29 @@ export default async function handler(req, res) {
         await admin.from('pep_pending_access').delete().eq('email', emailNorm);
       }
 
+      // NOUVEAU — meme principe pour Defi Strava : si l'app defi-strava
+      // a ete accordee (via les acces generiques ci-dessus), on cree
+      // automatiquement le profil "participant" (nom + email) --
+      // contrairement a Ordre du jour / Planif Hebdo, ce profil n'a pas
+      // besoin du user_id (il est retrouve par courriel), donc pas
+      // besoin d'attendre une ligne "en attente" separee : on peut le
+      // faire directement ici, a partir du nom deja saisi dans
+      // pep_pending_profile pour cette personne.
+      let defiStravaLinked = false;
+      const appSlugsAccordes = (accesAttenteRows || []).filter((r) => r.has_app_access).map((r) => r.app_slug);
+      if (appSlugsAccordes.includes(DEFI_STRAVA_SLUG)) {
+        const { data: profilAttente } = await admin
+          .from('pep_pending_profile')
+          .select('nom_complet')
+          .eq('email', emailNorm)
+          .maybeSingle();
+        await admin.schema('strava_challenge').from('participants').upsert(
+          { nom: profilAttente?.nom_complet || emailNorm, email: emailNorm, actif: true },
+          { onConflict: 'email' }
+        );
+        defiStravaLinked = true;
+      }
+
       // Nettoyage du nom complet en attente (sinon la personne reste
       // affichee dans "Personnes en attente" meme apres l'invitation).
       await admin.from('pep_pending_profile').delete().eq('email', emailNorm);
@@ -266,6 +294,7 @@ export default async function handler(req, res) {
         user_id: newUserId,
         ordre_du_jour_linked: ordreDuJourLinked,
         planif_hebdo_linked: planifLinked,
+        defi_strava_linked: defiStravaLinked,
         acces_generiques_lies: accesGeneriquesLies,
       });
     }
@@ -320,12 +349,13 @@ export default async function handler(req, res) {
     // NOUVEAU — nom complet general d'un membre (independant des noms
     // propres a chaque app comme le profil Ordre du jour ou Planif Hebdo).
     if (action === 'update_nom_complet') {
-      const { user_id, nom_complet } = req.body;
+      const { user_id, nom_complet, poste } = req.body;
       if (!user_id || !nom_complet) throw new Error('user_id et nom_complet requis');
 
       const { error } = await admin.from('pep_user_profile').upsert({
         user_id,
         nom_complet: nom_complet.trim(),
+        poste: typeof poste === 'string' ? poste.trim() || null : undefined,
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;

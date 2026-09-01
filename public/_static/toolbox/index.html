@@ -951,12 +951,20 @@ let jeSuisAdmin = false;
 
 async function chargerAppsAutoriseesEtAfficher(user){
   try {
-    const [{ data: appAccessRows }, { data: roleRow }] = await Promise.all([
+    const [{ data: appAccessRows }, { data: roleRow }, { data: profilRow }] = await Promise.all([
       sb.from('pep_user_apps').select('app_slug').eq('user_id', user.id),
       sb.from('pep_user_roles').select('role').eq('user_id', user.id).maybeSingle(),
+      sb.from('pep_user_profile').select('nom_complet, poste').eq('user_id', user.id).maybeSingle(),
     ]);
     mesAppsAutorisees = new Set((appAccessRows || []).map(r => r.app_slug));
     jeSuisAdmin = roleRow?.role === 'admin';
+    const label = document.getElementById('userEmailLabel');
+    if (profilRow?.nom_complet) {
+      label.textContent = profilRow.nom_complet + (profilRow.poste ? ' — ' + profilRow.poste : '');
+      label.title = user.email;
+    } else {
+      label.textContent = user.email;
+    }
   } catch (e) {
     // En cas d'erreur reseau, on n'affiche rien plutot que tout par erreur.
     mesAppsAutorisees = new Set();

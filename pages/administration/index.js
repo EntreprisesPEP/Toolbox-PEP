@@ -73,6 +73,15 @@ function pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, acces
   };
 }
 
+function messageLiaisonsAuto(result) {
+  const liaisons = [];
+  if (result.ordre_du_jour_linked) liaisons.push('Ordre du jour');
+  if (result.planif_hebdo_linked) liaisons.push('Planification hebdomadaire');
+  if (result.defi_strava_linked) liaisons.push('Défi Strava');
+  if (liaisons.length === 0) return '';
+  return ` — profil${liaisons.length > 1 ? 's' : ''} ${liaisons.join(', ')} appliqué${liaisons.length > 1 ? 's' : ''} automatiquement.`;
+}
+
 export default function AdministrationPage() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -162,11 +171,7 @@ export default function AdministrationPage() {
     try {
       const result = await callApi({ action: 'invite', email: inviteEmail.trim() });
       const emailNorm = inviteEmail.trim().toLowerCase();
-      setInviteMsg(
-        result.ordre_du_jour_linked
-          ? `Invitation envoyee a ${inviteEmail.trim()} — profil Ordre du jour pre-configure applique automatiquement.`
-          : `Invitation envoyee a ${inviteEmail.trim()}`
-      );
+      setInviteMsg(`Invitation envoyee a ${inviteEmail.trim()}${messageLiaisonsAuto(result)}`);
       setInviteEmail('');
       // Retire ce courriel de la liste "a inviter" (memoire locale) --
       // sinon il y reste pour toujours meme une fois le compte cree,
@@ -185,9 +190,7 @@ export default function AdministrationPage() {
       const result = await callApi({ action: 'invite', email });
       setInviteStatuts((s) => ({
         ...s,
-        [email]: result.ordre_du_jour_linked
-          ? 'Invitation envoyée — profil Ordre du jour appliqué automatiquement.'
-          : 'Invitation envoyée !',
+        [email]: `Invitation envoyée !${messageLiaisonsAuto(result)}`,
       }));
       // Meme correctif : sans ca, ce courriel restait affiche dans "a
       // inviter" pour toujours (memoire locale jamais videe), et cocher
@@ -383,10 +386,10 @@ export default function AdministrationPage() {
     setSaving(false);
   }
 
-  async function onSaveNomComplet(user, nomComplet) {
+  async function onSaveNomComplet(user, nomComplet, poste) {
     setSaving(true);
     try {
-      await callApi({ action: 'update_nom_complet', user_id: user.id, nom_complet: nomComplet });
+      await callApi({ action: 'update_nom_complet', user_id: user.id, nom_complet: nomComplet, poste });
       await loadAll();
     } catch (e) {
       alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
@@ -569,7 +572,7 @@ export default function AdministrationPage() {
                   onSavePermissions={(appSlug, hasAppAccess, featureKeys) => onSavePermissions(u, appSlug, hasAppAccess, featureKeys)}
                   onSaveOrdreDuJourProfil={(nom, role, accesSpecial, peutPrevisualiser) => onSaveOrdreDuJourProfil(u, nom, role, accesSpecial, peutPrevisualiser)}
                   onSavePlanifHebdoProfil={(nom) => onSavePlanifHebdoProfil(u, nom)}
-                  onSaveNomComplet={(nomComplet) => onSaveNomComplet(u, nomComplet)}
+                  onSaveNomComplet={(nomComplet, poste) => onSaveNomComplet(u, nomComplet, poste)}
 
                   saving={saving}
                 />
@@ -584,28 +587,37 @@ export default function AdministrationPage() {
 
 function NomCompletCell({ user, onSave, saving }) {
   const [valeur, setValeur] = useState(user.nom_complet || user.ordre_du_jour_profil?.nom || '');
+  const [poste, setPoste] = useState(user.poste || '');
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
     setValeur(user.nom_complet || user.ordre_du_jour_profil?.nom || '');
+    setPoste(user.poste || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id, user.nom_complet, user.ordre_du_jour_profil?.nom]);
+  }, [user.id, user.nom_complet, user.ordre_du_jour_profil?.nom, user.poste]);
 
   async function save() {
     if (!valeur.trim()) return;
-    await onSave(valeur.trim());
+    await onSave(valeur.trim(), poste.trim());
     setMsg('✓');
     setTimeout(() => setMsg(''), 1500);
   }
 
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
       <input
         type="text"
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
         placeholder="Nom complet"
-        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 150 }}
+        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 130 }}
+      />
+      <input
+        type="text"
+        value={poste}
+        onChange={(e) => setPoste(e.target.value)}
+        placeholder="Poste"
+        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 120 }}
       />
       <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '4px 8px' }}>OK</button>
       {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
