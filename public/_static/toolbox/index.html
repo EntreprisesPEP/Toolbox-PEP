@@ -179,6 +179,10 @@
   .hub-brand p{ margin:0; color:#9aa5c0; font-size:12px; }
   .hub-user{ display:flex; align-items:center; gap:12px; }
   .hub-user span{ font-size:12.5px; color:#9aa5c0; }
+  .hub-user-infos{ display:flex; flex-direction:column; align-items:flex-end; line-height:1.35; }
+  .hub-user-infos .nom{ font-size:13px; font-weight:700; color:#fff; }
+  .hub-user-infos .poste{ font-size:11.5px; color:#c7cedc; }
+  .hub-user-infos .courriel{ font-size:10.5px; color:#7d8aa8; }
   .logout-btn{
     background:transparent;
     border:1px solid rgba(255,255,255,0.25);
@@ -564,7 +568,9 @@
       </div>
     </div>
     <div class="hub-user">
-      <span id="userEmailLabel"></span>
+      <div class="hub-user-infos" id="userInfos">
+        <span class="courriel" id="userEmailLabel"></span>
+      </div>
       <button class="logout-btn" id="logoutBtn">Déconnexion</button>
     </div>
   </header>
@@ -949,6 +955,12 @@ function showHub(user){
 let mesAppsAutorisees = new Set();
 let jeSuisAdmin = false;
 
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
 async function chargerAppsAutoriseesEtAfficher(user){
   try {
     const [{ data: appAccessRows }, { data: roleRow }, { data: profilRow }] = await Promise.all([
@@ -958,13 +970,12 @@ async function chargerAppsAutoriseesEtAfficher(user){
     ]);
     mesAppsAutorisees = new Set((appAccessRows || []).map(r => r.app_slug));
     jeSuisAdmin = roleRow?.role === 'admin';
-    const label = document.getElementById('userEmailLabel');
-    if (profilRow?.nom_complet) {
-      label.textContent = profilRow.nom_complet + (profilRow.poste ? ' — ' + profilRow.poste : '');
-      label.title = user.email;
-    } else {
-      label.textContent = user.email;
-    }
+    const infos = document.getElementById('userInfos');
+    const lignes = [];
+    if (profilRow?.nom_complet) lignes.push(`<span class="nom">${escapeHtml(profilRow.nom_complet)}</span>`);
+    if (profilRow?.poste) lignes.push(`<span class="poste">${escapeHtml(profilRow.poste)}</span>`);
+    lignes.push(`<span class="courriel" id="userEmailLabel">${escapeHtml(user.email)}</span>`);
+    infos.innerHTML = lignes.join('');
   } catch (e) {
     // En cas d'erreur reseau, on n'affiche rien plutot que tout par erreur.
     mesAppsAutorisees = new Set();
