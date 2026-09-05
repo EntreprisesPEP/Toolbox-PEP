@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { getMonthlyRanking, calculerStreakMensuelle } from '../../../lib/defi-strava/getMonthlyRanking';
 import { fetchDonneesHallOfFame, calculerHallOfFameDepuisDonnees } from '../../../lib/defi-strava/hallOfFame';
@@ -8,15 +9,37 @@ import { heureActuelleEst, jourDuMoisEst, dateDuJourEst } from '../../../lib/def
 
 const CLE_ETAT = 'dernier_envoi_fin_mois';
 
+// Cle secrete OU session admin Toolbox valide (meme principe que
+// webhook-status.js / resync-participant.js) -- permet de tester
+// directement depuis le navigateur, deja connecte.
+async function estAutorise(req) {
+  const authHeader = req.headers.authorization;
+  const secretQuery = req.query.secret;
+  if (authHeader === `Bearer ${process.env.CRON_SECRET}` || secretQuery === process.env.CRON_SECRET) return true;
+
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!authHeader || !SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) return false;
+
+  const supabaseAuth = createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: userData, error } = await supabaseAuth.auth.getUser();
+  if (error || !userData?.user) return false;
+
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data: roleRow } = await admin
+    .from('pep_user_roles').select('role').eq('user_id', userData.user.id).maybeSingle();
+  return roleRow?.role === 'admin';
+}
+
 // Annonce les résultats FINAUX du mois qui vient de se terminer — se
 // déclenche le 1er du mois suivant à 8h heure de l'Est. Distincte du
 // résumé hebdomadaire du lundi (qui, lui, porte sur la semaine).
 export default async function handler(req, res) {
   const debutExecution = Date.now();
-  const authHeader = req.headers.authorization;
-  const secretQuery = req.query.secret;
-  const autorise = authHeader === `Bearer ${process.env.CRON_SECRET}` || secretQuery === process.env.CRON_SECRET;
-  if (!autorise) {
+  if (!(await estAutorise(req))) {
     res.status(401).json({ error: 'Non autorisé' });
     return;
   }

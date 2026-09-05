@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       const activities = await fetchRecentActivities(accessToken, deuxJoursUnix);
 
       for (const activity of activities) {
-        await supabase.from('activities').upsert(
+        const { error: upsertError } = await supabase.from('activities').upsert(
           {
             participant_id: participant.id,
             strava_activity_id: activity.id,
@@ -48,6 +48,18 @@ export default async function handler(req, res) {
           },
           { onConflict: 'strava_activity_id' }
         );
+        // Journalise chaque activite trouvee par ce filet de securite --
+        // meme table que le webhook temps reel, pour une vue unifiee de
+        // tout ce qui a ete synchronise et par quel mecanisme.
+        await supabase.from('webhook_log').insert({
+          owner_id: participant.strava_athlete_id,
+          object_id: activity.id,
+          object_type: 'activity',
+          aspect_type: 'resync_periodique',
+          resultat: upsertError ? 'erreur' : 'traite',
+          detail: upsertError ? upsertError.message : `${activity.type} - ${activity.moving_time}s (filet de securite periodique)`,
+          payload_brut: null,
+        });
       }
       resultats[participant.nom] = activities.length;
     } catch (err) {
