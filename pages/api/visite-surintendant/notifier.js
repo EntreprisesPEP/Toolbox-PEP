@@ -76,7 +76,7 @@ async function construireAttachments(admin, chemins) {
   return { attachments, rapport, totalOctets };
 }
 
-function construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes = 0) {
+function construireHtml(visite, mentions, nbNonJointes = 0) {
   const travauxTexte = [
     ...(visite.travaux_en_cours || []),
     ...(visite.travaux_autre ? [visite.travaux_autre] : []),
@@ -84,11 +84,9 @@ function construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes 
 
   const lignes = [
     ['Surintendant', visite.surintendant_nom, true],
-    ['Date et heure', `${formatDateFr(visite.date_visite)} à ${visite.heure_visite}`, true],
-    ['Projet', visite.projet_no ? `${visite.projet_no} — ${ouTiret(visite.projet_nom)}` : ouTiret(visite.projet_nom)],
+    ['Date et heure', `${formatDateFr(visite.date_visite)} à ${visite.heure_visite}`],
+    ['Projet', visite.projet_no ? `${visite.projet_no} — ${ouTiret(visite.projet_nom)}` : ouTiret(visite.projet_nom), true],
     ['Chargé de projet', ouTiret(visite.charge_projet_nom)],
-    ['Aviser', (personnesAdditionnelles && personnesAdditionnelles.length > 0) ? personnesAdditionnelles.map((p) => p.nom).join(', ') : '—'],
-    ['Mentions importantes', (mentions && mentions.length > 0) ? mentions.map((m) => `${m.nom} (${m.type === 'info' ? 'à lire' : 'réponse requise'})`).join(', ') : '—'],
     ['Travaux en cours', travauxTexte],
     ['Détails activités en cours', ouTiret(visite.details_activites_en_cours)],
     ['Activités à venir', ouTiret(visite.activites_a_venir)],
@@ -102,52 +100,39 @@ function construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes 
     </tr>
   `).join('');
 
-  // Bandeau "réponse requise" — purement visuel, ne change pas qui reçoit
-  // le courriel (le chargé de projet est déjà dans les destinataires "À").
-  function bandeauOrange(contenuHtml) {
+  // Bandeaux d'avis, en haut du courriel. Deux natures, deux couleurs :
+  // orange quand une réponse est attendue, bleu pâle quand il s'agit
+  // simplement d'une information à lire. Mêmes couleurs que dans le
+  // formulaire, pour que le surintendant reconnaisse ce qu'il a envoyé.
+  const STYLES_BANDEAU = {
+    reponse: { fond: '#FFF8EE', bordure: '#F0C97A', texte: '#8A5A00', icone: '&#9888;&#65039;' },
+    info: { fond: '#EEF5FD', bordure: '#A9C7E8', texte: '#1F4C7A', icone: '&#8505;&#65039;' },
+  };
+
+  function bandeau(nature, contenuHtml) {
+    const s = STYLES_BANDEAU[nature] || STYLES_BANDEAU.reponse;
     return `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:7px;">
       <tr>
-        <td style="background:#FFF8EE; border:1px solid #F0C97A; padding:12px 16px; font-family: Calibri, Arial, sans-serif; font-size:14px; color:#8A5A00;">
-          ${contenuHtml}
+        <td style="background:${s.fond}; border:1px solid ${s.bordure}; padding:7px 14px; font-family: Calibri, Arial, sans-serif; font-size:13.5px; line-height:1.3; color:${s.texte};">
+          ${s.icone} ${contenuHtml}
         </td>
       </tr>
     </table>
   `;
   }
 
-  const nomCp = (visite.charge_projet_nom || '').trim().toLowerCase();
-
-  const bandeauReponseRequise = visite.reponse_charge_projet_requise
-    ? bandeauOrange(`&#9888;&#65039; Réponse requise de <strong>${ouTiret(visite.charge_projet_nom)}</strong>`)
-    : '';
-
-  // Bandeau automatique : dès qu'il y a quoi que ce soit d'écrit dans
-  // "Informations spéciales pour chargé de projet", le chargé de projet est
-  // averti en haut du courriel, sans qu'on ait à cocher quoi que ce soit.
-  const aDesInfosSpeciales = !!(visite.infos_speciales_charge_projet || '').trim();
-  const bandeauInfosSpeciales = aDesInfosSpeciales
-    ? bandeauOrange(`&#9888;&#65039; Information spéciale à lire pour <strong>${ouTiret(visite.charge_projet_nom)}</strong>`)
-    : '';
-
-  // Un bandeau par personne mentionnée, avec le message qui correspond à la
-  // nature de la mention. Le chargé de projet est écarté s'il a déjà le même
-  // bandeau juste au-dessus, pour éviter le doublon.
-  const bandeauxMentions = (mentions || [])
-    .filter((m) => {
-      const estCp = (m.nom || '').trim().toLowerCase() === nomCp;
-      if (estCp && m.type === 'reponse' && visite.reponse_charge_projet_requise) return false;
-      if (estCp && m.type === 'info' && aDesInfosSpeciales) return false;
-      return true;
-    })
-    .map((m) => bandeauOrange(
+  // Les bandeaux viennent UNIQUEMENT des mentions. Remplir "Informations
+  // spéciales pour chargé de projet" ne déclenche plus rien de son côté :
+  // pour qu'un bandeau apparaisse, il faut ajouter une mention.
+  const tousLesBandeaux = (mentions || [])
+    .map((m) => bandeau(
+      m.type,
       m.type === 'info'
-        ? `&#9888;&#65039; Information importante à lire — <strong>${m.nom}</strong>`
-        : `&#9888;&#65039; Réponse requise — <strong>${m.nom}</strong>`
+        ? `Information importante à lire — <strong>${m.nom}</strong>`
+        : `Réponse requise — <strong>${m.nom}</strong>`
     ))
     .join('');
-
-  const tousLesBandeaux = bandeauReponseRequise + bandeauInfosSpeciales + bandeauxMentions;
 
   return `
 <!DOCTYPE html>
@@ -302,7 +287,7 @@ export default async function handler(req, res) {
     const sujet = `Visite surintendant - ${visite.surintendant_nom} - ${ouTiret(visite.projet_nom)}`;
     const { attachments, rapport } = await construireAttachments(admin, cheminsFichiers);
     const nbNonJointes = rapport.filter((r) => r.statut !== 'inclus').length;
-    const html = construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes);
+    const html = construireHtml(visite, mentions, nbNonJointes);
 
     const reponseResend = await fetch('https://api.resend.com/emails', {
       method: 'POST',

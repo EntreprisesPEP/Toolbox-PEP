@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import AuthGate from '../../components/visite-surintendant/AuthGate';
 import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS, DESTINATAIRES_FIXES } from '../../lib/visite-surintendant/surintendants';
-import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Users } from 'lucide-react';
+import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Info, Users } from 'lucide-react';
 
 // Logo PEP — texte blanc pour la nuit (fond navy), texte noir pour le
 // jour (fond clair). Mêmes fichiers que Demandes d'arpentage.
@@ -18,13 +18,27 @@ const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema:
 const BUCKET_FICHIERS = 'visite-surintendant-fichiers';
 const TAILLE_MAX_FICHIER = 20 * 1024 * 1024; // 20 Mo
 
+// Budget de pièces jointes, AVANT encodage base64. Doit rester identique à
+// TAILLE_MAX_TOTAL_PIECES dans pages/api/visite-surintendant/notifier.js,
+// sinon la jauge affichée mentirait au surintendant.
+const BUDGET_PIECES_JOINTES = 12 * 1024 * 1024; // 12 Mo
+
+function formatTaille(octets) {
+  if (octets >= 1024 * 1024) return `${(octets / (1024 * 1024)).toFixed(1)} Mo`;
+  return `${Math.round(octets / 1024)} Ko`;
+}
+
 const BRAND_RED = '#c41230';
 const ORANGE_AVIS = '#e8a33d';
+const BLEU_INFO = '#5f9ad4';
 
 // Deux natures de mention — même bandeau orange, message différent.
-const MENTION_LIBELLES = {
-  reponse: 'Réponse requise',
-  info: 'À lire',
+// Chaque nature de mention a sa couleur, reprise à l'identique dans le
+// bandeau du courriel : orange pour une réponse attendue, bleu pâle pour
+// une information à lire.
+const MENTIONS = {
+  reponse: { libelle: 'Réponse requise', couleur: ORANGE_AVIS, fond: (th) => th.avisBg },
+  info: { libelle: 'À lire', couleur: BLEU_INFO, fond: (th) => th.infoBg },
 };
 
 // Mêmes thèmes jour/nuit que Demandes d'arpentage, pour que les deux apps
@@ -39,6 +53,7 @@ const THEMES = {
     textDim: '#8a93a8',
     toggleInactiveText: '#9aa5c0',
     avisBg: '#2a2213',
+    infoBg: '#132132',
   },
   day: {
     bg: '#eef1f7',
@@ -49,6 +64,7 @@ const THEMES = {
     textDim: '#6b7488',
     toggleInactiveText: '#5c6478',
     avisBg: '#fff8ee',
+    infoBg: '#eef5fd',
   },
 };
 
@@ -107,7 +123,6 @@ function creerFormulaireInitial() {
     activitesAVenir: '',
     infosSpecialesChargeProjet: '',
     mentions: [],
-    reponseChargeProjetRequise: false,
     photoFiles: [],
   };
 }
@@ -252,6 +267,7 @@ function VisiteSurintendant({ accessToken }) {
   const [confirmation, setConfirmation] = useState(null);
   const [erreurNotification, setErreurNotification] = useState('');
   const [erreurFichiers, setErreurFichiers] = useState('');
+  const [compressionEnCours, setCompressionEnCours] = useState(0);
 
   useEffect(() => {
     async function charger() {
@@ -310,14 +326,26 @@ function VisiteSurintendant({ accessToken }) {
     setForm((f) => ({ ...f, mentions: f.mentions.filter((_, i) => i !== index) }));
   }
 
-  function ajouterFichiers(fichiers) {
-    const nouveaux = Array.from(fichiers).filter((f) => f.size <= TAILLE_MAX_FICHIER);
-    const tropGros = Array.from(fichiers).length - nouveaux.length;
+  // La compression se fait dès l'ajout, pas à l'envoi : c'est la seule façon
+  // de connaître le poids réel des pièces jointes et de l'afficher au
+  // surintendant pendant qu'il peut encore agir dessus. Bonus : au moment de
+  // soumettre, il n'y a plus rien à calculer, seulement à téléverser.
+  async function ajouterFichiers(fichiers) {
+    const tous = Array.from(fichiers);
+    const nouveaux = tous.filter((f) => f.size <= TAILLE_MAX_FICHIER);
+    const tropGros = tous.length - nouveaux.length;
     if (tropGros > 0) {
       setErreurFichiers(`${tropGros} fichier${tropGros > 1 ? 's dépassent' : ' dépasse'} la limite de 20 Mo.`);
     }
-    setForm((f) => ({ ...f, photoFiles: [...f.photoFiles, ...nouveaux] }));
+    if (nouveaux.length === 0) return;
+
+    setCompressionEnCours((n) => n + nouveaux.length);
     setErrors((e) => ({ ...e, photoFiles: undefined }));
+    for (const original of nouveaux) {
+      const compressee = await compresserImage(original);
+      setForm((f) => ({ ...f, photoFiles: [...f.photoFiles, { original, compressee }] }));
+      setCompressionEnCours((n) => n - 1);
+    }
   }
   function retirerFichier(index) {
     setForm((f) => ({ ...f, photoFiles: f.photoFiles.filter((_, i) => i !== index) }));
@@ -344,7 +372,11 @@ function VisiteSurintendant({ accessToken }) {
     });
     form.mentions.filter((m) => m.nom).forEach((m) => {
       const p = personnel.find((x) => x.nom === m.nom);
-      if (p?.courriel) brut.push({ nom: p.nom, email: p.courriel, raison: m.type === 'info' ? 'mention · à lire' : 'mention · réponse requise' });
+      if (p?.courriel) brut.push({
+        nom: p.nom, email: p.courriel,
+        raison: m.type === 'info' ? 'mention · à lire' : 'mention · réponse requise',
+        couleur: MENTIONS[m.type].couleur,
+      });
     });
     DESTINATAIRES_FIXES.forEach((d) => brut.push({ nom: d.nom, email: d.email, raison: 'fixe', fixe: true }));
 
@@ -358,6 +390,21 @@ function VisiteSurintendant({ accessToken }) {
   }
 
   const destinataires = calculerDestinataires();
+
+  // Même accumulation séquentielle que le serveur : les photos sont jointes
+  // dans l'ordre jusqu'à épuisement du budget, donc la jauge et les mentions
+  // "non jointe" reflètent exactement ce qui va réellement partir.
+  let cumul = 0;
+  const photosAvecEtat = form.photoFiles.map(({ original, compressee }) => {
+    const taille = compressee.size;
+    const rentre = cumul + taille <= BUDGET_PIECES_JOINTES;
+    if (rentre) cumul += taille;
+    return { original, compressee, taille, jointe: rentre };
+  });
+  const totalJoint = cumul;
+  const pourcentage = Math.min(100, Math.round((totalJoint / BUDGET_PIECES_JOINTES) * 100));
+  const nbNonJointes = photosAvecEtat.filter((p) => !p.jointe).length;
+  const couleurJauge = nbNonJointes > 0 ? BRAND_RED : (pourcentage >= 75 ? ORANGE_AVIS : '#2E9F58');
 
   function validate() {
     const errs = {};
@@ -391,7 +438,6 @@ function VisiteSurintendant({ accessToken }) {
       details_activites_en_cours: form.detailsActivitesEnCours || null,
       activites_a_venir: form.activitesAVenir || null,
       infos_speciales_charge_projet: form.infosSpecialesChargeProjet || null,
-      reponse_charge_projet_requise: form.reponseChargeProjetRequise,
     };
 
     const { data: visite, error } = await supabaseVS.from('visites').insert(payload).select().single();
@@ -435,23 +481,20 @@ function VisiteSurintendant({ accessToken }) {
       // Deux copies par photo : l'originale pleine résolution est archivée
       // dans "originaux/", et une version allégée part en pièce jointe
       // depuis "courriel/". Le notifier ne lit que "courriel/".
-      const resultats = await Promise.all(form.photoFiles.map(async (fichier) => {
-        const nomBase = sanitizeNomFichier(fichier.name);
-        const compressee = await compresserImage(fichier);
-
+      const resultats = await Promise.all(form.photoFiles.map(async ({ original, compressee }) => {
         const { error: eOriginal } = await supabaseVS.storage
           .from(BUCKET_FICHIERS)
-          .upload(`${visite.numero}/originaux/${nomBase}`, fichier, {
-            upsert: true, contentType: fichier.type || undefined,
+          .upload(`${visite.numero}/originaux/${sanitizeNomFichier(original.name)}`, original, {
+            upsert: true, contentType: original.type || undefined,
           });
-        if (eOriginal) console.error('Erreur téléversement original:', fichier.name, eOriginal); // eslint-disable-line no-console
+        if (eOriginal) console.error('Erreur téléversement original:', original.name, eOriginal); // eslint-disable-line no-console
 
         const { error: eCourriel } = await supabaseVS.storage
           .from(BUCKET_FICHIERS)
           .upload(`${visite.numero}/courriel/${sanitizeNomFichier(compressee.name)}`, compressee, {
             upsert: true, contentType: compressee.type || undefined,
           });
-        if (eCourriel) console.error('Erreur téléversement copie courriel:', fichier.name, eCourriel); // eslint-disable-line no-console
+        if (eCourriel) console.error('Erreur téléversement copie courriel:', original.name, eCourriel); // eslint-disable-line no-console
 
         return (eOriginal || eCourriel) ? null : true;
       }));
@@ -615,26 +658,6 @@ function VisiteSurintendant({ accessToken }) {
               </div>
             )}
 
-            {projetTrouve && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{
-                  ...styleCase,
-                  background: th.avisBg,
-                  border: `1px solid ${ORANGE_AVIS}`,
-                  color: th.text,
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={form.reponseChargeProjetRequise}
-                    onChange={(e) => updateField('reponseChargeProjetRequise', e.target.checked)}
-                    style={{ accentColor: ORANGE_AVIS }}
-                  />
-                  <AlertTriangle size={14} color={ORANGE_AVIS} style={{ flexShrink: 0 }} />
-                  Réponse du chargé de projet requise
-                </label>
-              </div>
-            )}
-
             <Field th={th} label="Aviser des personnes additionnelles">
               {form.personnesAdditionnelles.map((nomP, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
@@ -704,13 +727,14 @@ function VisiteSurintendant({ accessToken }) {
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
                   <span style={{
                     fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
-                    color: ORANGE_AVIS, border: `1px solid ${ORANGE_AVIS}`, background: th.avisBg,
+                    color: MENTIONS[m.type].couleur, border: `1px solid ${MENTIONS[m.type].couleur}`,
+                    background: MENTIONS[m.type].fond(th),
                     borderRadius: 4, padding: '5px 9px', flexShrink: 0,
                   }}>
-                    {MENTION_LIBELLES[m.type]}
+                    {MENTIONS[m.type].libelle}
                   </span>
                   <select value={m.nom} onChange={(e) => updateMention(i, e.target.value)}
-                    style={{ ...champStyle(th), borderColor: m.nom ? ORANGE_AVIS : th.line, background: m.nom ? th.avisBg : th.inputBg }}>
+                    style={{ ...champStyle(th), borderColor: m.nom ? MENTIONS[m.type].couleur : th.line, background: m.nom ? MENTIONS[m.type].fond(th) : th.inputBg }}>
                     <option value="">— Choisir une personne —</option>
                     {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
                   </select>
@@ -725,16 +749,16 @@ function VisiteSurintendant({ accessToken }) {
               ))}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
                 {[
-                  { type: 'reponse', texte: 'Ajouter une mention : réponse requise' },
-                  { type: 'info', texte: 'Ajouter une mention : lire information importante' },
-                ].map(({ type, texte }) => (
+                  { type: 'reponse', texte: 'Ajouter une mention : réponse requise', Icon: AlertTriangle },
+                  { type: 'info', texte: 'Ajouter une mention : lire information importante', Icon: Info },
+                ].map(({ type, texte, Icon }) => (
                   <button key={type} type="button" onClick={() => ajouterMention(type)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, background: 'transparent',
-                      border: `1px solid ${ORANGE_AVIS}`, color: th.text, padding: '7px 14px', borderRadius: 6,
+                      border: `1px solid ${MENTIONS[type].couleur}`, color: th.text, padding: '7px 14px', borderRadius: 6,
                       fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     }}>
-                    <AlertTriangle size={13} color={ORANGE_AVIS} /> {texte}
+                    <Icon size={13} color={MENTIONS[type].couleur} /> {texte}
                   </button>
                 ))}
               </div>
@@ -754,20 +778,60 @@ function VisiteSurintendant({ accessToken }) {
                 <div style={{ fontSize: 12.5, color: th.textDim }}>Téléverser ou faites glisser les photos ici (max 20 Mo chacune)</div>
                 <input id="input-fichiers-vs" type="file" multiple accept="image/*" style={{ display: 'none' }} onChange={(e) => ajouterFichiers(e.target.files)} />
               </div>
-              {form.photoFiles.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  {form.photoFiles.map((f, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      fontSize: 13, padding: '6px 0', borderBottom: `1px solid ${th.line}`,
-                    }}>
-                      <span>{f.name}</span>
-                      <button type="button" onClick={() => retirerFichier(i)}
-                        style={{ background: 'none', border: 'none', color: BRAND_RED, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                        <X size={14} />
-                      </button>
+              {compressionEnCours > 0 && (
+                <div style={{ marginTop: 10, fontSize: 12.5, color: th.textDim }}>
+                  Préparation de {compressionEnCours} photo{compressionEnCours > 1 ? 's' : ''}…
+                </div>
+              )}
+
+              {photosAvecEtat.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                    fontSize: 12, marginBottom: 6,
+                  }}>
+                    <span style={{ color: th.textDim }}>
+                      Espace utilisé dans le courriel
+                    </span>
+                    <span style={{ color: couleurJauge, fontWeight: 600 }}>
+                      {formatTaille(totalJoint)} sur {formatTaille(BUDGET_PIECES_JOINTES)}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: th.line, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${pourcentage}%`, height: '100%', background: couleurJauge,
+                      transition: 'width 0.25s ease, background 0.25s ease',
+                    }} />
+                  </div>
+                  {nbNonJointes > 0 && (
+                    <div style={{ fontSize: 12, color: BRAND_RED, marginTop: 6 }}>
+                      {nbNonJointes} photo{nbNonJointes > 1 ? 's ne seront pas jointes' : ' ne sera pas jointe'} au courriel,
+                      faute d&apos;espace. {nbNonJointes > 1 ? 'Elles restent' : 'Elle reste'} conservée{nbNonJointes > 1 ? 's' : ''} avec la visite.
                     </div>
-                  ))}
+                  )}
+
+                  <div style={{ marginTop: 10 }}>
+                    {photosAvecEtat.map((p, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                        fontSize: 13, padding: '6px 0', borderBottom: `1px solid ${th.line}`,
+                        opacity: p.jointe ? 1 : 0.55,
+                      }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {p.original.name}
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                          <span style={{ fontSize: 11.5, color: p.jointe ? th.textDim : BRAND_RED }}>
+                            {p.jointe ? formatTaille(p.taille) : 'non jointe'}
+                          </span>
+                          <button type="button" onClick={() => retirerFichier(i)}
+                            style={{ background: 'none', border: 'none', color: BRAND_RED, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                            <X size={14} />
+                          </button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </Field>
@@ -791,7 +855,7 @@ function VisiteSurintendant({ accessToken }) {
                   {destinataires.map((d) => (
                     <div key={d.email} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                       <span>{d.nom} <span style={{ color: th.textDim }}>({d.email})</span></span>
-                      <span style={{ fontSize: 10.5, whiteSpace: 'nowrap', color: d.fixe ? th.textDim : ORANGE_AVIS }}>
+                      <span style={{ fontSize: 10.5, whiteSpace: 'nowrap', color: d.couleur || th.textDim }}>
                         {d.raison}
                       </span>
                     </div>
