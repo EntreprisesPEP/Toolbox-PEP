@@ -240,14 +240,18 @@ export default async function handler(req, res) {
     const { data: fichiersListe } = await admin.storage.from(BUCKET_FICHIERS).list(String(visite.numero));
     const cheminsFichiers = (fichiersListe || []).map((f) => `${visite.numero}/${f.name}`);
 
+    // Les rôles viennent de lib/visite-surintendant/surintendants.js — un
+    // 'to' ajouté là-bas devient automatiquement destinataire principal ici.
+    const emailsFixesTo = DESTINATAIRES_FIXES.filter((p) => p.role === 'to').map((p) => p.email);
+    const emailsCcBruts = DESTINATAIRES_FIXES.filter((p) => p.role !== 'to').map((p) => p.email);
+
     const emailsTo = [
       visite.surintendant_courriel,
       visite.charge_projet_courriel,
       ...(personnesAdditionnelles || []).map((p) => p.courriel),
       ...(mentions || []).map((m) => m.courriel),
+      ...emailsFixesTo,
     ].filter(Boolean);
-
-    const emailsCcBruts = DESTINATAIRES_FIXES.map((p) => p.email);
 
     function dedupeCourriels(liste, exclureAussi = []) {
       const exclus = new Set(exclureAussi.map((e) => e.trim().toLowerCase()));

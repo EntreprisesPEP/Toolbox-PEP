@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import AuthGate from '../../components/visite-surintendant/AuthGate';
-import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS } from '../../lib/visite-surintendant/surintendants';
-import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle } from 'lucide-react';
+import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS, DESTINATAIRES_FIXES } from '../../lib/visite-surintendant/surintendants';
+import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Users } from 'lucide-react';
 
 // Logo PEP — texte blanc pour la nuit (fond navy), texte noir pour le
 // jour (fond clair). Mêmes fichiers que Demandes d'arpentage.
@@ -291,6 +291,38 @@ function VisiteSurintendant({ accessToken }) {
   const projetSelectionneTexte = form.projetNo; // texte libre "No — Nom" ou juste un texte
   const projetTrouve = projets.find((p) => projetSelectionneTexte.startsWith(`${p.no} —`));
 
+  // Qui recevra le courriel, recalculé à chaque frappe pour que le
+  // surintendant le voie avant d'envoyer. Même logique de dédoublonnage que
+  // dans pages/api/visite-surintendant/notifier.js.
+  function calculerDestinataires() {
+    const brut = [];
+    if (surintendantSelectionne) {
+      brut.push({ nom: surintendantSelectionne.nom, email: surintendantSelectionne.courriel, raison: 'surintendant' });
+    }
+    if (projetTrouve?.courriel_cp) {
+      brut.push({ nom: projetTrouve.charge || projetTrouve.courriel_cp, email: projetTrouve.courriel_cp, raison: 'chargé de projet' });
+    }
+    form.personnesAdditionnelles.filter(Boolean).forEach((nomP) => {
+      const p = personnel.find((x) => x.nom === nomP);
+      if (p?.courriel) brut.push({ nom: p.nom, email: p.courriel, raison: 'avisé' });
+    });
+    form.mentions.filter((m) => m.nom).forEach((m) => {
+      const p = personnel.find((x) => x.nom === m.nom);
+      if (p?.courriel) brut.push({ nom: p.nom, email: p.courriel, raison: m.type === 'info' ? 'mention · à lire' : 'mention · réponse requise' });
+    });
+    DESTINATAIRES_FIXES.forEach((d) => brut.push({ nom: d.nom, email: d.email, raison: 'fixe', fixe: true }));
+
+    const vus = new Set();
+    return brut.filter((d) => {
+      const cle = (d.email || '').trim().toLowerCase();
+      if (!cle || vus.has(cle)) return false;
+      vus.add(cle);
+      return true;
+    });
+  }
+
+  const destinataires = calculerDestinataires();
+
   function validate() {
     const errs = {};
     if (!form.surintendantNom) errs.surintendantNom = 'Requis';
@@ -379,7 +411,7 @@ function VisiteSurintendant({ accessToken }) {
     }
 
     setEnvoiEnCours(false);
-    setConfirmation({ numero: visite.numero, projetNom: payload.projet_nom });
+    setConfirmation({ numero: visite.numero, projetNom: payload.projet_nom, destinataires });
     setForm(creerFormulaireInitial());
 
     try {
@@ -470,6 +502,11 @@ function VisiteSurintendant({ accessToken }) {
             <div>
               <div style={{ fontWeight: 700, fontSize: 14.5 }}>Visite #{confirmation.numero} enregistrée !</div>
               <div style={{ fontSize: 13, color: th.textDim, marginTop: 2 }}>{confirmation.projetNom}</div>
+              {confirmation.destinataires?.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: 12.5, color: th.textDim, lineHeight: 1.6 }}>
+                  Courriel envoyé à : {confirmation.destinataires.map((d) => d.nom).join(', ')}
+                </div>
+              )}
               {erreurNotification && <div style={{ color: BRAND_RED, fontSize: 13, marginTop: 6 }}>{erreurNotification}</div>}
               {erreurFichiers && <div style={{ color: BRAND_RED, fontSize: 13, marginTop: 6 }}>{erreurFichiers}</div>}
             </div>
@@ -684,6 +721,34 @@ function VisiteSurintendant({ accessToken }) {
                 </div>
               )}
             </Field>
+
+            <div style={{
+              background: th.inputBg, border: `1px solid ${th.line}`, borderRadius: 4,
+              padding: 16, marginBottom: 18,
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: th.textDim,
+              }}>
+                <Users size={14} /> Ce courriel sera envoyé à
+              </div>
+              {destinataires.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: th.textDim }}>
+                  Choisis ton nom et un projet pour voir la liste.
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                  {destinataires.map((d) => (
+                    <div key={d.email} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>{d.nom} <span style={{ color: th.textDim }}>({d.email})</span></span>
+                      <span style={{ fontSize: 10.5, whiteSpace: 'nowrap', color: d.fixe ? th.textDim : ORANGE_AVIS }}>
+                        {d.raison}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {errors.general && <div style={{ color: BRAND_RED, fontSize: 13.5, marginBottom: 14 }}>{errors.general}</div>}
 
