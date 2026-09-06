@@ -19,7 +19,7 @@ const supabasePersonnel = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { 
 // Nom du groupe de l'app Liste de personnel qui alimente le menu
 // "Aviser des personnes additionnelles". Comparé sans tenir compte de la
 // casse, pour qu'un renommage en "Projet" ou "PROJET" ne casse rien.
-const GROUPE_PERSONNES_ADDITIONNELLES = 'projet';
+const GROUPE_PERSONNES_ADDITIONNELLES = 'projets';
 
 const BUCKET_FICHIERS = 'visite-surintendant-fichiers';
 const TAILLE_MAX_FICHIER = 20 * 1024 * 1024; // 20 Mo
@@ -717,7 +717,7 @@ function VisiteSurintendant({ accessToken }) {
             <Field th={th} label="Aviser des personnes additionnelles">
               {groupeIntrouvable && (
                 <div style={{ fontSize: 12, color: ORANGE_AVIS, marginBottom: 8 }}>
-                  Le groupe « projet » n&apos;a pas pu être chargé — la liste complète du personnel est affichée à la place.
+                  Le groupe « Projets » n&apos;a pas pu être chargé — la liste complète du personnel est affichée à la place.
                 </div>
               )}
               {form.personnesAdditionnelles.map((nomP, i) => (
