@@ -56,6 +56,42 @@ function sanitizeNomFichier(nom) {
   return nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+// Version allégée d'une photo, faite dans le navigateur avant le
+// téléversement : 1920 px sur le plus grand côté, JPEG qualité 0,85. Une
+// photo d'iPhone de 4 Mo tombe typiquement autour de 500 Ko, ce qui garde le
+// courriel sous la limite d'Outlook et accélère beaucoup l'envoi depuis un
+// chantier. L'originale, elle, est archivée intacte.
+// Si quoi que ce soit échoue, on retourne le fichier d'origine — mieux vaut
+// une grosse photo qu'aucune photo.
+async function compresserImage(fichier, maxDim = 1920, qualite = 0.85) {
+  if (!fichier.type || !fichier.type.startsWith('image/')) return fichier;
+  if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return fichier;
+  try {
+    const bitmap = await createImageBitmap(fichier, { imageOrientation: 'from-image' });
+    const plusGrandCote = Math.max(bitmap.width, bitmap.height);
+    const ratio = Math.min(1, maxDim / plusGrandCote);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+    canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return fichier;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    if (bitmap.close) bitmap.close();
+
+    const blob = await new Promise((resoudre) => canvas.toBlob(resoudre, 'image/jpeg', qualite));
+    // Si la compression n'aide pas (photo déjà minuscule, PNG d'écran, etc.),
+    // on garde l'originale plutôt que de la grossir.
+    if (!blob || blob.size >= fichier.size) return fichier;
+
+    const nom = `${fichier.name.replace(/\.[^.]+$/, '')}.jpg`;
+    return new File([blob], nom, { type: 'image/jpeg' });
+  } catch (e) {
+    console.error('Compression impossible, envoi de la photo originale:', fichier.name, e); // eslint-disable-line no-console
+    return fichier;
+  }
+}
+
 function creerFormulaireInitial() {
   const maintenant = new Date();
   return {
@@ -396,17 +432,31 @@ function VisiteSurintendant({ accessToken }) {
     }
 
     if (form.photoFiles.length > 0) {
+      // Deux copies par photo : l'originale pleine résolution est archivée
+      // dans "originaux/", et une version allégée part en pièce jointe
+      // depuis "courriel/". Le notifier ne lit que "courriel/".
       const resultats = await Promise.all(form.photoFiles.map(async (fichier) => {
-        const chemin = `${visite.numero}/${sanitizeNomFichier(fichier.name)}`;
-        const { error: eUpload } = await supabaseVS.storage
+        const nomBase = sanitizeNomFichier(fichier.name);
+        const compressee = await compresserImage(fichier);
+
+        const { error: eOriginal } = await supabaseVS.storage
           .from(BUCKET_FICHIERS)
-          .upload(chemin, fichier, { upsert: true, contentType: fichier.type || undefined });
-        if (eUpload) console.error('Erreur téléversement fichier:', fichier.name, eUpload); // eslint-disable-line no-console
-        return eUpload ? null : chemin;
+          .upload(`${visite.numero}/originaux/${nomBase}`, fichier, {
+            upsert: true, contentType: fichier.type || undefined,
+          });
+        if (eOriginal) console.error('Erreur téléversement original:', fichier.name, eOriginal); // eslint-disable-line no-console
+
+        const { error: eCourriel } = await supabaseVS.storage
+          .from(BUCKET_FICHIERS)
+          .upload(`${visite.numero}/courriel/${sanitizeNomFichier(compressee.name)}`, compressee, {
+            upsert: true, contentType: compressee.type || undefined,
+          });
+        if (eCourriel) console.error('Erreur téléversement copie courriel:', fichier.name, eCourriel); // eslint-disable-line no-console
+
+        return (eOriginal || eCourriel) ? null : true;
       }));
-      const cheminsFichiers = resultats.filter(Boolean);
-      if (cheminsFichiers.length < form.photoFiles.length) {
-        setErreurFichiers("La visite est enregistrée, mais un ou plusieurs fichiers n'ont pas pu être téléversés.");
+      if (resultats.filter(Boolean).length < form.photoFiles.length) {
+        setErreurFichiers("La visite est enregistrée, mais une ou plusieurs photos n'ont pas pu être téléversées.");
       }
     }
 

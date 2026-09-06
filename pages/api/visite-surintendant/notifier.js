@@ -9,7 +9,13 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EXPEDITEUR = 'Visite surintendant PEP <notifications@toolbox-pep.com>';
 const LOGO_PEP_URL = 'https://www.toolbox-pep.com/_static/planification-hebdomadaire/logo-pep.png';
 const BUCKET_FICHIERS = 'visite-surintendant-fichiers';
-const TAILLE_MAX_PIECE_JOINTE = 8 * 1024 * 1024; // 8 Mo par fichier
+const TAILLE_MAX_PIECE_JOINTE = 10 * 1024 * 1024; // 10 Mo par fichier
+// Outlook refuse les courriels reçus au-delà d'environ 20 Mo, et c'est le
+// TOTAL qui compte, pas chaque fichier. Attention : les pièces jointes sont
+// encodées en base64, ce qui les gonfle d'environ 33 %. 12 Mo de photos font
+// donc à peu près 16 Mo une fois encodées — d'où ce plafond, qui laisse une
+// marge réelle sous les 20 Mo plutôt que de les frôler.
+const TAILLE_MAX_TOTAL_PIECES = 12 * 1024 * 1024; // 12 Mo avant encodage
 
 const MOIS_FR = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -27,31 +33,50 @@ function ouTiret(valeur) {
 }
 
 async function construireAttachments(admin, chemins) {
-  const attachments = [];
-  const rapport = [];
-  for (const chemin of chemins || []) {
+  // Les téléchargements se font EN PARALLÈLE. Une boucle séquentielle sur dix
+  // photos, c'est dix allers-retours l'un après l'autre — le patron exact qui
+  // a causé les dépassements de délai Vercel dans le cron de fin de mois du
+  // Défi Strava. L'accumulation du total, elle, reste séquentielle ensuite,
+  // pour que le résultat soit déterministe : à photos identiques, ce sont
+  // toujours les mêmes qui passent.
+  const telechargements = await Promise.all((chemins || []).map(async (chemin) => {
     try {
       const { data: blob, error } = await admin.storage.from(BUCKET_FICHIERS).download(chemin);
-      if (error || !blob) {
-        rapport.push({ chemin, statut: 'introuvable', detail: error?.message || 'inconnu' });
-        continue;
-      }
+      if (error || !blob) return { chemin, statut: 'introuvable', detail: error?.message || 'inconnu' };
       const arrayBuffer = await blob.arrayBuffer();
-      if (arrayBuffer.byteLength > TAILLE_MAX_PIECE_JOINTE) {
-        rapport.push({ chemin, statut: 'trop_volumineux', tailleOctets: arrayBuffer.byteLength });
-        continue;
-      }
-      const contenuBase64 = Buffer.from(arrayBuffer).toString('base64');
-      attachments.push({ filename: chemin.split('/').pop(), content: contenuBase64 });
-      rapport.push({ chemin, statut: 'inclus', tailleOctets: arrayBuffer.byteLength });
+      return { chemin, arrayBuffer, tailleOctets: arrayBuffer.byteLength };
     } catch (e) {
-      rapport.push({ chemin, statut: 'erreur', detail: e.message });
+      return { chemin, statut: 'erreur', detail: e.message };
     }
+  }));
+
+  const attachments = [];
+  const rapport = [];
+  let totalOctets = 0;
+  for (const item of telechargements) {
+    if (item.statut) {
+      rapport.push({ chemin: item.chemin, statut: item.statut, detail: item.detail });
+      continue;
+    }
+    if (item.tailleOctets > TAILLE_MAX_PIECE_JOINTE) {
+      rapport.push({ chemin: item.chemin, statut: 'trop_volumineux', tailleOctets: item.tailleOctets });
+      continue;
+    }
+    if (totalOctets + item.tailleOctets > TAILLE_MAX_TOTAL_PIECES) {
+      rapport.push({ chemin: item.chemin, statut: 'total_depasse', tailleOctets: item.tailleOctets });
+      continue;
+    }
+    attachments.push({
+      filename: item.chemin.split('/').pop(),
+      content: Buffer.from(item.arrayBuffer).toString('base64'),
+    });
+    totalOctets += item.tailleOctets;
+    rapport.push({ chemin: item.chemin, statut: 'inclus', tailleOctets: item.tailleOctets });
   }
-  return { attachments, rapport };
+  return { attachments, rapport, totalOctets };
 }
 
-function construireHtml(visite, personnesAdditionnelles, mentions) {
+function construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes = 0) {
   const travauxTexte = [
     ...(visite.travaux_en_cours || []),
     ...(visite.travaux_autre ? [visite.travaux_autre] : []),
@@ -160,6 +185,7 @@ function construireHtml(visite, personnesAdditionnelles, mentions) {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             ${lignesHtml}
           </table>
+          ${nbNonJointes > 0 ? `<p style="margin:16px 0 0; font-size:12.5px; color:#6b7480; font-family: Calibri, Arial, sans-serif;">${nbNonJointes} photo${nbNonJointes > 1 ? 's n\'ont' : " n'a"} pas pu être jointe${nbNonJointes > 1 ? 's' : ''} au courriel, faute d'espace. Elles restent conservées avec la visite.</p>` : ''}
         </td>
       </tr>
     </table>
@@ -237,8 +263,12 @@ export default async function handler(req, res) {
       .select('nom, courriel, type')
       .eq('visite_id', visite.id);
 
-    const { data: fichiersListe } = await admin.storage.from(BUCKET_FICHIERS).list(String(visite.numero));
-    const cheminsFichiers = (fichiersListe || []).map((f) => `${visite.numero}/${f.name}`);
+    // Seules les copies allégées sont jointes au courriel. Les originaux
+    // pleine résolution restent archivés dans <numero>/originaux/.
+    const { data: fichiersListe } = await admin.storage.from(BUCKET_FICHIERS).list(`${visite.numero}/courriel`);
+    const cheminsFichiers = (fichiersListe || [])
+      .filter((f) => f.id)
+      .map((f) => `${visite.numero}/courriel/${f.name}`);
 
     // Les rôles viennent de lib/visite-surintendant/surintendants.js — un
     // 'to' ajouté là-bas devient automatiquement destinataire principal ici.
@@ -270,8 +300,9 @@ export default async function handler(req, res) {
     const destinatairesCc = dedupeCourriels(emailsCcBruts, destinatairesTo);
 
     const sujet = `Visite surintendant - ${visite.surintendant_nom} - ${ouTiret(visite.projet_nom)}`;
-    const html = construireHtml(visite, personnesAdditionnelles, mentions);
     const { attachments, rapport } = await construireAttachments(admin, cheminsFichiers);
+    const nbNonJointes = rapport.filter((r) => r.statut !== 'inclus').length;
+    const html = construireHtml(visite, personnesAdditionnelles, mentions, nbNonJointes);
 
     const reponseResend = await fetch('https://api.resend.com/emails', {
       method: 'POST',
