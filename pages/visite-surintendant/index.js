@@ -14,6 +14,12 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabaseVS = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'visite_surintendant' } });
 const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'liste_projets' } });
+const supabasePersonnel = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'personnel' } });
+
+// Nom du groupe de l'app Liste de personnel qui alimente le menu
+// "Aviser des personnes additionnelles". Comparé sans tenir compte de la
+// casse, pour qu'un renommage en "Projet" ou "PROJET" ne casse rien.
+const GROUPE_PERSONNES_ADDITIONNELLES = 'projet';
 
 const BUCKET_FICHIERS = 'visite-surintendant-fichiers';
 const TAILLE_MAX_FICHIER = 20 * 1024 * 1024; // 20 Mo
@@ -259,6 +265,8 @@ function VisiteSurintendant({ accessToken }) {
 
   const [projets, setProjets] = useState([]);
   const [personnel, setPersonnel] = useState([]);
+  const [personnesGroupe, setPersonnesGroupe] = useState([]);
+  const [groupeIntrouvable, setGroupeIntrouvable] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState('');
   const [form, setForm] = useState(creerFormulaireInitial());
@@ -283,8 +291,44 @@ function VisiteSurintendant({ accessToken }) {
       }
       setProjets(projetsData || []);
       setPersonnel(personnelData || []);
+      await chargerGroupe();
       setChargement(false);
     }
+    // Résout le groupe "projet" de l'app Liste de personnel en une liste de
+    // personnes : les membres de ses départements, plus celles ajoutées à
+    // l'unité, dédoublonnées. Si le groupe n'existe pas ou si le schéma n'est
+    // pas accessible, on retombe sur l'ancienne liste plutôt que de laisser un
+    // menu vide — un surintendant sur un chantier ne doit jamais rester bloqué.
+    async function chargerGroupe() {
+      try {
+        const [resG, resGD, resGP, resP] = await Promise.all([
+          supabasePersonnel.from('groupes').select('nom'),
+          supabasePersonnel.from('groupe_departements').select('groupe, departement'),
+          supabasePersonnel.from('groupe_personnes').select('groupe, personne_id'),
+          supabasePersonnel.from('personnes').select('id, nom, courriel, departement, actif'),
+        ]);
+        if (resG.error || resGD.error || resGP.error || resP.error) { setGroupeIntrouvable(true); return; }
+
+        const cible = (resG.data || []).find(
+          (g) => (g.nom || '').trim().toLowerCase() === GROUPE_PERSONNES_ADDITIONNELLES
+        );
+        if (!cible) { setGroupeIntrouvable(true); return; }
+
+        const depts = (resGD.data || []).filter((x) => x.groupe === cible.nom).map((x) => x.departement);
+        const ids = new Set((resGP.data || []).filter((x) => x.groupe === cible.nom).map((x) => x.personne_id));
+
+        const membres = (resP.data || [])
+          .filter((p) => p.actif !== false)
+          .filter((p) => (p.departement && depts.includes(p.departement)) || ids.has(p.id))
+          .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+
+        setPersonnesGroupe(membres);
+        setGroupeIntrouvable(membres.length === 0);
+      } catch (e) {
+        setGroupeIntrouvable(true);
+      }
+    }
+
     charger();
   }, []);
 
@@ -351,6 +395,19 @@ function VisiteSurintendant({ accessToken }) {
     setForm((f) => ({ ...f, photoFiles: f.photoFiles.filter((_, i) => i !== index) }));
   }
 
+  // Menu "Aviser des personnes additionnelles" : le groupe de l'app Liste de
+  // personnel. Repli sur l'ancienne liste si le groupe est introuvable.
+  const optionsAviser = (!groupeIntrouvable && personnesGroupe.length > 0) ? personnesGroupe : personnel;
+
+  // Le courriel d'une personne avisée se cherche d'abord dans le groupe, puis
+  // dans l'ancienne liste : une visite enregistrée avant le branchement peut
+  // contenir un nom qui ne figure que là.
+  function courrielDe(nom) {
+    return optionsAviser.find((x) => x.nom === nom)?.courriel
+      || personnel.find((x) => x.nom === nom)?.courriel
+      || null;
+  }
+
   const surintendantSelectionne = SURINTENDANTS.find((s) => s.nom === form.surintendantNom);
   const projetSelectionneTexte = form.projetNo; // texte libre "No — Nom" ou juste un texte
   const projetTrouve = projets.find((p) => projetSelectionneTexte.startsWith(`${p.no} —`));
@@ -367,8 +424,8 @@ function VisiteSurintendant({ accessToken }) {
       brut.push({ nom: projetTrouve.charge || projetTrouve.courriel_cp, email: projetTrouve.courriel_cp, raison: 'chargé de projet' });
     }
     form.personnesAdditionnelles.filter(Boolean).forEach((nomP) => {
-      const p = personnel.find((x) => x.nom === nomP);
-      if (p?.courriel) brut.push({ nom: p.nom, email: p.courriel, raison: 'avisé' });
+      const courriel = courrielDe(nomP);
+      if (courriel) brut.push({ nom: nomP, email: courriel, raison: 'avisé' });
     });
     form.mentions.filter((m) => m.nom).forEach((m) => {
       const p = personnel.find((x) => x.nom === m.nom);
@@ -450,10 +507,9 @@ function VisiteSurintendant({ accessToken }) {
     const personnesValides = form.personnesAdditionnelles.filter(Boolean);
     if (personnesValides.length > 0) {
       await supabaseVS.from('visite_personnes').insert(
-        personnesValides.map((nomP) => {
-          const p = personnel.find((x) => x.nom === nomP);
-          return { visite_id: visite.id, nom: nomP, courriel: p?.courriel || null };
-        })
+        personnesValides.map((nomP) => (
+          { visite_id: visite.id, nom: nomP, courriel: courrielDe(nomP) }
+        ))
       );
     }
 
@@ -659,11 +715,16 @@ function VisiteSurintendant({ accessToken }) {
             )}
 
             <Field th={th} label="Aviser des personnes additionnelles">
+              {groupeIntrouvable && (
+                <div style={{ fontSize: 12, color: ORANGE_AVIS, marginBottom: 8 }}>
+                  Le groupe « projet » n&apos;a pas pu être chargé — la liste complète du personnel est affichée à la place.
+                </div>
+              )}
               {form.personnesAdditionnelles.map((nomP, i) => (
                 <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
                   <select value={nomP} onChange={(e) => updatePersonne(i, e.target.value)} style={champStyle(th)}>
                     <option value="">— Choisir une personne —</option>
-                    {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
+                    {optionsAviser.map((p) => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
                   </select>
                   <button type="button" onClick={() => retirerPersonne(i)} title="Retirer"
                     style={{
