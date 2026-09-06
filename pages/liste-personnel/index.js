@@ -19,10 +19,11 @@ const btnGhost = { ...btn, background: '#fff', color: NAVY, border: `1px solid $
 const btnDanger = { ...btn, background: RED };
 const btnSmall = { padding: '4px 10px', fontSize: 12 };
 const input = { padding: '7px 9px', borderRadius: 5, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box' };
-const td = { padding: '8px 12px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1' };
+const td = { padding: '8px 12px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const thDept = {
   textAlign: 'left', padding: '7px 12px', fontSize: 11, fontWeight: 600,
   textTransform: 'uppercase', letterSpacing: '0.05em', color: '#8a93a0',
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
 function Center({ children }) {
@@ -132,6 +133,14 @@ export default function ListePersonnel() {
   }, [departements, personnes, recherche]);
 
   const nbAffiches = groupes.reduce((n, g) => n + g.membres.length, 0);
+
+  // Largeurs fixes : sans ça, chaque département calcule ses colonnes selon
+  // son propre contenu et les blocs ne s'alignent pas entre eux.
+  const colonnes = estPhone
+    ? ['46%', '30%', '24%']
+    : peutModifier
+      ? ['19%', '27%', '13%', '25%', '16%']
+      : ['22%', '32%', '15%', '31%'];
 
   // --- Écritures --------------------------------------------------------
   async function sauvegarderPersonne(form) {
@@ -253,7 +262,10 @@ export default function ListePersonnel() {
               {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
             </div>
             <div style={{ background: '#fff', border: '1px solid #D7DBE0', borderTop: 'none' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <colgroup>
+                  {colonnes.map((largeur, i) => <col key={i} style={{ width: largeur }} />)}
+                </colgroup>
                 <thead>
                   <tr style={{ background: '#F7F8F9', borderBottom: '1px solid #D7DBE0' }}>
                     <th style={thDept}>Nom</th>
@@ -271,7 +283,7 @@ export default function ListePersonnel() {
                         {p.nom}
                         {!p.actif && <span style={{ color: '#8a93a0', fontWeight: 400 }}> (inactif)</span>}
                       </td>
-                      {!estPhone && <td style={{ ...td, color: '#495260' }}>{p.titre || '—'}</td>}
+                      {!estPhone && <td style={{ ...td, color: '#495260' }} title={p.titre || ''}>{p.titre || '—'}</td>}
                       <td style={td}>
                         {p.cellulaire
                           ? <a href={`tel:${p.cellulaire}`} style={{ color: NAVY, textDecoration: 'none', fontWeight: 600 }}>{p.cellulaire}</a>
@@ -280,7 +292,7 @@ export default function ListePersonnel() {
                       {!estPhone && (
                         <td style={td}>
                           {p.courriel
-                            ? <a href={`mailto:${p.courriel}`} style={{ color: '#2E86C1', textDecoration: 'none' }}>{p.courriel}</a>
+                            ? <a href={`mailto:${p.courriel}`} title={p.courriel} style={{ color: '#2E86C1', textDecoration: 'none' }}>{p.courriel}</a>
                             : <span style={{ color: '#c0c7d0' }}>—</span>}
                         </td>
                       )}
