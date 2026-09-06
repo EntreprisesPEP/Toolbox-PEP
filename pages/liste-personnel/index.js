@@ -52,6 +52,13 @@ export default function ListePersonnel() {
   const [denied, setDenied] = useState(false);
   const [session, setSession] = useState(null);
   const [peutModifier, setPeutModifier] = useState(false);
+  const [estAdmin, setEstAdmin] = useState(false);
+  const [vue, setVue] = useState('personnel');
+
+  const [groupes, setGroupes] = useState([]);
+  const [groupeDepts, setGroupeDepts] = useState([]);
+  const [groupePersonnes, setGroupePersonnes] = useState([]);
+  const [groupeActif, setGroupeActif] = useState(null);
 
   const [departements, setDepartements] = useState([]);
   const [personnes, setPersonnes] = useState([]);
@@ -86,6 +93,7 @@ export default function ListePersonnel() {
       const { data: roleRow } = await supabase
         .from('pep_user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
       const estAdmin = roleRow?.role === 'admin';
+      setEstAdmin(estAdmin);
 
       if (!appAccess && !estAdmin) { setDenied(true); setLoading(false); return; }
 
@@ -111,10 +119,26 @@ export default function ListePersonnel() {
     }
     setDepartements(resDepts.data || []);
     setPersonnes(resPers.data || []);
+    await chargerGroupes();
+  }
+
+  // Les groupes ne servent qu'à l'onglet administrateur. Si les tables
+  // n'existent pas encore (SQL 02 pas passé), on ignore silencieusement
+  // plutôt que d'empêcher le répertoire de s'afficher.
+  async function chargerGroupes() {
+    const [resG, resGD, resGP] = await Promise.all([
+      supabasePers.from('groupes').select('*').order('ordre'),
+      supabasePers.from('groupe_departements').select('*'),
+      supabasePers.from('groupe_personnes').select('*'),
+    ]);
+    if (resG.error || resGD.error || resGP.error) return;
+    setGroupes(resG.data || []);
+    setGroupeDepts(resGD.data || []);
+    setGroupePersonnes(resGP.data || []);
   }
 
   // --- Regroupement par département, dans l'ordre choisi ----------------
-  const groupes = useMemo(() => {
+  const blocs = useMemo(() => {
     const terme = sansAccents(recherche.trim());
     const correspond = (p) => !terme || [p.nom, p.titre, p.courriel, p.cellulaire, p.poste]
       .some((v) => sansAccents(v).includes(terme));
@@ -136,7 +160,7 @@ export default function ListePersonnel() {
     return liste;
   }, [departements, personnes, recherche]);
 
-  const nbAffiches = groupes.reduce((n, g) => n + g.membres.length, 0);
+  const nbAffiches = blocs.reduce((n, g) => n + g.membres.length, 0);
 
   // Largeurs fixes : sans ça, chaque département calcule ses colonnes selon
   // son propre contenu et les blocs ne s'alignent pas entre eux.
@@ -182,6 +206,67 @@ export default function ListePersonnel() {
     await chargerTout();
   }
 
+  // --- Groupes ----------------------------------------------------------
+  // Résout un groupe en liste de personnes : les membres de ses départements,
+  // plus les personnes ajoutées à l'unité. Dédoublonné, car une personne peut
+  // être couverte deux fois — par son département ET nommément.
+  function resoudreGroupe(nomGroupe) {
+    const depts = groupeDepts.filter((x) => x.groupe === nomGroupe).map((x) => x.departement);
+    const idsDirects = new Set(
+      groupePersonnes.filter((x) => x.groupe === nomGroupe).map((x) => x.personne_id)
+    );
+    const vus = new Set();
+    const resultat = [];
+    for (const p of personnes) {
+      const parDept = p.departement && depts.includes(p.departement);
+      const direct = idsDirects.has(p.id);
+      if (!parDept && !direct) continue;
+      if (vus.has(p.id)) continue;
+      vus.add(p.id);
+      resultat.push({ ...p, viaDepartement: parDept, nomme: direct });
+    }
+    return resultat;
+  }
+
+  async function creerGroupe(nom) {
+    const propre = nom.trim();
+    if (!propre) return;
+    setSaving(true);
+    const ordre = (groupes.length ? Math.max(...groupes.map((g) => g.ordre)) : 0) + 10;
+    const { error } = await supabasePers.from('groupes').insert({ nom: propre, ordre });
+    setSaving(false);
+    if (error) { setErreur("Ce groupe existe déjà, ou la création a échoué."); return; }
+    await chargerGroupes();
+    setGroupeActif(propre);
+  }
+
+  async function supprimerGroupe(nom) {
+    setSaving(true);
+    const { error } = await supabasePers.from('groupes').delete().eq('nom', nom);
+    setSaving(false);
+    if (error) { setErreur("La suppression du groupe a échoué."); return; }
+    setGroupeActif(null);
+    await chargerGroupes();
+  }
+
+  async function basculerDepartement(groupe, departement, present) {
+    const req = present
+      ? supabasePers.from('groupe_departements').delete().eq('groupe', groupe).eq('departement', departement)
+      : supabasePers.from('groupe_departements').insert({ groupe, departement });
+    const { error } = await req;
+    if (error) { setErreur("La modification du groupe a échoué."); return; }
+    await chargerGroupes();
+  }
+
+  async function basculerPersonne(groupe, personneId, present) {
+    const req = present
+      ? supabasePers.from('groupe_personnes').delete().eq('groupe', groupe).eq('personne_id', personneId)
+      : supabasePers.from('groupe_personnes').insert({ groupe, personne_id: personneId });
+    const { error } = await req;
+    if (error) { setErreur("La modification du groupe a échoué."); return; }
+    await chargerGroupes();
+  }
+
   // --- Rendu ------------------------------------------------------------
   if (loading) return <Center><Spinner /><div>Chargement…</div></Center>;
   if (!session) return (
@@ -215,141 +300,179 @@ export default function ListePersonnel() {
 
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px 60px' }}>
 
+        {estAdmin && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {[['personnel', 'Répertoire'], ['groupes', `Groupes (${groupes.length})`]].map(([id, label]) => (
+              <button key={id} onClick={() => setVue(id)} style={{
+                ...btn,
+                background: vue === id ? NAVY : '#fff',
+                color: vue === id ? '#fff' : NAVY,
+                border: `1px solid ${NAVY}`,
+              }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {erreur && (
           <div style={{ background: '#fff', border: `1px solid ${RED}`, borderLeft: `3px solid ${RED}`, color: RED, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
             {erreur}
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-          <div style={{ fontSize: 13, color: '#5c6478' }}>
-            {nbAffiches} personne{nbAffiches > 1 ? 's' : ''}
-            {recherche.trim() ? ` sur ${personnes.length}` : ''}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input
-              placeholder="Rechercher un nom, un titre, un courriel…"
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-              style={{ ...input, width: 280 }}
-            />
-            {peutModifier && (
-              <>
-                <button style={btnGhost} onClick={() => setGererDepts(true)}>Départements</button>
-                <button style={btn} onClick={() => setEditPersonne({ nom: '', titre: '', departement: departements[0]?.nom || '', courriel: '', cellulaire: '', poste: '', actif: true })}>
-                  + Nouvelle personne
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 16, padding: '10px 14px', background: '#FFF6E5', border: '1px solid #E4A11B', borderLeft: '3px solid #E4A11B', fontSize: 13, color: '#7a5000' }}>
-          Tout numéro indiqué avec un poste est accessible via le numéro principal : <strong>{TELEPHONE_PRINCIPAL}</strong> + le numéro de poste.
-        </div>
-
-        {!peutModifier && (
-          <div style={{ marginBottom: 16, fontSize: 12.5, color: '#5c6478' }}>
-            Lecture seule. Pour pouvoir modifier la liste, demande à William d&apos;activer la permission « modifier ».
-          </div>
-        )}
-
-        {groupes.length === 0 && (
-          <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 24, fontSize: 13.5, color: '#5c6478' }}>
-            Aucune personne ne correspond à cette recherche.
-          </div>
-        )}
-
-        {groupes.map((groupe) => (
-          <div key={groupe.dept} style={{ marginBottom: 20 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-              fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em',
-              color: NAVY, background: '#E8ECF0', padding: '6px 10px 6px 14px', borderLeft: `3px solid ${RED}`,
-            }}>
-              <span>
-                {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
-              </span>
+        {vue === 'personnel' && (
+          <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: '#5c6478' }}>
+              {nbAffiches} personne{nbAffiches > 1 ? 's' : ''}
+              {recherche.trim() ? ` sur ${personnes.length}` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                placeholder="Rechercher un nom, un titre, un courriel…"
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                style={{ ...input, width: 280 }}
+              />
               {peutModifier && (
-                <button
-                  type="button"
-                  title={`Ajouter une personne dans ${groupe.dept}`}
-                  onClick={() => setEditPersonne({
-                    nom: '', titre: '',
-                    // Le département est pré-rempli avec celui de l'en-tête cliqué.
-                    // "Sans département" n'est pas un vrai département : on laisse
-                    // le champ vide plutôt que d'inventer une valeur.
-                    departement: groupe.dept === SANS_DEPARTEMENT ? '' : groupe.dept,
-                    courriel: '', cellulaire: '', poste: '', actif: true,
-                  })}
-                  style={{
-                    ...btn, padding: '3px 11px', fontSize: 16, lineHeight: 1.2,
-                    fontWeight: 700, flexShrink: 0,
-                  }}
-                >
-                  +
-                </button>
-              )}
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #D7DBE0', borderTop: 'none' }}>
-              {groupe.membres.length === 0 ? (
-                <div style={{ padding: '14px', fontSize: 12.5, color: '#8a93a0' }}>
-                  Aucune personne dans ce département. Utilise le « + » ci-dessus pour en ajouter une.
-                </div>
-              ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                <colgroup>
-                  {colonnes.map((largeur, i) => <col key={i} style={{ width: largeur }} />)}
-                </colgroup>
-                <thead>
-                  <tr style={{ background: '#F7F8F9', borderBottom: '1px solid #D7DBE0' }}>
-                    <th style={thDept}>Nom</th>
-                    {!estPhone && <th style={thDept}>Titre</th>}
-                    <th style={thDept}>Cellulaire</th>
-                    {!estPhone && <th style={thDept}>Courriel</th>}
-                    {estPhone && <th style={{ ...thDept, textAlign: 'center' }}>Info</th>}
-                    {peutModifier && !estPhone && <th style={thDept} />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupe.membres.map((p, i) => (
-                    <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
-                      <td style={{ ...td, fontWeight: 600 }}>
-                        {p.nom}
-                        {!p.actif && <span style={{ color: '#8a93a0', fontWeight: 400 }}> (inactif)</span>}
-                      </td>
-                      {!estPhone && <td style={{ ...td, color: '#495260' }} title={p.titre || ''}>{p.titre || '—'}</td>}
-                      <td style={td}>
-                        {p.cellulaire
-                          ? <a href={`tel:${p.cellulaire}`} style={{ color: NAVY, textDecoration: 'none', fontWeight: 600 }}>{p.cellulaire}</a>
-                          : p.poste ? <span style={{ color: '#8a93a0' }}>Poste {p.poste}</span> : '—'}
-                      </td>
-                      {!estPhone && (
-                        <td style={td}>
-                          {p.courriel
-                            ? <a href={`mailto:${p.courriel}`} title={p.courriel} style={{ color: '#2E86C1', textDecoration: 'none' }}>{p.courriel}</a>
-                            : <span style={{ color: '#c0c7d0' }}>—</span>}
-                        </td>
-                      )}
-                      {estPhone && (
-                        <td style={{ ...td, textAlign: 'center' }}>
-                          <button style={{ ...btnGhost, ...btnSmall }} onClick={() => setFiche(p)}>Voir</button>
-                        </td>
-                      )}
-                      {peutModifier && !estPhone && (
-                        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditPersonne({ ...p })}>Modifier</button>
-                          <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr(p)}>Suppr.</button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                <>
+                  <button style={btnGhost} onClick={() => setGererDepts(true)}>Départements</button>
+                  <button style={btn} onClick={() => setEditPersonne({ nom: '', titre: '', departement: departements[0]?.nom || '', courriel: '', cellulaire: '', poste: '', actif: true })}>
+                    + Nouvelle personne
+                  </button>
+                </>
               )}
             </div>
           </div>
-        ))}
+
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: '#FFF6E5', border: '1px solid #E4A11B', borderLeft: '3px solid #E4A11B', fontSize: 13, color: '#7a5000' }}>
+            Tout numéro indiqué avec un poste est accessible via le numéro principal : <strong>{TELEPHONE_PRINCIPAL}</strong> + le numéro de poste.
+          </div>
+
+          {!peutModifier && (
+            <div style={{ marginBottom: 16, fontSize: 12.5, color: '#5c6478' }}>
+              Lecture seule. Pour pouvoir modifier la liste, demande à William d&apos;activer la permission « modifier ».
+            </div>
+          )}
+
+          {blocs.length === 0 && (
+            <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 24, fontSize: 13.5, color: '#5c6478' }}>
+              Aucune personne ne correspond à cette recherche.
+            </div>
+          )}
+
+          {blocs.map((groupe) => (
+            <div key={groupe.dept} style={{ marginBottom: 20 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em',
+                color: NAVY, background: '#E8ECF0', padding: '6px 10px 6px 14px', borderLeft: `3px solid ${RED}`,
+              }}>
+                <span>
+                  {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
+                </span>
+                {peutModifier && (
+                  <button
+                    type="button"
+                    title={`Ajouter une personne dans ${groupe.dept}`}
+                    onClick={() => setEditPersonne({
+                      nom: '', titre: '',
+                      // Le département est pré-rempli avec celui de l'en-tête cliqué.
+                      // "Sans département" n'est pas un vrai département : on laisse
+                      // le champ vide plutôt que d'inventer une valeur.
+                      departement: groupe.dept === SANS_DEPARTEMENT ? '' : groupe.dept,
+                      courriel: '', cellulaire: '', poste: '', actif: true,
+                    })}
+                    style={{
+                      ...btn, padding: '3px 11px', fontSize: 16, lineHeight: 1.2,
+                      fontWeight: 700, flexShrink: 0,
+                    }}
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+              <div style={{ background: '#fff', border: '1px solid #D7DBE0', borderTop: 'none' }}>
+                {groupe.membres.length === 0 ? (
+                  <div style={{ padding: '14px', fontSize: 12.5, color: '#8a93a0' }}>
+                    Aucune personne dans ce département. Utilise le « + » ci-dessus pour en ajouter une.
+                  </div>
+                ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    {colonnes.map((largeur, i) => <col key={i} style={{ width: largeur }} />)}
+                  </colgroup>
+                  <thead>
+                    <tr style={{ background: '#F7F8F9', borderBottom: '1px solid #D7DBE0' }}>
+                      <th style={thDept}>Nom</th>
+                      {!estPhone && <th style={thDept}>Titre</th>}
+                      <th style={thDept}>Cellulaire</th>
+                      {!estPhone && <th style={thDept}>Courriel</th>}
+                      {estPhone && <th style={{ ...thDept, textAlign: 'center' }}>Info</th>}
+                      {peutModifier && !estPhone && <th style={thDept} />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupe.membres.map((p, i) => (
+                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                        <td style={{ ...td, fontWeight: 600 }}>
+                          {p.nom}
+                          {!p.actif && <span style={{ color: '#8a93a0', fontWeight: 400 }}> (inactif)</span>}
+                        </td>
+                        {!estPhone && <td style={{ ...td, color: '#495260' }} title={p.titre || ''}>{p.titre || '—'}</td>}
+                        <td style={td}>
+                          {p.cellulaire
+                            ? <a href={`tel:${p.cellulaire}`} style={{ color: NAVY, textDecoration: 'none', fontWeight: 600 }}>{p.cellulaire}</a>
+                            : p.poste ? <span style={{ color: '#8a93a0' }}>Poste {p.poste}</span> : '—'}
+                        </td>
+                        {!estPhone && (
+                          <td style={td}>
+                            {p.courriel
+                              ? <a href={`mailto:${p.courriel}`} title={p.courriel} style={{ color: '#2E86C1', textDecoration: 'none' }}>{p.courriel}</a>
+                              : <span style={{ color: '#c0c7d0' }}>—</span>}
+                          </td>
+                        )}
+                        {estPhone && (
+                          <td style={{ ...td, textAlign: 'center' }}>
+                            <button style={{ ...btnGhost, ...btnSmall }} onClick={() => setFiche(p)}>Voir</button>
+                          </td>
+                        )}
+                        {peutModifier && !estPhone && (
+                          <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditPersonne({ ...p })}>Modifier</button>
+                            <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr(p)}>Suppr.</button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                )}
+              </div>
+            </div>
+          ))}
+          </>
+        )}
+
+
+        {vue === 'groupes' && estAdmin && (
+          <VueGroupes
+            groupes={groupes}
+            groupeActif={groupeActif}
+            setGroupeActif={setGroupeActif}
+            departements={departements}
+            personnes={personnes}
+            groupeDepts={groupeDepts}
+            groupePersonnes={groupePersonnes}
+            resoudreGroupe={resoudreGroupe}
+            creerGroupe={creerGroupe}
+            supprimerGroupe={supprimerGroupe}
+            basculerDepartement={basculerDepartement}
+            basculerPersonne={basculerPersonne}
+            saving={saving}
+          />
+        )}
       </main>
 
       {fiche && (
@@ -580,5 +703,222 @@ function ModalDepartements({ departements, personnes, onFerme, setErreur }) {
         <button style={btn} onClick={onFerme}>Fermer</button>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Onglet Groupes — réservé aux administrateurs.
+// Un groupe est une liste nommée : des départements complets, plus des
+// personnes ajoutées à l'unité. La colonne de droite montre en direct la
+// liste résolue, dédoublonnée, telle qu'elle sera utilisée par les autres
+// apps quand on les branchera.
+// ---------------------------------------------------------------------------
+function VueGroupes({
+  groupes, groupeActif, setGroupeActif, departements, personnes,
+  groupeDepts, groupePersonnes, resoudreGroupe, creerGroupe, supprimerGroupe,
+  basculerDepartement, basculerPersonne, saving,
+}) {
+  const [nouveau, setNouveau] = useState('');
+  const [ajout, setAjout] = useState('');
+  const [confirmSuppr, setConfirmSuppr] = useState(null);
+
+  const actif = groupes.find((g) => g.nom === groupeActif) || null;
+  const deptsDuGroupe = actif ? groupeDepts.filter((x) => x.groupe === actif.nom).map((x) => x.departement) : [];
+  const idsDuGroupe = actif ? groupePersonnes.filter((x) => x.groupe === actif.nom).map((x) => x.personne_id) : [];
+  const resolu = actif ? resoudreGroupe(actif.nom) : [];
+
+  function compteGroupe(nom) {
+    return resoudreGroupe(nom).length;
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+
+      <div style={{ flex: '0 0 260px', minWidth: 240 }}>
+        <div style={{ background: '#fff', border: '1px solid #D7DBE0' }}>
+          {groupes.length === 0 && (
+            <div style={{ padding: 14, fontSize: 12.5, color: '#8a93a0' }}>
+              Aucun groupe pour l&apos;instant.
+            </div>
+          )}
+          {groupes.map((g) => (
+            <div
+              key={g.nom}
+              onClick={() => setGroupeActif(g.nom)}
+              style={{
+                padding: '10px 14px', cursor: 'pointer', fontSize: 13.5,
+                borderBottom: '1px solid #EDEFF1',
+                background: g.nom === groupeActif ? '#E8ECF0' : '#fff',
+                borderLeft: g.nom === groupeActif ? `3px solid ${RED}` : '3px solid transparent',
+                fontWeight: g.nom === groupeActif ? 700 : 400,
+              }}
+            >
+              {g.nom} <span style={{ color: '#8a93a0' }}>({compteGroupe(g.nom)})</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <input
+            style={input}
+            value={nouveau}
+            onChange={(e) => setNouveau(e.target.value)}
+            placeholder="Nom d'un nouveau groupe"
+          />
+          <button
+            style={btn}
+            disabled={saving || !nouveau.trim()}
+            onClick={async () => { await creerGroupe(nouveau); setNouveau(''); }}
+          >
+            Créer
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 320 }}>
+        {!actif ? (
+          <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 24, fontSize: 13.5, color: '#5c6478' }}>
+            Choisis un groupe à gauche, ou crée-en un.
+          </div>
+        ) : (
+          <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 18 }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: NAVY }}>{actif.nom}</div>
+              <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr(actif.nom)}>
+                Supprimer le groupe
+              </button>
+            </div>
+            <div style={{ fontSize: 12.5, color: '#5c6478', marginBottom: 16 }}>
+              {resolu.length} personne{resolu.length > 1 ? 's' : ''} au total
+            </div>
+
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+              Départements inclus
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 6, marginBottom: 18 }}>
+              {departements.map((d) => {
+                const present = deptsDuGroupe.includes(d.nom);
+                return (
+                  <label key={d.nom} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
+                    padding: '7px 10px', cursor: 'pointer',
+                    border: `1px solid ${present ? NAVY : '#D7DBE0'}`,
+                    background: present ? '#F2F5F9' : '#fff',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={present}
+                      onChange={() => basculerDepartement(actif.nom, d.nom, present)}
+                      style={{ accentColor: NAVY }}
+                    />
+                    {d.nom}
+                  </label>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+              Personnes ajoutées à l&apos;unité
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <select style={input} value={ajout} onChange={(e) => setAjout(e.target.value)}>
+                <option value="">— Choisir une personne —</option>
+                {personnes
+                  .filter((p) => !idsDuGroupe.includes(p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nom}{p.departement ? ` — ${p.departement}` : ''}
+                    </option>
+                  ))}
+              </select>
+              <button
+                style={btn}
+                disabled={!ajout}
+                onClick={async () => { await basculerPersonne(actif.nom, ajout, false); setAjout(''); }}
+              >
+                Ajouter
+              </button>
+            </div>
+
+            {idsDuGroupe.length === 0 && (
+              <div style={{ fontSize: 12.5, color: '#8a93a0', marginBottom: 18 }}>
+                Aucune personne ajoutée individuellement.
+              </div>
+            )}
+            {idsDuGroupe.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                {idsDuGroupe.map((id) => {
+                  const p = personnes.find((x) => x.id === id);
+                  if (!p) return null;
+                  const couvertParDept = p.departement && deptsDuGroupe.includes(p.departement);
+                  return (
+                    <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid #EDEFF1', fontSize: 13 }}>
+                      <span>
+                        {p.nom}
+                        {couvertParDept && (
+                          <span style={{ color: '#8a93a0', fontSize: 12 }}>
+                            {' '}— déjà inclus via {p.departement}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        style={{ ...btnGhost, ...btnSmall }}
+                        onClick={() => basculerPersonne(actif.nom, id, true)}
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+              Liste résolue
+            </div>
+            <div style={{ border: '1px solid #EDEFF1', maxHeight: 320, overflowY: 'auto' }}>
+              {resolu.length === 0 && (
+                <div style={{ padding: 12, fontSize: 12.5, color: '#8a93a0' }}>
+                  Ce groupe ne contient encore personne.
+                </div>
+              )}
+              {resolu.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px', fontSize: 13, background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.nom} <span style={{ color: '#8a93a0' }}>{p.courriel || 'sans courriel'}</span>
+                  </span>
+                  <span style={{ color: '#8a93a0', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                    {p.viaDepartement ? p.departement : 'ajout direct'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {confirmSuppr && (
+        <Modal titre="Supprimer ce groupe?">
+          <p style={{ fontSize: 14, marginTop: 0 }}>
+            Le groupe <strong>{confirmSuppr}</strong> sera supprimé.
+          </p>
+          <p style={{ fontSize: 12.5, color: '#5c6478' }}>
+            Aucune personne ni aucun département n&apos;est effacé : seule la liste
+            elle-même disparaît.
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 18 }}>
+            <button style={btnGhost} onClick={() => setConfirmSuppr(null)}>Annuler</button>
+            <button
+              style={btnDanger}
+              disabled={saving}
+              onClick={async () => { await supprimerGroupe(confirmSuppr); setConfirmSuppr(null); }}
+            >
+              Supprimer
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
   );
 }
