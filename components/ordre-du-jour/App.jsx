@@ -3187,7 +3187,7 @@ function InfoGenerale({ section, onRetour }) {
             {[
               { dept: "Administration", membres: [
                 { nom: "Annie Laberge", titre: "Commis aux comptes recevables", courriel: "alaberge@pep2000.com", cell: "438-407-5328", poste: "244" },
-                { nom: "Davio Pallotta", titre: "Président", courriel: "dpallota@pep2000.com", cell: "514-838-9898", poste: "" },
+                { nom: "Davio Pallotta", titre: "Président", courriel: "dpallotta@pep2000.com", cell: "514-838-9898", poste: "" },
                 { nom: "Francis Battista", titre: "Gestionnaire aux opérations administratives et systèmes", courriel: "fbattista@pep2000.com", cell: "514-865-0595", poste: "" },
                 { nom: "Isabelle Wagner", titre: "Coordonnatrice aux événements et projets spéciaux", courriel: "iwagner@pep2000.com", cell: "514-660-7830", poste: "233" },
                 { nom: "Josée Lefebvre", titre: "Commis de bureau", courriel: "jlefebvre@pep2000.com", cell: "", poste: "102" },
@@ -3202,7 +3202,7 @@ function InfoGenerale({ section, onRetour }) {
               { dept: "Excavation", membres: [
                 { nom: "William Dubreuil", titre: "Directeur Construction", courriel: "wdubreuil@pep2000.com", cell: "819-755-0176", poste: "" },
                 { nom: "Bryan Wong", titre: "Coordonnateur de Projet", courriel: "bwong@pep2000.com", cell: "514-833-3090", poste: "249" },
-                { nom: "Giuseppe Pallotta", titre: "Chargé des Coupes de Rue", courriel: "gpallota@pep2000.com", cell: "514-898-4295", poste: "223" },
+                { nom: "Giuseppe Pallotta", titre: "Chargé des Coupes de Rue", courriel: "gpallotta@pep2000.com", cell: "514-898-4295", poste: "223" },
                 { nom: "Martin Potvin", titre: "Acheteur", courriel: "mpotvin@pep2000.com", cell: "438-524-3769", poste: "237" },
                 { nom: "Mathis Lapointe", titre: "Chargé de projets junior", courriel: "mlapointe@pep2000.com", cell: "438-405-5980", poste: "" },
                 { nom: "Matteo Carbone", titre: "Chargé de projets", courriel: "mcarbone@pep2000.com", cell: "438-498-5406", poste: "" },
@@ -3251,7 +3251,7 @@ function InfoGenerale({ section, onRetour }) {
                 { nom: "Angelo Pallotta", titre: "Surintendant béton", courriel: "apallotta@borduresadp.com", cell: "514-829-2153", poste: "" },
                 { nom: "Fred Bélec", titre: "Surintendant béton", courriel: "fbelec@borduresadp.com", cell: "514-686-9599", poste: "" },
                 { nom: "Karl Bélanger", titre: "Surintendant pavage", courriel: "kbelanger@pep2000.com", cell: "514-318-9899", poste: "" },
-                { nom: "Stéphane Boisvert", titre: "Chargé de projet Asphalte", courriel: "sbvoisvert@pep2000.com", cell: "514-229-5745", poste: "" },
+                { nom: "Stéphane Boisvert", titre: "Chargé de projet Asphalte", courriel: "sboisvert@pep2000.com", cell: "514-229-5745", poste: "" },
                 { nom: "Thomas Lawrence", titre: "Chargé de Projet Asphalte / Béton", courriel: "tlawrence@pep2000.com", cell: "514-831-6721", poste: "231" },
               ]},
               { dept: "PEP VRAC / Sud-Ouest", membres: [
