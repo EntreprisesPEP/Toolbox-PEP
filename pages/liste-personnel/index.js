@@ -13,6 +13,7 @@ const RED = '#C41230';
 const BG = '#EDEFF1';
 const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
 const TELEPHONE_PRINCIPAL = '450-661-5050';
+const SANS_DEPARTEMENT = 'Sans département';
 
 const btn = { fontFamily: 'inherit', background: NAVY, color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
 const btnGhost = { ...btn, background: '#fff', color: NAVY, border: `1px solid ${NAVY}` };
@@ -125,10 +126,13 @@ export default function ListePersonnel() {
       if (p.departement && parDept.has(p.departement)) parDept.get(p.departement).push(p);
       else sansDept.push(p);
     }
+    // Hors recherche, on garde les départements vides : sinon ils
+    // disparaîtraient de l'écran et leur bouton "+" deviendrait inatteignable.
+    // Pendant une recherche, au contraire, on ne montre que ce qui correspond.
     const liste = departements
       .map((d) => ({ dept: d.nom, membres: parDept.get(d.nom) || [] }))
-      .filter((g) => g.membres.length > 0);
-    if (sansDept.length > 0) liste.push({ dept: 'Sans département', membres: sansDept });
+      .filter((g) => g.membres.length > 0 || !terme);
+    if (sansDept.length > 0) liste.push({ dept: SANS_DEPARTEMENT, membres: sansDept });
     return liste;
   }, [departements, personnes, recherche]);
 
@@ -258,10 +262,41 @@ export default function ListePersonnel() {
 
         {groupes.map((groupe) => (
           <div key={groupe.dept} style={{ marginBottom: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em', color: NAVY, background: '#E8ECF0', padding: '8px 14px', borderLeft: `3px solid ${RED}` }}>
-              {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em',
+              color: NAVY, background: '#E8ECF0', padding: '6px 10px 6px 14px', borderLeft: `3px solid ${RED}`,
+            }}>
+              <span>
+                {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
+              </span>
+              {peutModifier && (
+                <button
+                  type="button"
+                  title={`Ajouter une personne dans ${groupe.dept}`}
+                  onClick={() => setEditPersonne({
+                    nom: '', titre: '',
+                    // Le département est pré-rempli avec celui de l'en-tête cliqué.
+                    // "Sans département" n'est pas un vrai département : on laisse
+                    // le champ vide plutôt que d'inventer une valeur.
+                    departement: groupe.dept === SANS_DEPARTEMENT ? '' : groupe.dept,
+                    courriel: '', cellulaire: '', poste: '', actif: true,
+                  })}
+                  style={{
+                    ...btn, padding: '3px 11px', fontSize: 16, lineHeight: 1.2,
+                    fontWeight: 700, flexShrink: 0,
+                  }}
+                >
+                  +
+                </button>
+              )}
             </div>
             <div style={{ background: '#fff', border: '1px solid #D7DBE0', borderTop: 'none' }}>
+              {groupe.membres.length === 0 ? (
+                <div style={{ padding: '14px', fontSize: 12.5, color: '#8a93a0' }}>
+                  Aucune personne dans ce département. Utilise le « + » ci-dessus pour en ajouter une.
+                </div>
+              ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                 <colgroup>
                   {colonnes.map((largeur, i) => <col key={i} style={{ width: largeur }} />)}
@@ -311,6 +346,7 @@ export default function ListePersonnel() {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           </div>
         ))}
