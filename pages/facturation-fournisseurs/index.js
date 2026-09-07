@@ -242,7 +242,7 @@ export default function FacturationFournisseursPage() {
           </button>
         )}
         <a href="/" style={{ color: '#fff', textDecoration: 'none', fontSize: 13, border: '1px solid rgba(255,255,255,0.5)', borderRadius: 5, padding: '6px 12px' }}>
-          ← Retour au Toolbox
+          ← Retour au Toolbox PEP
         </a>
       </div>
       {erreurNotifTech && (
