@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
+import { useModePep } from '../../components/commun/ThemeToolbox';
 import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS, DESTINATAIRES_FIXES } from '../../lib/visite-surintendant/surintendants';
 import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Info, Users } from 'lucide-react';
 
@@ -259,7 +260,7 @@ function SelecteurProjet({ value, projets, onChange, th, error }) {
 }
 
 function VisiteSurintendant({ nom, poste, accessToken }) {
-  const [mode, setMode] = useState('day');
+  const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
   const [projets, setProjets] = useState([]);
