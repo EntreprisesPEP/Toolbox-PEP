@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
+import { FournisseurPalette, usePalette, useModePep } from '../../components/commun/ThemeToolbox';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -8,9 +11,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabaseFact = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'facturation' } });
 
-const NAVY = '#14213D';
 const RED = '#C41230';
-const BG = '#EDEFF1';
 const GREEN = '#2fa360';
 const APP_SLUG = 'facturation-fournisseurs';
 const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
@@ -31,6 +32,7 @@ const ETAPES = [
 ];
 
 function Center({ children }) {
+  const pal = usePalette();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif' }}>
       {children}
@@ -40,26 +42,36 @@ function Center({ children }) {
 function Spinner() {
   return (
     <>
-      <div style={{ border: '3px solid #ddd', borderTopColor: NAVY, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ border: '3px solid rgba(128,128,128,0.35)', borderTopColor: RED, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
 
-const btn = { fontFamily: 'inherit', background: NAVY, color: '#fff', border: 'none', borderRadius: 5, padding: '8px 16px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
-const btnGhost = { ...btn, background: '#fff', color: NAVY, border: `1px solid ${NAVY}` };
-const btnDanger = { ...btn, background: RED };
-const btnGreen = { ...btn, background: GREEN };
-const input = { padding: '7px 9px', borderRadius: 5, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box' };
-const card = { background: '#fff', borderRadius: 8, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 16 };
-const th = { textAlign: 'left', padding: '7px 10px', color: '#fff', fontWeight: 600, fontSize: 11.5, background: NAVY, textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap' };
-const td = { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1' };
-const tabBtn = (actif) => ({
-  ...btn, background: actif ? NAVY : '#fff', color: actif ? '#fff' : NAVY,
-  border: `1px solid ${NAVY}`, borderRadius: 20, padding: '7px 16px', fontSize: 12.5, fontWeight: 600,
-});
-const badgeFlag = { background: '#fde7e7', color: RED, borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700 };
-const badgeOk = { background: '#e6f4ea', color: GREEN, borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700 };
+// Tous les styles de l'app dependent du mode jour/nuit. Chaque composant
+// appelle useStyles() une fois et retrouve ses constantes habituelles, plus
+// « pal » pour les couleurs ponctuelles.
+function useStyles() {
+  const pal = usePalette();
+  const btn = { fontFamily: 'inherit', background: pal.btnBg, color: '#fff', border: 'none', borderRadius: 5, padding: '8px 16px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
+  return {
+    pal,
+    btn,
+    btnGhost: { ...btn, background: pal.panel, color: pal.accent, border: `1px solid ${pal.accent}` },
+    btnDanger: { ...btn, background: RED },
+    btnGreen: { ...btn, background: GREEN },
+    input: { padding: '7px 9px', borderRadius: 5, border: `1px solid ${pal.line}`, fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box', background: pal.inputBg, color: pal.text },
+    card: { background: pal.panel, borderRadius: 8, padding: 16, boxShadow: pal.ombre, marginBottom: 16 },
+    th: { textAlign: 'left', padding: '7px 10px', color: '#fff', fontWeight: 600, fontSize: 11.5, background: pal.btnBg, textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
+    td: { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: `1px solid ${pal.line}` },
+    tabBtn: (actif) => ({
+      ...btn, background: actif ? pal.btnBg : pal.panel, color: actif ? '#fff' : pal.accent,
+      border: `1px solid ${pal.accent}`, borderRadius: 20, padding: '7px 16px', fontSize: 12.5, fontWeight: 600,
+    }),
+    badgeFlag: { background: pal.errBg, color: pal.errTexte, borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700 },
+    badgeOk: { background: pal.okBg, color: GREEN, borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700 },
+  };
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -75,10 +87,10 @@ function fmtMontant(v) {
   return Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' });
 }
 
-export default function FacturationFournisseursPage() {
-  const [session, setSession] = useState(null);
+function FacturationFournisseurs({ userId, nom, poste, mode, onChangerMode }) {
+  const { pal, btn, btnGhost, card, tabBtn } = useStyles();
+
   const [loading, setLoading] = useState(true);
-  const [denied, setDenied] = useState(false);
   const [estAdmin, setEstAdmin] = useState(false);
   const [featuresUtilisateur, setFeaturesUtilisateur] = useState([]);
 
@@ -118,23 +130,17 @@ export default function FacturationFournisseursPage() {
     setStatsItems(stats.data || []);
   }, []);
 
+  // GardeConnexion a deja verifie la session et l'acces a l'app. Restent le
+  // role d'administrateur et les droits d'approbation, propres a cette app.
   useEffect(() => {
     (async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (!s) { setLoading(false); return; }
-      setSession(s);
-
-      const { data: appAccess } = await supabase
-        .from('pep_user_apps').select('app_slug').eq('user_id', s.user.id).eq('app_slug', APP_SLUG).maybeSingle();
       const { data: roleRow } = await supabase
-        .from('pep_user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+        .from('pep_user_roles').select('role').eq('user_id', userId).maybeSingle();
       const admin = roleRow?.role === 'admin';
       setEstAdmin(admin);
 
-      if (!appAccess && !admin) { setDenied(true); setLoading(false); return; }
-
       const { data: featRows } = await supabase
-        .from('pep_user_features').select('feature_key').eq('user_id', s.user.id).eq('app_slug', APP_SLUG);
+        .from('pep_user_features').select('feature_key').eq('user_id', userId).eq('app_slug', APP_SLUG);
       setFeaturesUtilisateur((featRows || []).map((r) => r.feature_key));
 
       await chargerTout();
@@ -153,7 +159,8 @@ export default function FacturationFournisseursPage() {
         });
       }
     })();
-  }, [chargerTout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chargerTout, userId]);
 
   async function activerNotifications() {
     setErreurNotifTech('');
@@ -221,47 +228,48 @@ export default function FacturationFournisseursPage() {
   }
 
   if (loading) return <Center><Spinner /><div>Chargement…</div></Center>;
-  if (!session) return <Center><div>Tu dois être connecté pour accéder à cette page.</div></Center>;
-  if (denied) return <Center><div>Accès refusé à Validation factures de fournisseurs.</div></Center>;
 
   return (
-    <div style={{ minHeight: '100vh', background: BG, fontFamily: 'Calibri, sans-serif', color: '#222' }}>
+    <div style={{ minHeight: '100vh', background: pal.bg, fontFamily: 'Calibri, sans-serif', color: pal.text }}>
       <Head><title>Validation factures de fournisseurs — Toolbox PEP</title></Head>
 
-      <div style={{ background: NAVY, padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <img src={LOGO_PEP} alt="PEP" style={{ height: 40 }} />
-        <h1 style={{ color: '#fff', fontSize: 19, margin: 0, flex: 1 }}>Validation factures de fournisseurs</h1>
-        {notifState === 'actif' && (
-          <button style={{ ...btnGhost, background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.5)' }} onClick={desactiverNotifications}>
-            🔕 Désactiver les notifications
-          </button>
-        )}
-        {(notifState === 'inactif' || notifState === 'refuse' || notifState === 'erreur-technique') && (
-          <button style={{ ...btnGhost, background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.5)' }} onClick={activerNotifications}>
-            🔔 Activer les notifications
-          </button>
-        )}
-        <a href="/" style={{ color: '#fff', textDecoration: 'none', fontSize: 13, border: '1px solid rgba(255,255,255,0.5)', borderRadius: 5, padding: '6px 12px' }}>
-          ← Retour au Toolbox PEP
-        </a>
-      </div>
-      {erreurNotifTech && (
-        <div style={{ background: '#fde7e7', color: RED, padding: '8px 24px', fontSize: 12 }}>
-          {erreurNotifTech} <button style={btnGhost} onClick={() => setErreurNotifTech('')}>OK</button>
-        </div>
-      )}
+      <EnTeteApp
+        titre="Validation factures"
+        sousTitre="Factures de fournisseurs, bons de commande et approbations"
+        mode={mode}
+        onChangerMode={onChangerMode}
+        nom={nom}
+        poste={poste}
+        onAccueil={() => { setTab('tableau-de-bord'); setErreur(''); setMessageOk(''); }}
+      />
 
-      <div style={{ padding: 20, maxWidth: 1400, margin: '0 auto' }}>
-        {erreur && <div style={{ ...card, background: '#fde7e7', color: RED }}>{erreur} <button style={btnGhost} onClick={() => setErreur('')}>OK</button></div>}
-        {messageOk && <div style={{ ...card, background: '#e6f4ea', color: GREEN }}>{messageOk} <button style={btnGhost} onClick={() => setMessageOk('')}>OK</button></div>}
+      <div style={{ padding: '0 20px 20px', maxWidth: 1400, margin: '0 auto' }}>
+        {erreurNotifTech && (
+          <div style={{ ...card, background: pal.errBg, color: pal.errTexte }}>
+            {erreurNotifTech} <button style={btnGhost} onClick={() => setErreurNotifTech('')}>OK</button>
+          </div>
+        )}
+        {erreur && <div style={{ ...card, background: pal.errBg, color: pal.errTexte }}>{erreur} <button style={btnGhost} onClick={() => setErreur('')}>OK</button></div>}
+        {messageOk && <div style={{ ...card, background: pal.okBg, color: GREEN }}>{messageOk} <button style={btnGhost} onClick={() => setMessageOk('')}>OK</button></div>}
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        {/* Barre d'outils de l'app — les boutons propres a l'app vivent ici,
+            jamais dans le bandeau, qui doit rester identique partout. */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
           <button style={tabBtn(tab === 'tableau-de-bord')} onClick={() => setTab('tableau-de-bord')}>📊 Tableau de bord</button>
           <button style={tabBtn(tab === 'factures')} onClick={() => setTab('factures')}>🧾 Factures</button>
           <button style={tabBtn(tab === 'fournisseurs')} onClick={() => setTab('fournisseurs')}>🏢 Fournisseurs &amp; gabarits</button>
           <button style={tabBtn(tab === 'catalogue')} onClick={() => setTab('catalogue')}>📦 Catalogue &amp; prix</button>
           <button style={tabBtn(tab === 'bons-commande')} onClick={() => setTab('bons-commande')}>📋 Bons de commande</button>
           <button style={tabBtn(tab === 'approbations')} onClick={() => setTab('approbations')}>✅ Approbations</button>
+
+          <div style={{ marginLeft: 'auto' }}>
+            {notifState === 'actif' && (
+              <button style={btnGhost} onClick={desactiverNotifications}>🔕 Désactiver les notifications</button>
+            )}
+            {(notifState === 'inactif' || notifState === 'refuse' || notifState === 'erreur-technique') && (
+              <button style={btnGhost} onClick={activerNotifications}>🔔 Activer les notifications</button>
+            )}
+          </div>
         </div>
 
         {tab === 'tableau-de-bord' && (
@@ -333,7 +341,33 @@ export default function FacturationFournisseursPage() {
 // ---------------------------------------------------------------------
 // TABLEAU DE BORD
 // ---------------------------------------------------------------------
+export default function Page() {
+  const [session, setSession] = useState(null);
+  const [mode, setMode] = useModePep();
+  if (!session) {
+    return (
+      <GardeConnexion
+        appSlug={APP_SLUG}
+        nomApp="Validation factures de fournisseurs"
+        onPret={setSession}
+      />
+    );
+  }
+  return (
+    <FournisseurPalette mode={mode}>
+      <FacturationFournisseurs
+        userId={session.userId}
+        nom={session.nom}
+        poste={session.poste}
+        mode={mode}
+        onChangerMode={setMode}
+      />
+    </FournisseurPalette>
+  );
+}
+
 function TableauDeBord({ factures, flags, bonsCommande, fournisseurs, estAdmin, appelApi, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, btnGreen, input, card, th, td, badgeFlag, badgeOk } = useStyles();
   const enAttente = factures.filter((f) => f.statut_workflow !== 'approuve_final' && f.statut_workflow !== 'rejete');
   const avecFlags = factures.filter((f) => f.a_des_flags);
   const nomFournisseur = (id) => fournisseurs.find((f) => f.id === id)?.nom || '—';
@@ -366,7 +400,7 @@ function TableauDeBord({ factures, flags, bonsCommande, fournisseurs, estAdmin, 
   return (
     <>
       {estAdmin && seuil !== null && (
-        <div style={{ ...card, background: '#f7f8fa' }}>
+        <div style={{ ...card, background: pal.infoBg }}>
           <b>⚙️ Seuil de flag sur les prix : </b>
           un prix facturé est signalé quand il dépasse la moyenne historique de plus de&nbsp;
           <input style={{ ...input, width: 70, display: 'inline-block' }} value={seuilEdite} onChange={(e) => setSeuilEdite(e.target.value)} />%
@@ -375,26 +409,26 @@ function TableauDeBord({ factures, flags, bonsCommande, fournisseurs, estAdmin, 
       )}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ ...card, flex: 1, minWidth: 180, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: NAVY }}>{factures.length}</div>
-          <div style={{ fontSize: 12, color: '#666' }}>Factures importées</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: pal.accent }}>{factures.length}</div>
+          <div style={{ fontSize: 12, color: pal.textDim }}>Factures importées</div>
         </div>
         <div style={{ ...card, flex: 1, minWidth: 180, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: NAVY }}>{enAttente.length}</div>
-          <div style={{ fontSize: 12, color: '#666' }}>En attente d'approbation</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: pal.accent }}>{enAttente.length}</div>
+          <div style={{ fontSize: 12, color: pal.textDim }}>En attente d'approbation</div>
         </div>
         <div style={{ ...card, flex: 1, minWidth: 180, textAlign: 'center' }}>
           <div style={{ fontSize: 28, fontWeight: 700, color: RED }}>{flags.length}</div>
-          <div style={{ fontSize: 12, color: '#666' }}>Flags non résolus</div>
+          <div style={{ fontSize: 12, color: pal.textDim }}>Flags non résolus</div>
         </div>
         <div style={{ ...card, flex: 1, minWidth: 180, textAlign: 'center' }}>
-          <div style={{ fontSize: 28, fontWeight: 700, color: NAVY }}>{bonsCommande.filter((p) => p.statut === 'ouvert').length}</div>
-          <div style={{ fontSize: 12, color: '#666' }}>Bons de commande ouverts</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: pal.accent }}>{bonsCommande.filter((p) => p.statut === 'ouvert').length}</div>
+          <div style={{ fontSize: 12, color: pal.textDim }}>Bons de commande ouverts</div>
         </div>
       </div>
 
       <div style={card}>
         <h3 style={{ marginTop: 0 }}>🚩 Flags actifs</h3>
-        {flags.length === 0 && <div style={{ color: '#666' }}>Aucun flag actif — tout est beau.</div>}
+        {flags.length === 0 && <div style={{ color: pal.textDim }}>Aucun flag actif — tout est beau.</div>}
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <th style={th}>Type</th><th style={th}>Détails</th><th style={th}>Facture</th><th style={th}></th>
@@ -459,6 +493,7 @@ const STATUT_LISIBLE = {
 };
 
 function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, flags, appelApi, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, btnGreen, input, card, th, td, badgeFlag, badgeOk } = useStyles();
   const [fichier, setFichier] = useState(null);
   const [fournisseurId, setFournisseurId] = useState('');
   const [poId, setPoId] = useState('');
@@ -737,32 +772,32 @@ function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, fl
           <h3 style={{ marginTop: 0 }}>Importer une nouvelle facture</h3>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div style={{ minWidth: 220 }}>
-              <label style={{ fontSize: 12, color: '#666' }}>Fournisseur</label>
+              <label style={{ fontSize: 12, color: pal.textDim }}>Fournisseur</label>
               <select style={input} value={fournisseurId} onChange={(e) => { setFournisseurId(e.target.value); setPoId(''); }}>
                 <option value="">— choisir —</option>
                 {fournisseurs.map((f) => <option key={f.id} value={f.id}>{f.nom}</option>)}
               </select>
             </div>
             <div style={{ minWidth: 220 }}>
-              <label style={{ fontSize: 12, color: '#666' }}>Bon de commande (optionnel)</label>
+              <label style={{ fontSize: 12, color: pal.textDim }}>Bon de commande (optionnel)</label>
               <select style={input} value={poId} onChange={(e) => setPoId(e.target.value)}>
                 <option value="">— aucun —</option>
                 {posDuFournisseur.map((p) => <option key={p.id} value={p.id}>{p.numero_po}</option>)}
               </select>
             </div>
             <div style={{ minWidth: 160 }}>
-              <label style={{ fontSize: 12, color: '#666' }}>N° de projet (optionnel)</label>
+              <label style={{ fontSize: 12, color: pal.textDim }}>N° de projet (optionnel)</label>
               <input style={input} value={projetNo} onChange={(e) => setProjetNo(e.target.value)} placeholder="ex: 24-118" />
             </div>
             <div>
-              <label style={{ fontSize: 12, color: '#666' }}>Fichier PDF</label>
+              <label style={{ fontSize: 12, color: pal.textDim }}>Fichier PDF</label>
               <input type="file" accept="application/pdf" onChange={(e) => setFichier(e.target.files[0])} />
             </div>
             <button style={btn} disabled={enTraitement} onClick={importer}>
               {enTraitement ? 'Lecture en cours…' : '📥 Importer et analyser'}
             </button>
           </div>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: pal.textDim, marginTop: 8 }}>
             La facture est lue automatiquement selon le gabarit du fournisseur (voir l'onglet Fournisseurs). Les prix anormalement élevés et les écarts avec le bon de commande sont signalés automatiquement.
           </div>
         </div>
@@ -800,7 +835,7 @@ function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, fl
               const ouverte = factureOuverte?.id === f.id;
               return (
                 <Fragment key={f.id}>
-                  <tr style={{ cursor: 'pointer', background: ouverte ? '#f0f4ff' : undefined }} onClick={() => ouvrirFacture(f)}>
+                  <tr style={{ cursor: 'pointer', background: ouverte ? pal.surligne : undefined }} onClick={() => ouvrirFacture(f)}>
                     <td style={td}>{fournisseur?.nom || '—'}</td>
                     <td style={td}>{f.numero_facture || '(non lu)'}</td>
                     <td style={td}>{f.date_facture || '—'}</td>
@@ -811,7 +846,7 @@ function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, fl
                   </tr>
                   {ouverte && (
                     <tr>
-                      <td style={{ ...td, background: '#fafbfc' }} colSpan={7}>
+                      <td style={{ ...td, background: pal.panelAlt }} colSpan={7}>
                         <div style={{ padding: '8px 4px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h4 style={{ margin: '4px 0' }}>Lignes de la facture {peutModifier && '(clique une ligne pour corriger)'}</h4>
@@ -872,7 +907,7 @@ function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, fl
                           {historiqueFacture.length > 0 && (
                             <>
                               <h4 style={{ margin: '4px 0' }}>Historique</h4>
-                              <ul style={{ fontSize: 12, color: '#666', margin: 0, paddingLeft: 18 }}>
+                              <ul style={{ fontSize: 12, color: pal.textDim, margin: 0, paddingLeft: 18 }}>
                                 {historiqueFacture.map((h) => (
                                   <li key={h.id}>{new Date(h.created_at).toLocaleString('fr-CA')} — {libelleHistorique(h)}</li>
                                 ))}
@@ -909,6 +944,7 @@ function libelleHistorique(h) {
 }
 
 function LigneFactureEditable({ ligne, peutModifier, enEdition, ouvrirEdition, fermerEdition, sauvegarder }) {
+  const { pal, btn, btnGhost, btnGreen, input, td, badgeFlag } = useStyles();
   const [brouillon, setBrouillon] = useState(ligne);
   useEffect(() => { setBrouillon(ligne); }, [ligne, enEdition]);
 
@@ -925,7 +961,7 @@ function LigneFactureEditable({ ligne, peutModifier, enEdition, ouvrirEdition, f
   }
 
   return (
-    <tr style={{ background: '#fff7e6' }}>
+    <tr style={{ background: pal.avisBg }}>
       <td style={td}><input style={input} value={brouillon.description_brute || ''} onChange={(e) => setBrouillon({ ...brouillon, description_brute: e.target.value })} /></td>
       <td style={td}><input style={{ ...input, width: 80 }} value={brouillon.quantite ?? ''} onChange={(e) => setBrouillon({ ...brouillon, quantite: e.target.value })} /></td>
       <td style={td}><input style={{ ...input, width: 90 }} value={brouillon.prix_unitaire ?? ''} onChange={(e) => setBrouillon({ ...brouillon, prix_unitaire: e.target.value })} /></td>
@@ -942,6 +978,7 @@ function LigneFactureEditable({ ligne, peutModifier, enEdition, ouvrirEdition, f
 // FOURNISSEURS & GABARITS
 // ---------------------------------------------------------------------
 function OngletFournisseurs({ peutModifier, fournisseurs, appelApi, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, input, card, th, td } = useStyles();
   const [nouveauNom, setNouveauNom] = useState('');
   const [fournisseurSelectionne, setFournisseurSelectionne] = useState(null);
   const [configGabarit, setConfigGabarit] = useState('{}');
@@ -1027,7 +1064,7 @@ function OngletFournisseurs({ peutModifier, fournisseurs, appelApi, recharger, s
       {fournisseurSelectionne && (
         <div style={{ ...card, flex: '2 1 480px' }}>
           <h3 style={{ marginTop: 0 }}>Gabarit — {fournisseurSelectionne.nom}</h3>
-          <p style={{ fontSize: 12, color: '#666' }}>
+          <p style={{ fontSize: 12, color: pal.textDim }}>
             Décris comment lire les factures de ce fournisseur (expressions régulières). Laisse <code>{'{}'}</code> pour te fier à la lecture générique automatique.
           </p>
           <textarea
@@ -1043,7 +1080,7 @@ function OngletFournisseurs({ peutModifier, fournisseurs, appelApi, recharger, s
             </button>
           </div>
           {resultatTest && (
-            <div style={{ marginTop: 12, background: '#f7f8fa', borderRadius: 6, padding: 12, fontSize: 12 }}>
+            <div style={{ marginTop: 12, background: pal.infoBg, borderRadius: 6, padding: 12, fontSize: 12 }}>
               <div><b>Confiance :</b> {resultatTest.confiance}</div>
               <div><b>N° facture :</b> {resultatTest.numero_facture || '—'}</div>
               <div><b>Date :</b> {resultatTest.date_facture || '—'}</div>
@@ -1074,6 +1111,7 @@ function OngletFournisseurs({ peutModifier, fournisseurs, appelApi, recharger, s
 // CATALOGUE D'ITEMS & PRIX
 // ---------------------------------------------------------------------
 function OngletCatalogue({ items, statsItems, peutModifier, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, btnGreen, input, card, th, td } = useStyles();
   const [recherche, setRecherche] = useState('');
   const [itemOuvert, setItemOuvert] = useState(null);
   const [comparatifFournisseurs, setComparatifFournisseurs] = useState([]);
@@ -1173,14 +1211,14 @@ function OngletCatalogue({ items, statsItems, peutModifier, recharger, setErreur
             {itemsAffiches.map((item) => {
               const s = statsParItem[item.id];
               return (
-                <tr key={item.id} style={itemOuvert?.id === item.id ? { background: '#f0f4ff' } : undefined}>
+                <tr key={item.id} style={itemOuvert?.id === item.id ? { background: pal.surligne } : undefined}>
                   {modeFusion && (
                     <td style={td}>
                       <input type="checkbox" checked={itemsAFusionner.includes(item.id)} onChange={() => basculerSelectionFusion(item.id)} />
                     </td>
                   )}
                   <td style={td}>
-                    <button style={{ background: 'none', border: 'none', color: NAVY, textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 13, fontFamily: 'inherit' }} onClick={() => ouvrirComparatif(item)}>
+                    <button style={{ background: 'none', border: 'none', color: pal.accent, textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 13, fontFamily: 'inherit' }} onClick={() => ouvrirComparatif(item)}>
                       {item.nom}
                     </button>
                   </td>
@@ -1200,12 +1238,12 @@ function OngletCatalogue({ items, statsItems, peutModifier, recharger, setErreur
       {itemOuvert && (
         <div style={{ ...card, flex: '1 1 320px' }}>
           <h3 style={{ marginTop: 0 }}>Comparatif fournisseurs — {itemOuvert.nom}</h3>
-          {comparatifFournisseurs.length === 0 && <div style={{ color: '#666', fontSize: 13 }}>Aucun achat enregistré pour cet item.</div>}
+          {comparatifFournisseurs.length === 0 && <div style={{ color: pal.textDim, fontSize: 13 }}>Aucun achat enregistré pour cet item.</div>}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr><th style={th}>Fournisseur</th><th style={th}>Nb achats</th><th style={th}>Prix moyen</th></tr></thead>
             <tbody>
               {comparatifFournisseurs.map((c, i) => (
-                <tr key={c.fournisseur_id} style={i === 0 ? { background: '#e6f4ea' } : undefined}>
+                <tr key={c.fournisseur_id} style={i === 0 ? { background: pal.okBg } : undefined}>
                   <td style={td}>{c.fournisseur_nom} {i === 0 && '🏆'}</td>
                   <td style={td}>{c.nb_achats}</td>
                   <td style={td}>{fmtMontant(c.prix_moyen)}</td>
@@ -1214,7 +1252,7 @@ function OngletCatalogue({ items, statsItems, peutModifier, recharger, setErreur
             </tbody>
           </table>
           {comparatifFournisseurs.length > 1 && (
-            <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: pal.textDim, marginTop: 8 }}>
               Meilleur prix : <b>{comparatifFournisseurs[0].fournisseur_nom}</b>, en moyenne{' '}
               {fmtMontant(comparatifFournisseurs[comparatifFournisseurs.length - 1].prix_moyen - comparatifFournisseurs[0].prix_moyen)}{' '}
               de moins que le plus cher.
@@ -1230,6 +1268,7 @@ function OngletCatalogue({ items, statsItems, peutModifier, recharger, setErreur
 // BONS DE COMMANDE
 // ---------------------------------------------------------------------
 function OngletBonsCommande({ peutModifier, fournisseurs, items, bonsCommande, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, input, card, th, td } = useStyles();
   const [nouveauPo, setNouveauPo] = useState({ numero_po: '', fournisseur_id: '', projet_no: '', montant_total: '' });
   const [poOuvert, setPoOuvert] = useState(null);
   const [lignesPo, setLignesPo] = useState([]);
@@ -1273,7 +1312,7 @@ function OngletBonsCommande({ peutModifier, fournisseurs, items, bonsCommande, r
       <div style={{ ...card, flex: '1 1 380px' }}>
         <h3 style={{ marginTop: 0 }}>Bons de commande</h3>
         {peutModifier && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, background: '#f7f8fa', padding: 10, borderRadius: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, background: pal.infoBg, padding: 10, borderRadius: 6 }}>
             <input style={input} placeholder="N° de PO" value={nouveauPo.numero_po} onChange={(e) => setNouveauPo({ ...nouveauPo, numero_po: e.target.value })} />
             <select style={input} value={nouveauPo.fournisseur_id} onChange={(e) => setNouveauPo({ ...nouveauPo, fournisseur_id: e.target.value })}>
               <option value="">— fournisseur —</option>
@@ -1322,7 +1361,7 @@ function OngletBonsCommande({ peutModifier, fournisseurs, items, bonsCommande, r
               ))}
             </tbody>
           </table>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
+          <div style={{ fontSize: 12, color: pal.textDim, marginTop: 8 }}>
             Astuce : la description ici doit correspondre le plus possible au texte tel qu'il apparaît sur les factures, pour que la contre-validation automatique fonctionne bien.
           </div>
         </div>
@@ -1335,6 +1374,7 @@ function OngletBonsCommande({ peutModifier, fournisseurs, items, bonsCommande, r
 // APPROBATIONS
 // ---------------------------------------------------------------------
 function OngletApprobations({ factures, peutApprouver, appelApi, recharger, setErreur, setMessageOk }) {
+  const { pal, btn, btnGhost, btnDanger, btnGreen, input, card, th, td, badgeFlag, badgeOk } = useStyles();
   const [detailsParFacture, setDetailsParFacture] = useState({});
 
   async function chargerDetails(factureId) {
@@ -1372,7 +1412,7 @@ function OngletApprobations({ factures, peutApprouver, appelApi, recharger, setE
   return (
     <div style={card}>
       <h3 style={{ marginTop: 0 }}>File d'approbation ({facturesActives.length})</h3>
-      <p style={{ fontSize: 12, color: '#666' }}>
+      <p style={{ fontSize: 12, color: pal.textDim }}>
         Ordre du processus : Adjointe administrative (vérifie les quantités vs bon de livraison) → Chargé de projet (confirme quantités et prix) → Directeur construction (approbation finale) → Comptes payables (émission du chèque).
       </p>
       {facturesActives.map((f) => {
@@ -1414,7 +1454,7 @@ function OngletApprobations({ factures, peutApprouver, appelApi, recharger, setE
                   {ETAPES.map((e) => {
                     const a = details.approbations.find((x) => x.etape === e.cle);
                     return (
-                      <div key={e.cle} style={{ fontSize: 11, color: '#666' }}>
+                      <div key={e.cle} style={{ fontSize: 11, color: pal.textDim }}>
                         {e.label} : {a?.statut === 'approuve' ? <span style={badgeOk}>approuvé</span> : a?.statut === 'rejete' ? <span style={badgeFlag}>rejeté</span> : 'en attente'}
                       </div>
                     );
