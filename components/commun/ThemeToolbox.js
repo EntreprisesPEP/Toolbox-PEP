@@ -28,6 +28,9 @@ export const PALETTES = {
     text: '#e7eaf0',      // texte principal
     textDim: '#8a93a8',   // texte secondaire, étiquettes
     surligne: '#243354',  // rangée survolée ou sélectionnée
+    accent: '#aec0f5',    // titres, valeurs mises en avant, liens telephone
+    btnBg: '#33405e',     // bouton plein
+    lien: '#6db3e8',      // lien courriel
     infoBg: '#132132',    // encadré d'information
     avisBg: '#2a2213',    // encadré d'avertissement
     avisTexte: '#e4a11b',
@@ -46,6 +49,9 @@ export const PALETTES = {
     text: '#1a2035',
     textDim: '#6b7488',
     surligne: '#e8ecf0',
+    accent: '#14213d',
+    btnBg: '#14213d',
+    lien: '#2e86c1',
     infoBg: '#f7f8fa',
     avisBg: '#fff6e5',
     avisTexte: '#7a5000',
