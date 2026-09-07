@@ -1057,6 +1057,27 @@ document.getElementById('forgotPasswordForm').addEventListener('submit', async (
   errEl.classList.add('show');
 });
 
+// Une seule porte d'entree : une app ouverte sans session renvoie ici avec
+// sa propre adresse dans ?retour=. Des que la session est valide, on y
+// retourne. On n'accepte qu'un chemin interne (une seule barre au debut),
+// pour qu'un lien trafique ne puisse pas rediriger ailleurs.
+function destinationDeRetour(){
+  try {
+    const brut = new URLSearchParams(window.location.search).get('retour');
+    if(!brut) return null;
+    const chemin = decodeURIComponent(brut);
+    if(!chemin.startsWith('/') || chemin.startsWith('//')) return null;
+    return chemin;
+  } catch(e){ return null; }
+}
+
+function redirigerSiRetour(){
+  const chemin = destinationDeRetour();
+  if(!chemin) return false;
+  window.location.replace(chemin);
+  return true;
+}
+
 document.getElementById('loginForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   hideLoginError();
@@ -1076,6 +1097,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
     showLoginError('Courriel ou mot de passe incorrect.');
     return;
   }
+  if(redirigerSiRetour()) return;
   showHub(data.user);
 });
 
@@ -1158,6 +1180,7 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
     }
     return;
   }
+  if(redirigerSiRetour()) return;
   showHub(data.user);
 });
 
@@ -1204,6 +1227,7 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
       if(otpType === 'recovery' || otpType === 'invite'){
         showSetPassword();
       } else if(data.session && data.session.user){
+        if(redirigerSiRetour()) return;
         showHub(data.session.user);
       } else {
         showLogin();
@@ -1238,6 +1262,7 @@ document.getElementById('setPasswordBtn').addEventListener('click', async ()=>{
   }
 
   if(data.session && data.session.user){
+    if(redirigerSiRetour()) return;
     showHub(data.session.user);
   } else {
     showLogin();
