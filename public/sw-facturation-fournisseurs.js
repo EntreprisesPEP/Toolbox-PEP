@@ -8,10 +8,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: 'Facturation Fournisseurs', body: event.data ? event.data.text() : '' };
+    data = { title: 'Validation factures de fournisseurs', body: event.data ? event.data.text() : '' };
   }
 
-  const title = data.title || 'Facturation Fournisseurs';
+  const title = data.title || 'Validation factures de fournisseurs';
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
