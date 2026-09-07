@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 
 // ---------------------------------------------------------------------------
 // LES DEUX PALETTES DU TOOLBOX — et la mémoire du choix
@@ -11,9 +11,14 @@ import { useState, useEffect } from 'react';
 // le navigateur sous la clé « pep-mode ». On bascule une fois, tout le Toolbox
 // suit.
 //
-// Usage :
+// Usage direct :
 //   const [mode, setMode] = useModePep();
 //   const th = PALETTES[mode];
+//
+// Usage par contexte, pour une app a beaucoup de petits composants — evite de
+// passer la palette de main en main sur cinq niveaux :
+//   <FournisseurPalette mode={mode}> ... </FournisseurPalette>
+//   et dans n'importe quel composant en dessous : const th = usePalette();
 // ---------------------------------------------------------------------------
 
 export const CLE_MODE = 'pep-mode';
@@ -93,4 +98,23 @@ export function useModePep() {
   }
 
   return [mode, setMode];
+}
+
+// ---------------------------------------------------------------------------
+// La palette par contexte. Utile aux apps decoupees en beaucoup de petits
+// composants : au lieu de passer « th » en prop a chaque niveau, on entoure
+// l'app une fois et chaque composant se sert.
+// ---------------------------------------------------------------------------
+const ContextePalette = createContext(PALETTES.day);
+
+export function FournisseurPalette({ mode, children }) {
+  return (
+    <ContextePalette.Provider value={PALETTES[mode] || PALETTES.day}>
+      {children}
+    </ContextePalette.Provider>
+  );
+}
+
+export function usePalette() {
+  return useContext(ContextePalette);
 }

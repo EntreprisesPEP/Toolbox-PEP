@@ -56,7 +56,7 @@ function Cadre({ titre, children }) {
   );
 }
 
-export default function GardeConnexion({ appSlug, nomApp, onPret }) {
+export default function GardeConnexion({ appSlug, nomApp, adminSeulement = false, onPret }) {
   // phase : 'verification' | 'redirection' | 'acces-refuse'
   const [phase, setPhase] = useState('verification');
 
@@ -88,7 +88,10 @@ export default function GardeConnexion({ appSlug, nomApp, onPret }) {
       if (!actif) return;
 
       const estAdmin = role?.role === 'admin';
-      if (!acces && !estAdmin) {
+      // adminSeulement : le panneau d'administration ne s'ouvre a personne
+      // d'autre, meme avec une case cochee dans les droits par app.
+      const autorise = adminSeulement ? estAdmin : (!!acces || estAdmin);
+      if (!autorise) {
         setPhase('acces-refuse');
         return;
       }
@@ -126,14 +129,15 @@ export default function GardeConnexion({ appSlug, nomApp, onPret }) {
     });
 
     return () => { actif = false; abonnement?.subscription?.unsubscribe(); };
-  }, [appSlug, onPret]);
+  }, [appSlug, adminSeulement, onPret]);
 
   if (phase === 'acces-refuse') {
     return (
       <Cadre titre={nomApp}>
         <div style={{ fontSize: 14.5, color: '#495260', lineHeight: 1.6, marginBottom: 18 }}>
-          Ton compte est bien connecté, mais tu n'as pas accès à {nomApp}. Demande à un
-          administrateur du Toolbox de te l'accorder dans le panneau d'administration.
+          {adminSeulement
+            ? `Ton compte est bien connecté, mais ${nomApp} est réservé aux administrateurs du Toolbox.`
+            : `Ton compte est bien connecté, mais tu n'as pas accès à ${nomApp}. Demande à un administrateur du Toolbox de te l'accorder dans le panneau d'administration.`}
         </div>
         <a href="/" style={{
           display: 'block', textAlign: 'center', background: ROUGE, color: '#fff',
