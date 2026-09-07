@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import AuthGate from '../../components/visite-surintendant/AuthGate';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
 import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS, DESTINATAIRES_FIXES } from '../../lib/visite-surintendant/surintendants';
 import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Info, Users } from 'lucide-react';
 
