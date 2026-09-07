@@ -1181,7 +1181,8 @@
     grid-template-columns:auto 1fr auto;
     grid-template-areas:
       "logo title theme"
-      "ticketno ticketno meta";
+      "ticketno ticketno meta"
+      "retour retour retour";
     align-items:center;
     column-gap:10px;
     row-gap:4px;
@@ -1192,6 +1193,7 @@
   .theme-switch{ grid-area:theme; margin-bottom:0; align-self:center; }
   .ticket-no-line{ grid-area:ticketno; text-align:left; }
   .ticket-meta-right{ grid-area:meta; text-align:right; }
+  .retour-toolbox-btn{ grid-area:retour; justify-self:end; padding:6px 11px !important; font-size:12px !important; }
 
   .brand-logo{ height:45px; }
   .titleblock h1{ font-size:16px; }
@@ -1299,10 +1301,10 @@
           <p class="account-line" id="accountLine"></p>
           <button type="button" id="logoutBtn" class="logout-icon-btn" title="Déconnexion" aria-label="Déconnexion">&#9211;</button>
         </span>
-        <a href="/" class="export-link">→ Retour au Toolbox PEP</a>
       </div>
     </div>
     <div class="header-right">
+      <a href="/" class="retour-toolbox-btn" style="color:#fff; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); padding:8px 14px; border-radius:6px; text-decoration:none; font-size:13px; font-weight:600; white-space:nowrap;">&#8592; Retour au Toolbox PEP</a>
       <div class="theme-switch" role="group" aria-label="Mode d'affichage">
         <button type="button" class="theme-btn" data-theme-btn="night">Nuit</button>
         <button type="button" class="theme-btn" data-theme-btn="day">Jour</button>
