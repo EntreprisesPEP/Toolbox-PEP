@@ -54,11 +54,17 @@ export default function Header({ prefs, updatePrefs, nomUtilisateur, emailUtilis
           <div>
             <p className="h-title">PLANIFICATION HEBDOMADAIRE</p>
             <p className="h-sub">Besoins et attribution des equipes</p>
-            <a href="/" style={{ fontSize: 11, color: '#4a7cf6', textDecoration: 'underline' }}>→ Retour au Toolbox PEP</a>
           </div>
         </div>
 
         <div className="header-right-stack">
+          <a href="/" style={{
+            color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)',
+            padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
+          }}>
+            &#8592; Retour au Toolbox PEP
+          </a>
+
           <div className="theme-toggle" role="group" aria-label="Theme jour ou nuit">
             <button
               type="button"
