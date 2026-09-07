@@ -56,7 +56,7 @@ const initialForm = {
   personnesAdditionnelles: [],
   dateRequise: '',
   dateAutorisee: '',
-  typeDemande: 'Implantation',
+  typeDemande: 'BM',
   endroit: '',
   planMention: '',
   dwgDisponible: false,
@@ -1047,9 +1047,9 @@ function DemandeArpentageApp({ userId, nom, email, accessToken }) {
       padding: '24px 16px',
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
+        <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <img
               src={mode === 'night' ? LOGO_PEP_NIGHT : LOGO_PEP_DAY}
@@ -1064,28 +1064,30 @@ function DemandeArpentageApp({ userId, nom, email, accessToken }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', border: `1px solid ${th.line}`, borderRadius: 20, overflow: 'hidden' }}>
-            {[
-              { id: 'night', label: 'Nuit', Icon: Moon },
-              { id: 'day', label: 'Jour', Icon: Sun },
-            ].map(({ id, label, Icon }) => (
-              <button key={id} onClick={() => setMode(id)} title={label} aria-label={label} style={{
-                background: mode === id ? BRAND_RED : 'transparent',
-                color: mode === id ? '#fff' : th.toggleInactiveText,
-                border: 'none', padding: '9px 12px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon size={14} />
-              </button>
-            ))}
-          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <a href="/" style={{
+              color: th.text, background: th.inputBg, border: `1px solid ${th.line}`, padding: '8px 14px',
+              borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600,
+            }}>
+              &#8592; Retour au Toolbox PEP
+            </a>
 
-          <a href="/" style={{
-            color: th.text, background: th.inputBg, border: `1px solid ${th.line}`, padding: '8px 14px',
-            borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          }}>
-            &#8592; Retour au Toolbox PEP
-          </a>
+            <div style={{ display: 'flex', border: `1px solid ${th.line}`, borderRadius: 20, overflow: 'hidden' }}>
+              {[
+                { id: 'night', label: 'Nuit', Icon: Moon },
+                { id: 'day', label: 'Jour', Icon: Sun },
+              ].map(({ id, label, Icon }) => (
+                <button key={id} onClick={() => setMode(id)} title={label} aria-label={label} style={{
+                  background: mode === id ? BRAND_RED : 'transparent',
+                  color: mode === id ? '#fff' : th.toggleInactiveText,
+                  border: 'none', padding: '9px 12px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
+          </div>
         </header>
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
