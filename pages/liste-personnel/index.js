@@ -277,7 +277,7 @@ export default function ListePersonnel() {
   );
   if (denied) return (
     <Center>
-      <div style={{ fontSize: 15 }}>Ton compte existe, mais tu n&apos;as pas accès à Liste de personnel.</div>
+      <div style={{ fontSize: 15 }}>Ton compte existe, mais tu n&apos;as pas accès à Liste de contacts.</div>
       <div style={{ fontSize: 13, color: '#666' }}>Demande à William de cocher l&apos;accès dans le panneau d&apos;administration.</div>
       <a href="/" style={{ ...btn, textDecoration: 'none' }}>Retour au Toolbox PEP</a>
     </Center>
@@ -285,13 +285,13 @@ export default function ListePersonnel() {
 
   return (
     <div style={{ minHeight: '100vh', background: BG, fontFamily: 'Calibri, sans-serif', color: NAVY }}>
-      <Head><title>Liste de personnel - Toolbox PEP</title></Head>
+      <Head><title>Liste de contacts - Toolbox PEP</title></Head>
 
       <header style={{ background: NAVY, borderTop: `4px solid ${RED}`, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: 46, width: 'auto' }} />
           <div>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Liste de personnel</div>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Liste de contacts</div>
             <div style={{ color: '#9AA5C0', fontSize: 12.5 }}>Les Entreprises PEP2000 inc.</div>
           </div>
         </div>
