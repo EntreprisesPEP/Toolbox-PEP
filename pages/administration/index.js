@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
+import { FournisseurPalette, usePalette, useModePep } from '../../components/commun/ThemeToolbox';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -8,6 +11,17 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ORDRE_DU_JOUR_SLUG = 'ordre-du-jour';
+const ROUGE = '#C41230';
+const VERT = '#2E9F58';
+const AMBRE = '#D69614';
+
+// Un champ de saisie, aux couleurs du mode en cours.
+function champ(th, extra) {
+  return {
+    padding: '8px 10px', borderRadius: 6, border: `1px solid ${th.line}`,
+    fontFamily: 'inherit', background: th.inputBg, color: th.text, ...extra,
+  };
+}
 
 // Libellés lisibles pour les rôles métier d'Ordre du jour — DOIVENT rester
 // synchronisés avec ORDRE_DU_JOUR_ROLES dans pages/api/administration/users.js
@@ -82,10 +96,12 @@ function messageLiaisonsAuto(result) {
   return ` — profil${liaisons.length > 1 ? 's' : ''} ${liaisons.join(', ')} appliqué${liaisons.length > 1 ? 's' : ''} automatiquement.`;
 }
 
-export default function AdministrationPage() {
-  const [session, setSession] = useState(null);
+function Administration({ nom, poste, mode, onChangerMode }) {
+  // Le mode vit dans Page, au-dessus du fournisseur de palette : sinon la
+  // bascule changerait l'etat ici sans que le contexte suive.
+  const th = usePalette();
+
   const [loading, setLoading] = useState(true);
-  const [denied, setDenied] = useState(false);
   const [users, setUsers] = useState([]);
   const [apps, setApps] = useState([]);
   const [features, setFeatures] = useState([]);
@@ -132,27 +148,10 @@ export default function AdministrationPage() {
     setPendingProfiles(data.pending_profiles || []);
   }
 
+  // GardeConnexion a deja verifie la session ET le role d'administrateur :
+  // ce panneau ne s'ouvre a personne d'autre.
   useEffect(() => {
     (async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (!s) {
-        setLoading(false);
-        return;
-      }
-      setSession(s);
-
-      const { data: roleRow } = await supabase
-        .from('pep_user_roles')
-        .select('role')
-        .eq('user_id', s.user.id)
-        .single();
-
-      if (!roleRow || roleRow.role !== 'admin') {
-        setDenied(true);
-        setLoading(false);
-        return;
-      }
-
       try {
         await loadAll();
       } catch (e) {
@@ -160,6 +159,7 @@ export default function AdministrationPage() {
       }
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onInvite() {
@@ -401,53 +401,38 @@ export default function AdministrationPage() {
     return <Center><Spinner /><p>Chargement...</p></Center>;
   }
 
-  if (!session) {
-    return (
-      <Center>
-        <h2>Connexion requise</h2>
-        <p>Connecte-toi depuis le Toolbox, puis reviens sur cette page.</p>
-        <a href="/">Aller au Toolbox PEP</a>
-      </Center>
-    );
-  }
-
-  if (denied) {
-    return (
-      <Center>
-        <h2>Acces refuse</h2>
-        <p>Ce panneau est reserve aux administrateurs.</p>
-        <a href="/">&#8592; Retour au Toolbox PEP</a>
-      </Center>
-    );
-  }
-
   return (
-    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: '#f2f2f2', minHeight: '100vh' }}>
+    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: th.bg, color: th.text, minHeight: '100vh' }}>
       <Head><title>Administration - Toolbox PEP</title></Head>
 
-      <header style={{ background: '#14213D', color: '#fff', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>Administration - Toolbox PEP</h1>
-        <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>&#8592; Retour au Toolbox PEP</a>
-      </header>
+      <EnTeteApp
+        titre="Administration"
+        sousTitre="Membres, droits par app et invitations"
+        mode={mode}
+        onChangerMode={onChangerMode}
+        nom={nom}
+        poste={poste}
+        onAccueil={() => { setExpandedUser(null); setExpandedPending(new Set()); }}
+      />
 
-      <main style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px 60px' }}>
+      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px 60px' }}>
         <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Inviter un nouvel utilisateur</h2>
+          <h2 style={{ color: ROUGE, fontSize: 16, marginTop: 0 }}>Inviter un nouvel utilisateur</h2>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               type="email"
               placeholder="courriel@pep2000.com"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc', width: 260, fontFamily: 'inherit' }}
+              style={champ(th, { width: 260 })}
             />
-            <button onClick={onInvite} style={btnStyle}>Envoyer l&apos;invitation</button>
+            <button onClick={onInvite} style={btnStyle(th)}>Envoyer l&apos;invitation</button>
           </div>
           {inviteMsg && <div style={{ marginTop: 10, fontSize: 14 }}>{inviteMsg}</div>}
         </Card>
 
         <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>
+          <h2 style={{ color: ROUGE, fontSize: 16, marginTop: 0 }}>
             Personnes en attente — acces a toutes les apps ({new Set([
               ...profilsAttente.map((p) => p.email),
               ...planifProfilsAttente.map((p) => p.email),
@@ -456,7 +441,7 @@ export default function AdministrationPage() {
               ...emailsTemporaires,
             ]).size})
           </h2>
-          <p style={{ fontSize: 13, color: '#666', marginTop: -6 }}>
+          <p style={{ fontSize: 13, color: th.textDim, marginTop: -6 }}>
             Pre-configure le nom, le role et l&apos;acces (par app, et par fonctionnalite a
             l&apos;interieur de chaque app) pour une personne qui n&apos;a pas encore de compte —
             exactement comme pour un vrai membre ci-dessous. Des que tu envoies son invitation
@@ -469,7 +454,7 @@ export default function AdministrationPage() {
               placeholder="courriel@pep2000.com"
               value={nouvellePersonneEmail}
               onChange={(e) => setNouvellePersonneEmail(e.target.value)}
-              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid #ccc', width: 260, fontFamily: 'inherit' }}
+              style={champ(th, { width: 260 })}
             />
             <button
               onClick={() => {
@@ -478,7 +463,7 @@ export default function AdministrationPage() {
                 setEmailsTemporaires((prev) => (prev.includes(email) ? prev : [...prev, email]));
                 setNouvellePersonneEmail('');
               }}
-              style={btnStyle}
+              style={btnStyle(th)}
             >
               Ajouter une personne
             </button>
@@ -494,7 +479,7 @@ export default function AdministrationPage() {
             const estOuvert = expandedPending.has(email);
             const nomCompletExistant = pendingProfiles.find((p) => p.email === email)?.nom_complet || '';
             return (
-              <div key={email} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div key={email} style={{ border: `1px solid ${th.line}`, borderRadius: 8, padding: 14, marginBottom: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                     <strong>{email}</strong>
@@ -506,24 +491,24 @@ export default function AdministrationPage() {
                     />
                   </div>
                   <div>
-                    <button onClick={() => toggleExpandedPending(email)} style={{ ...btnStyle, marginRight: 6 }}>
+                    <button onClick={() => toggleExpandedPending(email)} style={{ ...btnStyle(th), marginRight: 6 }}>
                       {estOuvert ? 'Fermer' : 'Droits par app'}
                     </button>
-                    <button onClick={() => onInviterDepuisAttente(email)} style={{ ...btnStyle, background: '#2E9F58', marginRight: 6 }} disabled={saving}>
+                    <button onClick={() => onInviterDepuisAttente(email)} style={{ ...btnStyle(th), background: VERT, marginRight: 6 }} disabled={saving}>
                       Inviter
                     </button>
-                    <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>
+                    <button onClick={() => onDeleteAllPending(email)} style={{ ...btnStyle(th), background: ROUGE }} disabled={saving}>
                       Retirer cette personne
                     </button>
                   </div>
                 </div>
                 {inviteStatuts[email] && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: inviteStatuts[email].startsWith('Erreur') ? '#C23B3B' : '#2E9F58' }}>
+                  <div style={{ marginTop: 8, fontSize: 13, color: inviteStatuts[email].startsWith('Erreur') ? th.errTexte : VERT }}>
                     {inviteStatuts[email]}
                   </div>
                 )}
                 {estOuvert && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #eee' }}>
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${th.line}` }}>
                     <PermissionsGrid
                       user={pendingUserFromEmail(email, profilsAttente, planifProfilsAttente, accesAttente)}
                       apps={apps}
@@ -544,7 +529,7 @@ export default function AdministrationPage() {
 
 
         <Card>
-          <h2 style={{ color: '#C41230', fontSize: 16, marginTop: 0 }}>Membres ({users.length})</h2>
+          <h2 style={{ color: ROUGE, fontSize: 16, marginTop: 0 }}>Membres ({users.length})</h2>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr>
@@ -586,6 +571,7 @@ export default function AdministrationPage() {
 }
 
 function NomCompletCell({ user, onSave, saving }) {
+  const th = usePalette();
   const [valeur, setValeur] = useState(user.nom_complet || user.ordre_du_jour_profil?.nom || '');
   const [poste, setPoste] = useState(user.poste || '');
   const [msg, setMsg] = useState('');
@@ -610,22 +596,23 @@ function NomCompletCell({ user, onSave, saving }) {
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
         placeholder="Nom complet"
-        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 130 }}
+        style={champ(th, { padding: '4px 6px', borderRadius: 4, fontSize: 13, width: 130 })}
       />
       <input
         type="text"
         value={poste}
         onChange={(e) => setPoste(e.target.value)}
         placeholder="Poste"
-        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 120 }}
+        style={champ(th, { padding: '4px 6px', borderRadius: 4, fontSize: 13, width: 120 })}
       />
-      <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '4px 8px' }}>OK</button>
-      {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
+      <button onClick={save} disabled={saving} style={{ ...btnStyle(th), fontSize: 11, padding: '4px 8px' }}>OK</button>
+      {msg && <span style={{ color: VERT, fontSize: 12 }}>{msg}</span>}
     </div>
   );
 }
 
 function NomCompletPendingCell({ email, nomComplet, onSave, saving }) {
+  const th = usePalette();
   const [valeur, setValeur] = useState(nomComplet || '');
   const [msg, setMsg] = useState('');
 
@@ -647,10 +634,10 @@ function NomCompletPendingCell({ email, nomComplet, onSave, saving }) {
         value={valeur}
         onChange={(e) => setValeur(e.target.value)}
         placeholder="Nom complet"
-        style={{ padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: 180 }}
+        style={champ(th, { padding: '5px 8px', borderRadius: 4, fontSize: 13, width: 180 })}
       />
-      <button onClick={save} disabled={saving} style={{ ...btnStyle, fontSize: 11, padding: '5px 10px' }}>OK</button>
-      {msg && <span style={{ color: '#2E9F58', fontSize: 12 }}>{msg}</span>}
+      <button onClick={save} disabled={saving} style={{ ...btnStyle(th), fontSize: 11, padding: '5px 10px' }}>OK</button>
+      {msg && <span style={{ color: VERT, fontSize: 12 }}>{msg}</span>}
     </div>
   );
 }
@@ -664,11 +651,12 @@ function UserRow({
     : isActiveRecently(user.last_sign_in_at)
       ? 'Actif'
       : 'Inactif';
-  const statusColor = user.invited_not_active ? '#D69614' : isActiveRecently(user.last_sign_in_at) ? '#2E9F58' : '#8a93a0';
+  const th = usePalette();
+  const statusColor = user.invited_not_active ? AMBRE : isActiveRecently(user.last_sign_in_at) ? VERT : th.textDim;
 
   return (
     <>
-      <tr style={{ borderBottom: '1px solid #eee' }}>
+      <tr style={{ borderBottom: `1px solid ${th.line}` }}>
         <Td>{user.email}</Td>
         <Td><NomCompletCell user={user} onSave={onSaveNomComplet} saving={saving} /></Td>
         <Td><span style={{ color: statusColor, fontWeight: 600 }}>&#9679; {statusLabel}</span></Td>
@@ -681,15 +669,15 @@ function UserRow({
           </select>
         </Td>
         <Td>
-          <button onClick={onToggleExpand} style={{ ...btnStyle, marginRight: 6 }}>
+          <button onClick={onToggleExpand} style={{ ...btnStyle(th), marginRight: 6 }}>
             {expanded ? 'Fermer' : 'Droits par app'}
           </button>
-          <button onClick={onDelete} style={{ ...btnStyle, background: '#C41230' }} disabled={saving}>Supprimer</button>
+          <button onClick={onDelete} style={{ ...btnStyle(th), background: ROUGE }} disabled={saving}>Supprimer</button>
         </Td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={6} style={{ background: '#f7f8fa', padding: 16 }}>
+          <td colSpan={6} style={{ background: th.panelAlt, padding: 16 }}>
             <PermissionsGrid
               user={user}
               apps={apps}
@@ -709,6 +697,7 @@ function UserRow({
 }
 
 function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAcces, onSave, onSaveOrdreDuJourProfil, onSavePlanifHebdoProfil, saving }) {
+  const th = usePalette();
   const [localApps, setLocalApps] = useState(new Set(user.apps));
   const [localFeatures, setLocalFeatures] = useState(new Set(user.features));
 
@@ -795,7 +784,7 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
         const isOrdreDuJour = app.slug === 'ordre-du-jour';
         const isPlanifHebdo = app.slug === 'planification-hebdomadaire';
         return (
-          <div key={app.slug} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+          <div key={app.slug} style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8, padding: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, marginBottom: 8 }}>
               <input type="checkbox" checked={localApps.has(app.slug)} onChange={() => toggleApp(app.slug)} />
               {app.label}
@@ -805,53 +794,53 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                 Visible uniquement quand la case de l'app est cochee — le profil
                 metier n'a de sens que si la personne a acces a l'app. */}
             {isOrdreDuJour && localApps.has(app.slug) && (
-              <div style={{ background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#495260', marginBottom: 8 }}>
+              <div style={{ background: th.infoBg, border: `1px solid ${th.line}`, borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: th.textDim, marginBottom: 8 }}>
                   Profil Ordre du jour
                 </div>
-                <label style={{ display: 'block', fontSize: 12, color: '#444', marginBottom: 3 }}>Nom affiche</label>
+                <label style={{ display: 'block', fontSize: 12, color: th.textDim, marginBottom: 3 }}>Nom affiche</label>
                 <input
                   type="text"
                   value={odjNom}
                   onChange={(e) => setOdjNom(e.target.value)}
                   placeholder="Ex: William Dubreuil"
-                  style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}
+                  style={champ(th, { width: '100%', padding: '5px 8px', borderRadius: 4, fontSize: 13, marginBottom: 8 })}
                 />
-                <label style={{ display: 'block', fontSize: 12, color: '#444', marginBottom: 3 }}>Role metier</label>
+                <label style={{ display: 'block', fontSize: 12, color: th.textDim, marginBottom: 3 }}>Role metier</label>
                 <select
                   value={odjRole}
                   onChange={(e) => setOdjRole(e.target.value)}
-                  style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}
+                  style={champ(th, { width: '100%', padding: '5px 8px', borderRadius: 4, fontSize: 13, marginBottom: 8 })}
                 >
                   {ordreDuJourRoles.map((r) => (
                     <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
                   ))}
                 </select>
-                <label style={{ display: 'block', fontSize: 12, color: '#444', marginBottom: 3 }}>Acces special</label>
+                <label style={{ display: 'block', fontSize: 12, color: th.textDim, marginBottom: 3 }}>Acces special</label>
                 <select
                   value={odjAcces}
                   onChange={(e) => setOdjAcces(e.target.value)}
-                  style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}
+                  style={champ(th, { width: '100%', padding: '5px 8px', borderRadius: 4, fontSize: 13, marginBottom: 8 })}
                 >
                   {ordreDuJourAcces.map((a) => (
                     <option key={a} value={a}>{ACCES_LABELS[a] || a}</option>
                   ))}
                 </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#444', marginBottom: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: th.text, marginBottom: 8 }}>
                   <input type="checkbox" checked={odjPreview} onChange={(e) => setOdjPreview(e.target.checked)} />
                   Peut prévisualiser tous les rôles (mode test — usage interne seulement)
                 </label>
-                <button onClick={saveOdjProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>
+                <button onClick={saveOdjProfil} disabled={saving} style={{ ...btnStyle(th), fontSize: 12 }}>
                   Enregistrer le profil
                 </button>
-                {odjMsg && <span style={{ marginLeft: 8, fontSize: 12, color: '#2E9F58' }}>{odjMsg}</span>}
+                {odjMsg && <span style={{ marginLeft: 8, fontSize: 12, color: VERT }}>{odjMsg}</span>}
                 {user.ordre_du_jour_profil && (
-                  <div style={{ fontSize: 11, color: '#8a93a0', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: th.textDim, marginTop: 6 }}>
                     Actuellement : {user.ordre_du_jour_profil.nom} &middot; {ROLE_LABELS[user.ordre_du_jour_profil.role]} &middot; {ACCES_LABELS[user.ordre_du_jour_profil.acces_special]}
                   </div>
                 )}
                 {!user.ordre_du_jour_profil && (
-                  <div style={{ fontSize: 11, color: '#D69614', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: AMBRE, marginTop: 6 }}>
                     Aucun profil enregistre encore — cette personne ne pourra pas se connecter a Ordre du jour tant que ce n&apos;est pas sauvegarde.
                   </div>
                 )}
@@ -863,29 +852,29 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                 fois connecte; le mode edition reste gere par le mot de passe
                 "animateur" separe, inchange). */}
             {isPlanifHebdo && localApps.has(app.slug) && (
-              <div style={{ background: '#f7f8fa', border: '1px solid #e2e4e8', borderRadius: 6, padding: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#495260', marginBottom: 8 }}>
+              <div style={{ background: th.infoBg, border: `1px solid ${th.line}`, borderRadius: 6, padding: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: th.textDim, marginBottom: 8 }}>
                   Profil Planification hebdomadaire
                 </div>
-                <label style={{ display: 'block', fontSize: 12, color: '#444', marginBottom: 3 }}>Nom affiche</label>
+                <label style={{ display: 'block', fontSize: 12, color: th.textDim, marginBottom: 3 }}>Nom affiche</label>
                 <input
                   type="text"
                   value={planifNom}
                   onChange={(e) => setPlanifNom(e.target.value)}
                   placeholder="Ex: William Dubreuil"
-                  style={{ width: '100%', padding: '5px 8px', borderRadius: 4, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, marginBottom: 8 }}
+                  style={champ(th, { width: '100%', padding: '5px 8px', borderRadius: 4, fontSize: 13, marginBottom: 8 })}
                 />
-                <button onClick={savePlanifProfil} disabled={saving} style={{ ...btnStyle, fontSize: 12 }}>
+                <button onClick={savePlanifProfil} disabled={saving} style={{ ...btnStyle(th), fontSize: 12 }}>
                   Enregistrer le profil
                 </button>
-                {planifMsg && <span style={{ marginLeft: 8, fontSize: 12, color: '#2E9F58' }}>{planifMsg}</span>}
+                {planifMsg && <span style={{ marginLeft: 8, fontSize: 12, color: VERT }}>{planifMsg}</span>}
                 {user.planif_hebdo_profil && (
-                  <div style={{ fontSize: 11, color: '#8a93a0', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: th.textDim, marginTop: 6 }}>
                     Actuellement : {user.planif_hebdo_profil.nom}
                   </div>
                 )}
                 {!user.planif_hebdo_profil && (
-                  <div style={{ fontSize: 11, color: '#D69614', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: AMBRE, marginTop: 6 }}>
                     Aucun profil enregistre encore — cette personne ne pourra pas se connecter a Planification hebdomadaire tant que ce n&apos;est pas sauvegarde.
                   </div>
                 )}
@@ -893,7 +882,7 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
             )}
 
             {localApps.has(app.slug) && appFeatures.map((f) => (
-              <label key={f.feature_key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 4, marginLeft: 8, color: '#444' }}>
+              <label key={f.feature_key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 4, marginLeft: 8, color: th.text }}>
                 <input
                   type="checkbox"
                   checked={localFeatures.has(`${app.slug}:${f.feature_key}`)}
@@ -902,7 +891,7 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                 {f.label}
               </label>
             ))}
-            <button onClick={() => saveApp(app.slug)} disabled={saving} style={{ ...btnStyle, marginTop: 8, fontSize: 12 }}>
+            <button onClick={() => saveApp(app.slug)} disabled={saving} style={{ ...btnStyle(th), marginTop: 8, fontSize: 12 }}>
               Sauvegarder {app.label}
             </button>
           </div>
@@ -912,26 +901,50 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
   );
 }
 
+export default function Page() {
+  const [session, setSession] = useState(null);
+  const [mode, setMode] = useModePep();
+  if (!session) {
+    return (
+      <GardeConnexion
+        appSlug="administration"
+        nomApp="le panneau d'administration"
+        adminSeulement
+        onPret={setSession}
+      />
+    );
+  }
+  return (
+    <FournisseurPalette mode={mode}>
+      <Administration nom={session.nom} poste={session.poste} mode={mode} onChangerMode={setMode} />
+    </FournisseurPalette>
+  );
+}
+
 function Card({ children }) {
-  return <div style={{ background: '#fff', borderRadius: 10, padding: 20, marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>{children}</div>;
+  const th = usePalette();
+  return <div style={{ background: th.panel, borderRadius: 10, padding: 20, marginBottom: 20, boxShadow: th.ombre }}>{children}</div>;
 }
 function Th({ children }) {
-  return <th style={{ textAlign: 'left', padding: '8px 10px', color: '#666', fontWeight: 600, borderBottom: '1px solid #eee' }}>{children}</th>;
+  const th = usePalette();
+  return <th style={{ textAlign: 'left', padding: '8px 10px', color: th.textDim, fontWeight: 600, borderBottom: `1px solid ${th.line}` }}>{children}</th>;
 }
 function Td({ children }) {
   return <td style={{ padding: '8px 10px', verticalAlign: 'middle' }}>{children}</td>;
 }
 function Center({ children }) {
+  const th = usePalette();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: th.bg, color: th.text }}>
       {children}
     </div>
   );
 }
 function Spinner() {
+  const th = usePalette();
   return (
     <>
-      <div style={{ border: '3px solid #ddd', borderTopColor: '#14213D', borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ border: `3px solid ${th.line}`, borderTopColor: th.accent, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
       <style jsx>{`
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
@@ -939,13 +952,15 @@ function Spinner() {
   );
 }
 
-const btnStyle = {
-  fontFamily: 'inherit',
-  background: '#14213D',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  padding: '6px 12px',
-  cursor: 'pointer',
-  fontSize: 13,
-};
+function btnStyle(th) {
+  return {
+    fontFamily: 'inherit',
+    background: th.btnBg,
+    color: '#fff',
+    border: 'none',
+    borderRadius: 6,
+    padding: '6px 12px',
+    cursor: 'pointer',
+    fontSize: 13,
+  };
+}
