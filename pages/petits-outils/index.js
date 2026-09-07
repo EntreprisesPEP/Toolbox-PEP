@@ -330,7 +330,7 @@ function DemandePetitsOutils({ accessToken }) {
   return (
     <div style={{ minHeight: '100vh', background: '#EDEFF1', fontFamily: "'Inter',sans-serif" }}>
       <div style={{ background: '#0F2138', borderTop: '4px solid #E4022E', padding: '18px 28px' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 16 }}>
           <img src={LOGO_PEP_BLANC} alt="Les Entreprises PEP" style={{ height: 96, width: 'auto', flexShrink: 0 }} />
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: 96 }}>
             <div>
@@ -338,10 +338,11 @@ function DemandePetitsOutils({ accessToken }) {
               <div style={{ color: '#fff', fontSize: 24, fontWeight: 700 }}>PEP2000 INC.</div>
               <div style={{ color: '#B9C2CC', fontSize: 13, marginTop: 2 }}>Demande petits outils</div>
             </div>
-            <a href="/" style={{ color: '#B9C2CC', fontSize: 13, textDecoration: 'underline', display: 'inline-block' }}>
-              → Retour au Toolbox PEP
-            </a>
           </div>
+
+          <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
+            &#8592; Retour au Toolbox PEP
+          </a>
         </div>
       </div>
 
