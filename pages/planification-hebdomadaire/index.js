@@ -1,18 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Head from 'next/head';
-import { createClient } from '@supabase/supabase-js';
-import Header from '../../components/planification-hebdomadaire/Header';
-import AuthGate from '../../components/planification-hebdomadaire/AuthGate';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
+import { useModePep } from '../../components/commun/ThemeToolbox';
 import AdminView from '../../components/planification-hebdomadaire/AdminView';
 import Meeting1View from '../../components/planification-hebdomadaire/Meeting1View';
 import Meeting2View from '../../components/planification-hebdomadaire/Meeting2View';
 import TerminesView from '../../components/planification-hebdomadaire/TerminesView';
 import PrintModal from '../../components/planification-hebdomadaire/PrintModal';
+import PasswordModal from '../../components/planification-hebdomadaire/PasswordModal';
 import { usePrefs } from '../../hooks/planification-hebdomadaire/usePrefs';
 import { useBoard } from '../../hooks/planification-hebdomadaire/useBoard';
 import { mondayOf, today, dateKey } from '../../lib/planification-hebdomadaire/dates';
-
-const supabaseAuth = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 const TABS = [
   { key: 'admin', label: 'ADMIN' },
@@ -21,17 +20,26 @@ const TABS = [
   { key: '3', label: 'PROJETS TERMINES' },
 ];
 
-export default function PlanificationHebdomadaire() {
-  const [profil, setProfil] = useState(null);
+// Ce compte n'a jamais besoin du mot de passe partagé pour passer en mode
+// admin — comparaison insensible à la casse par prudence.
+const COMPTE_SANS_MOT_DE_PASSE = 'wdubreuil@pep2000.com';
+
+function PlanificationHebdomadaire({ nom, poste, email }) {
+  const [mode, setMode] = useModePep();
   const { prefs, update, ready } = usePrefs();
   const board = useBoard();
   const [tab, setTab] = useState('1');
   const [printOpen, setPrintOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [pwdOpen, setPwdOpen] = useState(false);
 
-  if (!profil) {
-    return <AuthGate onDone={setProfil} />;
-  }
+  // Le thème de cette app passe par une variable CSS sur la page entière
+  // (data-theme = jour / nuit). On la fait suivre la bascule commune, pour que
+  // le bandeau et le contenu soient toujours d'accord.
+  useEffect(() => {
+    const voulu = mode === 'night' ? 'nuit' : 'jour';
+    if (prefs.theme !== voulu) update({ theme: voulu });
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready || board.loading) {
     return <div style={{ padding: 40, fontFamily: 'Segoe UI, Arial, sans-serif' }}>Chargement...</div>;
@@ -39,9 +47,36 @@ export default function PlanificationHebdomadaire() {
 
   const editable = prefs.role === 'edit';
 
-  async function seDeconnecter() {
-    await supabaseAuth.auth.signOut();
-    setProfil(null);
+  function basculerRole() {
+    if (prefs.role === 'edit') {
+      update({ role: 'view' }); // revenir en participant ne demande jamais de mot de passe
+      return;
+    }
+    const estExempte = (email || '').trim().toLowerCase() === COMPTE_SANS_MOT_DE_PASSE;
+    if (estExempte) {
+      update({ role: 'edit' });
+      return;
+    }
+    setPwdOpen(true);
+  }
+
+  async function soumettreMotDePasse(pwd) {
+    setPwdOpen(false);
+    try {
+      const res = await fetch('/api/planification-hebdomadaire/check-password/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        update({ role: 'edit' });
+      } else {
+        window.alert('Mot de passe incorrect.');
+      }
+    } catch (e) {
+      window.alert('Impossible de verifier le mot de passe pour le moment.');
+    }
   }
 
   async function handleGeneratePdf(selection) {
@@ -76,7 +111,15 @@ export default function PlanificationHebdomadaire() {
         <title>Planification Hebdomadaire - PEP2000</title>
       </Head>
 
-      <Header prefs={prefs} updatePrefs={update} nomUtilisateur={profil.nom} emailUtilisateur={profil.email} onDeconnexion={seDeconnecter} />
+      <EnTeteApp
+        titre="Planification hebdomadaire"
+        sousTitre="Besoins et attribution des équipes"
+        mode={mode}
+        onChangerMode={setMode}
+        nom={nom}
+        poste={poste}
+        onAccueil={() => setTab('1')}
+      />
 
       <div className="wrap">
         <div className="toolbar">
@@ -88,6 +131,22 @@ export default function PlanificationHebdomadaire() {
                   {t.label}
                 </button>
               ))}
+            </div>
+
+            {/* Le choix participant / animateur est propre à cette app : il
+                descend dans la barre d'outils, avec les autres commandes. */}
+            <span className="eyebrow">Mode</span>
+            <div className="pill-toggle">
+              <button
+                type="button"
+                className={prefs.role !== 'edit' ? 'active' : ''}
+                onClick={() => prefs.role === 'edit' && basculerRole()}
+              >PARTICIPANT</button>
+              <button
+                type="button"
+                className={prefs.role === 'edit' ? 'active' : ''}
+                onClick={() => prefs.role !== 'edit' && basculerRole()}
+              >ADMIN</button>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -104,14 +163,13 @@ export default function PlanificationHebdomadaire() {
         </div>
 
         {tab === 'admin' && <AdminView board={board} editable={editable} />}
-        {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={profil.nom} />}
+        {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
         {tab === '2' && <Meeting2View board={board} editable={editable} theme={prefs.theme} />}
-        {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={profil.nom} />}
+        {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
 
         <div className="footnote">
-          Donnee partagee en temps reel via Supabase entre tous ceux qui ouvrent ce site.
-          Mode participant en lecture seule. Aucun compte requis pour l&apos;instant &mdash; usage interne d&apos;equipe
-          (voir le README pour ajouter une vraie authentification plus tard).
+          Donnée partagée en temps réel via Supabase entre tous ceux qui ouvrent cette page.
+          Le mode participant est en lecture seule; le mode admin demande le mot de passe animateur.
         </div>
       </div>
 
@@ -121,6 +179,32 @@ export default function PlanificationHebdomadaire() {
         onGenerate={handleGeneratePdf}
         generating={generating}
       />
+
+      <PasswordModal
+        open={pwdOpen}
+        onSubmit={soumettreMotDePasse}
+        onCancel={() => setPwdOpen(false)}
+      />
     </div>
+  );
+}
+
+export default function Page() {
+  const [session, setSession] = useState(null);
+  if (!session) {
+    return (
+      <GardeConnexion
+        appSlug="planification-hebdomadaire"
+        nomApp="Planification hebdomadaire"
+        onPret={setSession}
+      />
+    );
+  }
+  return (
+    <PlanificationHebdomadaire
+      nom={session.nom}
+      poste={session.poste}
+      email={session.email}
+    />
   );
 }
