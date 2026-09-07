@@ -70,10 +70,16 @@ export default function PaletteOrdreDuJour({ mode }) {
     Object.entries(table).forEach(([cle, valeur]) => {
       racine.setProperty(`--odj-${cle}`, valeur);
     });
-    // Le fond de page suit aussi, sinon on voit du blanc sous le contenu quand
-    // la page est plus courte que l'écran.
+    // Le fond ET la couleur de texte par défaut suivent aussi. Le texte
+    // compte autant que le fond : les titres et les boutons qui n'ont pas de
+    // couleur écrite héritent du noir du navigateur, invisible sur un fond de
+    // nuit. En posant la couleur ici, ils suivent tous.
     document.body.style.background = table.bg;
-    return () => { document.body.style.background = ''; };
+    document.body.style.color = table.texte;
+    return () => {
+      document.body.style.background = '';
+      document.body.style.color = '';
+    };
   }, [mode]);
 
   return null;

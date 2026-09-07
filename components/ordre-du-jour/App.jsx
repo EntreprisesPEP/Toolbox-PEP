@@ -3474,7 +3474,7 @@ function AppInner({ session, mode, onChangerMode }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--odj-bg)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--odj-bg)", color: "var(--odj-texte)" }}>
       <EnTeteApp
         titre="Ordre du jour"
         sousTitre="Demandes de main-d&apos;oeuvre, camions et machinerie"
