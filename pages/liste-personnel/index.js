@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
+import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -8,36 +11,42 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabasePers = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'personnel' } });
 
-const NAVY = '#14213D';
 const RED = '#C41230';
-const BG = '#EDEFF1';
-const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
 const TELEPHONE_PRINCIPAL = '450-661-5050';
 const SANS_DEPARTEMENT = 'Sans département';
 
-const btn = { fontFamily: 'inherit', background: NAVY, color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
-const btnGhost = { ...btn, background: '#fff', color: NAVY, border: `1px solid ${NAVY}` };
-const btnDanger = { ...btn, background: RED };
+// Les boutons, champs et cellules changent de couleur avec le mode jour/nuit.
+// Chaque composant appelle styles(th) une fois et retrouve ses constantes
+// habituelles — les centaines de style={btn} du fichier restent inchangees.
 const btnSmall = { padding: '4px 10px', fontSize: 12 };
-const input = { padding: '7px 9px', borderRadius: 5, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box' };
-const td = { padding: '8px 12px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const thDept = {
-  textAlign: 'left', padding: '7px 12px', fontSize: 11, fontWeight: 600,
-  textTransform: 'uppercase', letterSpacing: '0.05em', color: '#8a93a0',
-  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-};
 
-function Center({ children }) {
+function styles(th) {
+  const btn = { fontFamily: 'inherit', background: th.btnBg, color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
+  return {
+    btn,
+    btnGhost: { ...btn, background: th.panel, color: th.accent, border: `1px solid ${th.accent}` },
+    btnDanger: { ...btn, background: RED },
+    input: { padding: '7px 9px', borderRadius: 5, border: `1px solid ${th.line}`, fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box', background: th.inputBg, color: th.text },
+    td: { padding: '8px 12px', verticalAlign: 'middle', fontSize: 13, borderBottom: `1px solid ${th.line}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    thDept: {
+      textAlign: 'left', padding: '7px 12px', fontSize: 11, fontWeight: 600,
+      textTransform: 'uppercase', letterSpacing: '0.05em', color: th.textDim,
+      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    },
+  };
+}
+
+function Center({ th, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: th.bg, color: th.text }}>
       {children}
     </div>
   );
 }
-function Spinner() {
+function Spinner({ th }) {
   return (
     <>
-      <div style={{ border: '3px solid #ddd', borderTopColor: NAVY, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ border: `3px solid ${th.line}`, borderTopColor: th.accent, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
@@ -47,10 +56,12 @@ function sansAccents(s) {
   return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-export default function ListePersonnel() {
+function ListePersonnel({ userId, nom, poste }) {
+  const [mode, setMode] = useModePep();
+  const th = PALETTES[mode];
+  const { btn, btnGhost, btnDanger, input, td, thDept } = styles(th);
+
   const [loading, setLoading] = useState(true);
-  const [denied, setDenied] = useState(false);
-  const [session, setSession] = useState(null);
   const [peutModifier, setPeutModifier] = useState(false);
   const [estAdmin, setEstAdmin] = useState(false);
   const [vue, setVue] = useState('personnel');
@@ -79,34 +90,26 @@ export default function ListePersonnel() {
     return () => window.removeEventListener('resize', mesurer);
   }, []);
 
-  // --- Accès : même mécanisme que Liste des projets --------------------
+  // L'acces a l'app est deja verifie par GardeConnexion. Il reste a savoir si
+  // la personne peut MODIFIER la liste, et si elle est administratrice — ces
+  // deux droits-la sont propres a l'app.
   useEffect(() => {
     (async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (!s) { setLoading(false); return; }
-      setSession(s);
-
-      const { data: appAccess } = await supabase
-        .from('pep_user_apps').select('app_slug')
-        .eq('user_id', s.user.id).eq('app_slug', 'liste-personnel').maybeSingle();
-
       const { data: roleRow } = await supabase
-        .from('pep_user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
-      const estAdmin = roleRow?.role === 'admin';
-      setEstAdmin(estAdmin);
-
-      if (!appAccess && !estAdmin) { setDenied(true); setLoading(false); return; }
+        .from('pep_user_roles').select('role').eq('user_id', userId).maybeSingle();
+      const admin = roleRow?.role === 'admin';
+      setEstAdmin(admin);
 
       const { data: featureRow } = await supabase
         .from('pep_user_features').select('feature_key')
-        .eq('user_id', s.user.id).eq('app_slug', 'liste-personnel').eq('feature_key', 'modifier').maybeSingle();
-      setPeutModifier(!!featureRow || estAdmin);
+        .eq('user_id', userId).eq('app_slug', 'liste-personnel').eq('feature_key', 'modifier').maybeSingle();
+      setPeutModifier(!!featureRow || admin);
 
       await chargerTout();
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userId]);
 
   async function chargerTout() {
     const [resDepts, resPers] = await Promise.all([
@@ -268,46 +271,32 @@ export default function ListePersonnel() {
   }
 
   // --- Rendu ------------------------------------------------------------
-  if (loading) return <Center><Spinner /><div>Chargement…</div></Center>;
-  if (!session) return (
-    <Center>
-      <div style={{ fontSize: 15 }}>Tu dois être connecté au Toolbox PEP pour voir cette page.</div>
-      <a href="/" style={{ ...btn, textDecoration: 'none' }}>Retour au Toolbox PEP</a>
-    </Center>
-  );
-  if (denied) return (
-    <Center>
-      <div style={{ fontSize: 15 }}>Ton compte existe, mais tu n&apos;as pas accès à Liste de contacts.</div>
-      <div style={{ fontSize: 13, color: '#666' }}>Demande à William de cocher l&apos;accès dans le panneau d&apos;administration.</div>
-      <a href="/" style={{ ...btn, textDecoration: 'none' }}>Retour au Toolbox PEP</a>
-    </Center>
-  );
+  if (loading) return <Center th={th}><Spinner th={th} /><div>Chargement…</div></Center>;
 
   return (
-    <div style={{ minHeight: '100vh', background: BG, fontFamily: 'Calibri, sans-serif', color: NAVY }}>
+    <div style={{ minHeight: '100vh', background: th.bg, fontFamily: 'Calibri, sans-serif', color: th.text }}>
       <Head><title>Liste de contacts - Toolbox PEP</title></Head>
 
-      <header style={{ background: NAVY, borderTop: `4px solid ${RED}`, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: 46, width: 'auto' }} />
-          <div>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>Liste de contacts</div>
-            <div style={{ color: '#9AA5C0', fontSize: 12.5 }}>Les Entreprises PEP2000 inc.</div>
-          </div>
-        </div>
-        <a href="/" style={{ ...btnGhost, textDecoration: 'none', display: 'inline-block' }}>&#8592; Retour au Toolbox PEP</a>
-      </header>
+      <EnTeteApp
+        titre="Liste de contacts"
+        sousTitre="Repertoire telephonique des Entreprises PEP2000"
+        mode={mode}
+        onChangerMode={setMode}
+        nom={nom}
+        poste={poste}
+        onAccueil={() => { setVue('personnel'); setRecherche(''); setFiche(null); }}
+      />
 
-      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 16px 60px' }}>
+      <main style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px 60px' }}>
 
         {estAdmin && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             {[['personnel', 'Répertoire'], ['groupes', `Groupes (${groupes.length})`]].map(([id, label]) => (
               <button key={id} onClick={() => setVue(id)} style={{
                 ...btn,
-                background: vue === id ? NAVY : '#fff',
-                color: vue === id ? '#fff' : NAVY,
-                border: `1px solid ${NAVY}`,
+                background: vue === id ? th.btnBg : th.panel,
+                color: vue === id ? '#fff' : th.accent,
+                border: `1px solid ${th.accent}`,
               }}>
                 {label}
               </button>
@@ -316,7 +305,7 @@ export default function ListePersonnel() {
         )}
 
         {erreur && (
-          <div style={{ background: '#fff', border: `1px solid ${RED}`, borderLeft: `3px solid ${RED}`, color: RED, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
+          <div style={{ background: th.errBg, border: `1px solid ${RED}`, borderLeft: `3px solid ${RED}`, color: th.errTexte, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
             {erreur}
           </div>
         )}
@@ -324,7 +313,7 @@ export default function ListePersonnel() {
         {vue === 'personnel' && (
           <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-            <div style={{ fontSize: 13, color: '#5c6478' }}>
+            <div style={{ fontSize: 13, color: th.textDim }}>
               {nbAffiches} personne{nbAffiches > 1 ? 's' : ''}
               {recherche.trim() ? ` sur ${personnes.length}` : ''}
             </div>
@@ -346,18 +335,18 @@ export default function ListePersonnel() {
             </div>
           </div>
 
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: '#FFF6E5', border: '1px solid #E4A11B', borderLeft: '3px solid #E4A11B', fontSize: 13, color: '#7a5000' }}>
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: th.avisBg, border: `1px solid ${th.avisTexte}`, borderLeft: `3px solid ${th.avisTexte}`, fontSize: 13, color: th.avisTexte }}>
             Tout numéro indiqué avec un poste est accessible via le numéro principal : <strong>{TELEPHONE_PRINCIPAL}</strong> + le numéro de poste.
           </div>
 
           {!peutModifier && (
-            <div style={{ marginBottom: 16, fontSize: 12.5, color: '#5c6478' }}>
+            <div style={{ marginBottom: 16, fontSize: 12.5, color: th.textDim }}>
               Lecture seule. Pour pouvoir modifier la liste, demande à William d&apos;activer la permission « modifier ».
             </div>
           )}
 
           {blocs.length === 0 && (
-            <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 24, fontSize: 13.5, color: '#5c6478' }}>
+            <div style={{ background: th.panel, border: `1px solid ${th.line}`, padding: 24, fontSize: 13.5, color: th.textDim }}>
               Aucune personne ne correspond à cette recherche.
             </div>
           )}
@@ -367,10 +356,10 @@ export default function ListePersonnel() {
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                 fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.06em',
-                color: NAVY, background: '#E8ECF0', padding: '6px 10px 6px 14px', borderLeft: `3px solid ${RED}`,
+                color: th.accent, background: th.surligne, padding: '6px 10px 6px 14px', borderLeft: `3px solid ${RED}`,
               }}>
                 <span>
-                  {groupe.dept} <span style={{ color: '#8a93a0', fontWeight: 600 }}>({groupe.membres.length})</span>
+                  {groupe.dept} <span style={{ color: th.textDim, fontWeight: 600 }}>({groupe.membres.length})</span>
                 </span>
                 {peutModifier && (
                   <button
@@ -393,9 +382,9 @@ export default function ListePersonnel() {
                   </button>
                 )}
               </div>
-              <div style={{ background: '#fff', border: '1px solid #D7DBE0', borderTop: 'none' }}>
+              <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderTop: 'none' }}>
                 {groupe.membres.length === 0 ? (
-                  <div style={{ padding: '14px', fontSize: 12.5, color: '#8a93a0' }}>
+                  <div style={{ padding: '14px', fontSize: 12.5, color: th.textDim }}>
                     Aucune personne dans ce département. Utilise le « + » ci-dessus pour en ajouter une.
                   </div>
                 ) : (
@@ -404,7 +393,7 @@ export default function ListePersonnel() {
                     {colonnes.map((largeur, i) => <col key={i} style={{ width: largeur }} />)}
                   </colgroup>
                   <thead>
-                    <tr style={{ background: '#F7F8F9', borderBottom: '1px solid #D7DBE0' }}>
+                    <tr style={{ background: th.panelAlt, borderBottom: `1px solid ${th.line}` }}>
                       <th style={thDept}>Nom</th>
                       {!estPhone && <th style={thDept}>Titre</th>}
                       <th style={thDept}>Cellulaire</th>
@@ -415,22 +404,22 @@ export default function ListePersonnel() {
                   </thead>
                   <tbody>
                     {groupe.membres.map((p, i) => (
-                      <tr key={p.id} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                      <tr key={p.id} style={{ background: i % 2 === 0 ? th.panel : th.panelAlt }}>
                         <td style={{ ...td, fontWeight: 600 }}>
                           {p.nom}
-                          {!p.actif && <span style={{ color: '#8a93a0', fontWeight: 400 }}> (inactif)</span>}
+                          {!p.actif && <span style={{ color: th.textDim, fontWeight: 400 }}> (inactif)</span>}
                         </td>
-                        {!estPhone && <td style={{ ...td, color: '#495260' }} title={p.titre || ''}>{p.titre || '—'}</td>}
+                        {!estPhone && <td style={{ ...td, color: th.textDim }} title={p.titre || ''}>{p.titre || '—'}</td>}
                         <td style={td}>
                           {p.cellulaire
-                            ? <a href={`tel:${p.cellulaire}`} style={{ color: NAVY, textDecoration: 'none', fontWeight: 600 }}>{p.cellulaire}</a>
-                            : p.poste ? <span style={{ color: '#8a93a0' }}>Poste {p.poste}</span> : '—'}
+                            ? <a href={`tel:${p.cellulaire}`} style={{ color: th.accent, textDecoration: 'none', fontWeight: 600 }}>{p.cellulaire}</a>
+                            : p.poste ? <span style={{ color: th.textDim }}>Poste {p.poste}</span> : '—'}
                         </td>
                         {!estPhone && (
                           <td style={td}>
                             {p.courriel
-                              ? <a href={`mailto:${p.courriel}`} title={p.courriel} style={{ color: '#2E86C1', textDecoration: 'none' }}>{p.courriel}</a>
-                              : <span style={{ color: '#c0c7d0' }}>—</span>}
+                              ? <a href={`mailto:${p.courriel}`} title={p.courriel} style={{ color: th.lien, textDecoration: 'none' }}>{p.courriel}</a>
+                              : <span style={{ color: th.textDim }}>—</span>}
                           </td>
                         )}
                         {estPhone && (
@@ -458,6 +447,7 @@ export default function ListePersonnel() {
 
         {vue === 'groupes' && estAdmin && (
           <VueGroupes
+            th={th}
             groupes={groupes}
             groupeActif={groupeActif}
             setGroupeActif={setGroupeActif}
@@ -477,6 +467,7 @@ export default function ListePersonnel() {
 
       {fiche && (
         <FichePersonne
+          th={th}
           personne={fiche}
           peutModifier={peutModifier}
           onModifier={() => { setEditPersonne({ ...fiche }); setFiche(null); }}
@@ -486,6 +477,7 @@ export default function ListePersonnel() {
 
       {editPersonne && (
         <ModalPersonne
+          th={th}
           personne={editPersonne}
           departements={departements}
           onSave={sauvegarderPersonne}
@@ -496,6 +488,7 @@ export default function ListePersonnel() {
 
       {gererDepts && (
         <ModalDepartements
+          th={th}
           departements={departements}
           personnes={personnes}
           onFerme={async () => { setGererDepts(false); await chargerTout(); }}
@@ -504,11 +497,11 @@ export default function ListePersonnel() {
       )}
 
       {confirmSuppr && (
-        <Modal titre="Supprimer cette personne?">
+        <Modal th={th} titre="Supprimer cette personne?">
           <p style={{ fontSize: 14, marginTop: 0 }}>
             <strong>{confirmSuppr.nom}</strong> sera retirée définitivement de la liste.
           </p>
-          <p style={{ fontSize: 12.5, color: '#5c6478' }}>
+          <p style={{ fontSize: 12.5, color: th.textDim }}>
             Si la personne a simplement quitté, il vaut mieux la passer à « inactif » : elle reste
             consultable et son historique n&apos;est pas perdu.
           </p>
@@ -524,51 +517,60 @@ export default function ListePersonnel() {
   );
 }
 
-function Modal({ titre, children, large }) {
+export default function Page() {
+  const [session, setSession] = useState(null);
+  if (!session) {
+    return <GardeConnexion appSlug="liste-personnel" nomApp="Liste de contacts" onPret={setSession} />;
+  }
+  return <ListePersonnel userId={session.userId} nom={session.nom} poste={session.poste} />;
+}
+
+function Modal({ th, titre, children, large }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 8, padding: 22, width: '100%', maxWidth: large ? 620 : 460, maxHeight: '88vh', overflowY: 'auto', fontFamily: 'Calibri, sans-serif' }}>
-        <h3 style={{ marginTop: 0, color: NAVY }}>{titre}</h3>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: th.panel, color: th.text, borderRadius: 8, padding: 22, width: '100%', maxWidth: large ? 620 : 460, maxHeight: '88vh', overflowY: 'auto', fontFamily: 'Calibri, sans-serif', boxShadow: th.ombre }}>
+        <h3 style={{ marginTop: 0, color: th.accent }}>{titre}</h3>
         {children}
       </div>
     </div>
   );
 }
 
-function Champ({ label, children }) {
+function Champ({ th, label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 4 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: th.textDim, marginBottom: 4 }}>{label}</label>
       {children}
     </div>
   );
 }
 
-function FichePersonne({ personne, peutModifier, onModifier, onFermer }) {
+function FichePersonne({ th, personne, peutModifier, onModifier, onFermer }) {
+  const { btn, btnGhost } = styles(th);
   return (
     <div onClick={onFermer} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', width: '100%', maxWidth: 460, padding: 22, borderTopLeftRadius: 10, borderTopRightRadius: 10, fontFamily: 'Calibri, sans-serif' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: NAVY }}>{personne.nom}</div>
-        {personne.titre && <div style={{ fontSize: 13, color: '#6b7480', marginBottom: 16 }}>{personne.titre}</div>}
+      <div onClick={(e) => e.stopPropagation()} style={{ background: th.panel, color: th.text, width: '100%', maxWidth: 460, padding: 22, borderTopLeftRadius: 10, borderTopRightRadius: 10, fontFamily: 'Calibri, sans-serif' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: th.accent }}>{personne.nom}</div>
+        {personne.titre && <div style={{ fontSize: 13, color: th.textDim, marginBottom: 16 }}>{personne.titre}</div>}
 
         {personne.cellulaire && (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#8a93a0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cellulaire</div>
-            <a href={`tel:${personne.cellulaire}`} style={{ fontSize: 17, fontWeight: 600, color: NAVY, textDecoration: 'none' }}>{personne.cellulaire}</a>
+            <div style={{ fontSize: 11, color: th.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cellulaire</div>
+            <a href={`tel:${personne.cellulaire}`} style={{ fontSize: 17, fontWeight: 600, color: th.accent, textDecoration: 'none' }}>{personne.cellulaire}</a>
           </div>
         )}
         {personne.poste && (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#8a93a0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Poste</div>
-            <a href={`tel:${TELEPHONE_PRINCIPAL},${personne.poste}`} style={{ fontSize: 15, color: '#495260', textDecoration: 'none' }}>
+            <div style={{ fontSize: 11, color: th.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Poste</div>
+            <a href={`tel:${TELEPHONE_PRINCIPAL},${personne.poste}`} style={{ fontSize: 15, color: th.text, textDecoration: 'none' }}>
               {TELEPHONE_PRINCIPAL} p.{personne.poste}
             </a>
           </div>
         )}
         {personne.courriel && (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#8a93a0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Courriel</div>
-            <a href={`mailto:${personne.courriel}`} style={{ fontSize: 14, color: '#2E86C1', textDecoration: 'none', wordBreak: 'break-all' }}>{personne.courriel}</a>
+            <div style={{ fontSize: 11, color: th.textDim, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Courriel</div>
+            <a href={`mailto:${personne.courriel}`} style={{ fontSize: 14, color: th.lien, textDecoration: 'none', wordBreak: 'break-all' }}>{personne.courriel}</a>
           </div>
         )}
 
@@ -581,42 +583,43 @@ function FichePersonne({ personne, peutModifier, onModifier, onFermer }) {
   );
 }
 
-function ModalPersonne({ personne, departements, onSave, onCancel, saving }) {
+function ModalPersonne({ th, personne, departements, onSave, onCancel, saving }) {
+  const { btn, btnGhost, input } = styles(th);
   const [form, setForm] = useState(personne);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const nomValide = form.nom?.trim().length > 0;
 
   return (
-    <Modal titre={form.id ? `Modifier ${personne.nom}` : 'Nouvelle personne'}>
-      <Champ label="Nom">
+    <Modal th={th} titre={form.id ? `Modifier ${personne.nom}` : 'Nouvelle personne'}>
+      <Champ th={th} label="Nom">
         <input style={input} value={form.nom || ''} onChange={(e) => set('nom', e.target.value)} placeholder="Prénom Nom" />
       </Champ>
-      <Champ label="Titre">
+      <Champ th={th} label="Titre">
         <input style={input} value={form.titre || ''} onChange={(e) => set('titre', e.target.value)} placeholder="ex. Chargé de projets" />
       </Champ>
-      <Champ label="Département">
+      <Champ th={th} label="Département">
         <select style={input} value={form.departement || ''} onChange={(e) => set('departement', e.target.value)}>
           <option value="">— Sans département —</option>
           {departements.map((d) => <option key={d.nom} value={d.nom}>{d.nom}</option>)}
         </select>
       </Champ>
-      <Champ label="Courriel">
+      <Champ th={th} label="Courriel">
         <input style={input} value={form.courriel || ''} onChange={(e) => set('courriel', e.target.value)} placeholder="prenom@pep2000.com" />
       </Champ>
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <Champ label="Cellulaire">
+          <Champ th={th} label="Cellulaire">
             <input style={input} value={form.cellulaire || ''} onChange={(e) => set('cellulaire', e.target.value)} placeholder="514-000-0000" />
           </Champ>
         </div>
         <div style={{ width: 110 }}>
-          <Champ label="Poste">
+          <Champ th={th} label="Poste">
             <input style={input} value={form.poste || ''} onChange={(e) => set('poste', e.target.value)} placeholder="000" />
           </Champ>
         </div>
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, marginTop: 4, cursor: 'pointer' }}>
-        <input type="checkbox" checked={!!form.actif} onChange={(e) => set('actif', e.target.checked)} style={{ accentColor: NAVY }} />
+        <input type="checkbox" checked={!!form.actif} onChange={(e) => set('actif', e.target.checked)} style={{ accentColor: th.accent }} />
         Personne active
       </label>
 
@@ -630,7 +633,8 @@ function ModalPersonne({ personne, departements, onSave, onCancel, saving }) {
   );
 }
 
-function ModalDepartements({ departements, personnes, onFerme, setErreur }) {
+function ModalDepartements({ th, departements, personnes, onFerme, setErreur }) {
+  const { btn, btnGhost, btnDanger, input } = styles(th);
   const [liste, setListe] = useState(departements);
   const [nouveau, setNouveau] = useState('');
   const [occupe, setOccupe] = useState(false);
@@ -677,16 +681,16 @@ function ModalDepartements({ departements, personnes, onFerme, setErreur }) {
   }
 
   return (
-    <Modal titre="Départements" large>
-      <p style={{ fontSize: 12.5, color: '#5c6478', marginTop: 0 }}>
+    <Modal th={th} titre="Départements" large>
+      <p style={{ fontSize: 12.5, color: th.textDim, marginTop: 0 }}>
         L&apos;ordre ci-dessous est celui utilisé pour afficher la liste. Un département ne peut
         être supprimé que s&apos;il ne contient plus personne.
       </p>
 
       {liste.map((d, i) => (
-        <div key={d.nom} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid #EDEFF1' }}>
+        <div key={d.nom} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: `1px solid ${th.line}` }}>
           <div style={{ flex: 1, fontSize: 13.5 }}>
-            {d.nom} <span style={{ color: '#8a93a0' }}>({compte(d.nom)})</span>
+            {d.nom} <span style={{ color: th.textDim }}>({compte(d.nom)})</span>
           </div>
           <button style={{ ...btnGhost, ...btnSmall }} disabled={occupe || i === 0} onClick={() => deplacer(i, -1)}>&#8593;</button>
           <button style={{ ...btnGhost, ...btnSmall }} disabled={occupe || i === liste.length - 1} onClick={() => deplacer(i, 1)}>&#8595;</button>
@@ -714,10 +718,11 @@ function ModalDepartements({ departements, personnes, onFerme, setErreur }) {
 // apps quand on les branchera.
 // ---------------------------------------------------------------------------
 function VueGroupes({
-  groupes, groupeActif, setGroupeActif, departements, personnes,
+  th, groupes, groupeActif, setGroupeActif, departements, personnes,
   groupeDepts, groupePersonnes, resoudreGroupe, creerGroupe, supprimerGroupe,
   basculerDepartement, basculerPersonne, saving,
 }) {
+  const { btn, btnGhost, btnDanger, input } = styles(th);
   const [nouveau, setNouveau] = useState('');
   const [ajout, setAjout] = useState('');
   const [confirmSuppr, setConfirmSuppr] = useState(null);
@@ -735,9 +740,9 @@ function VueGroupes({
     <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
 
       <div style={{ flex: '0 0 260px', minWidth: 240 }}>
-        <div style={{ background: '#fff', border: '1px solid #D7DBE0' }}>
+        <div style={{ background: th.panel, border: `1px solid ${th.line}` }}>
           {groupes.length === 0 && (
-            <div style={{ padding: 14, fontSize: 12.5, color: '#8a93a0' }}>
+            <div style={{ padding: 14, fontSize: 12.5, color: th.textDim }}>
               Aucun groupe pour l&apos;instant.
             </div>
           )}
@@ -747,13 +752,13 @@ function VueGroupes({
               onClick={() => setGroupeActif(g.nom)}
               style={{
                 padding: '10px 14px', cursor: 'pointer', fontSize: 13.5,
-                borderBottom: '1px solid #EDEFF1',
-                background: g.nom === groupeActif ? '#E8ECF0' : '#fff',
+                borderBottom: `1px solid ${th.line}`,
+                background: g.nom === groupeActif ? th.surligne : th.panel,
                 borderLeft: g.nom === groupeActif ? `3px solid ${RED}` : '3px solid transparent',
                 fontWeight: g.nom === groupeActif ? 700 : 400,
               }}
             >
-              {g.nom} <span style={{ color: '#8a93a0' }}>({compteGroupe(g.nom)})</span>
+              {g.nom} <span style={{ color: th.textDim }}>({compteGroupe(g.nom)})</span>
             </div>
           ))}
         </div>
@@ -777,23 +782,23 @@ function VueGroupes({
 
       <div style={{ flex: 1, minWidth: 320 }}>
         {!actif ? (
-          <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 24, fontSize: 13.5, color: '#5c6478' }}>
+          <div style={{ background: th.panel, border: `1px solid ${th.line}`, padding: 24, fontSize: 13.5, color: th.textDim }}>
             Choisis un groupe à gauche, ou crée-en un.
           </div>
         ) : (
-          <div style={{ background: '#fff', border: '1px solid #D7DBE0', padding: 18 }}>
+          <div style={{ background: th.panel, border: `1px solid ${th.line}`, padding: 18 }}>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
-              <div style={{ fontSize: 17, fontWeight: 700, color: NAVY }}>{actif.nom}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: th.accent }}>{actif.nom}</div>
               <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr(actif.nom)}>
                 Supprimer le groupe
               </button>
             </div>
-            <div style={{ fontSize: 12.5, color: '#5c6478', marginBottom: 16 }}>
+            <div style={{ fontSize: 12.5, color: th.textDim, marginBottom: 16 }}>
               {resolu.length} personne{resolu.length > 1 ? 's' : ''} au total
             </div>
 
-            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: th.textDim, marginBottom: 8 }}>
               Départements inclus
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 6, marginBottom: 18 }}>
@@ -803,14 +808,14 @@ function VueGroupes({
                   <label key={d.nom} style={{
                     display: 'flex', alignItems: 'center', gap: 8, fontSize: 13,
                     padding: '7px 10px', cursor: 'pointer',
-                    border: `1px solid ${present ? NAVY : '#D7DBE0'}`,
-                    background: present ? '#F2F5F9' : '#fff',
+                    border: `1px solid ${present ? th.accent : th.line}`,
+                    background: present ? th.surligne : th.panel,
                   }}>
                     <input
                       type="checkbox"
                       checked={present}
                       onChange={() => basculerDepartement(actif.nom, d.nom, present)}
-                      style={{ accentColor: NAVY }}
+                      style={{ accentColor: th.accent }}
                     />
                     {d.nom}
                   </label>
@@ -818,7 +823,7 @@ function VueGroupes({
               })}
             </div>
 
-            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: th.textDim, marginBottom: 8 }}>
               Personnes ajoutées à l&apos;unité
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -842,7 +847,7 @@ function VueGroupes({
             </div>
 
             {idsDuGroupe.length === 0 && (
-              <div style={{ fontSize: 12.5, color: '#8a93a0', marginBottom: 18 }}>
+              <div style={{ fontSize: 12.5, color: th.textDim, marginBottom: 18 }}>
                 Aucune personne ajoutée individuellement.
               </div>
             )}
@@ -853,11 +858,11 @@ function VueGroupes({
                   if (!p) return null;
                   const couvertParDept = p.departement && deptsDuGroupe.includes(p.departement);
                   return (
-                    <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: '1px solid #EDEFF1', fontSize: 13 }}>
+                    <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '6px 0', borderBottom: `1px solid ${th.line}`, fontSize: 13 }}>
                       <span>
                         {p.nom}
                         {couvertParDept && (
-                          <span style={{ color: '#8a93a0', fontSize: 12 }}>
+                          <span style={{ color: th.textDim, fontSize: 12 }}>
                             {' '}— déjà inclus via {p.departement}
                           </span>
                         )}
@@ -874,21 +879,21 @@ function VueGroupes({
               </div>
             )}
 
-            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#5c6478', marginBottom: 8 }}>
+            <div style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: th.textDim, marginBottom: 8 }}>
               Liste résolue
             </div>
-            <div style={{ border: '1px solid #EDEFF1', maxHeight: 320, overflowY: 'auto' }}>
+            <div style={{ border: `1px solid ${th.line}`, maxHeight: 320, overflowY: 'auto' }}>
               {resolu.length === 0 && (
-                <div style={{ padding: 12, fontSize: 12.5, color: '#8a93a0' }}>
+                <div style={{ padding: 12, fontSize: 12.5, color: th.textDim }}>
                   Ce groupe ne contient encore personne.
                 </div>
               )}
               {resolu.map((p, i) => (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px', fontSize: 13, background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 12px', fontSize: 13, background: i % 2 === 0 ? th.panel : th.panelAlt }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.nom} <span style={{ color: '#8a93a0' }}>{p.courriel || 'sans courriel'}</span>
+                    {p.nom} <span style={{ color: th.textDim }}>{p.courriel || 'sans courriel'}</span>
                   </span>
-                  <span style={{ color: '#8a93a0', fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: th.textDim, fontSize: 11.5, whiteSpace: 'nowrap' }}>
                     {p.viaDepartement ? p.departement : 'ajout direct'}
                   </span>
                 </div>
@@ -899,11 +904,11 @@ function VueGroupes({
       </div>
 
       {confirmSuppr && (
-        <Modal titre="Supprimer ce groupe?">
+        <Modal th={th} titre="Supprimer ce groupe?">
           <p style={{ fontSize: 14, marginTop: 0 }}>
             Le groupe <strong>{confirmSuppr}</strong> sera supprimé.
           </p>
-          <p style={{ fontSize: 12.5, color: '#5c6478' }}>
+          <p style={{ fontSize: 12.5, color: th.textDim }}>
             Aucune personne ni aucun département n&apos;est effacé : seule la liste
             elle-même disparaît.
           </p>
