@@ -304,8 +304,9 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
 
       <div className="page">
         <div className="barre-haut">
-          <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
+          <div />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
             <div className="toggle-theme">
               <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')} title="Jour" aria-label="Jour"><Sun size={13} /></button>
               <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')} title="Nuit" aria-label="Nuit"><Moon size={13} /></button>
