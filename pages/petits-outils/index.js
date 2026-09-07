@@ -343,7 +343,7 @@ function DemandePetitsOutils({ nom, poste, accessToken }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: th.bg, fontFamily: "'Inter',sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: th.bg, color: th.text, fontFamily: "'Inter',sans-serif" }}>
       <EnTeteApp
         titre="Demande petits outils"
         sousTitre="Formulaire de demande de petits outils"
