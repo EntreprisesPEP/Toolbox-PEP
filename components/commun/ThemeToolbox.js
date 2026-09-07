@@ -1,15 +1,13 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, createContext, useContext } from 'react';
 
 // ---------------------------------------------------------------------------
-// LES DEUX PALETTES DU TOOLBOX — et la mémoire du choix
+// LES DEUX PALETTES DU TOOLBOX
 //
 // Un seul endroit décide de quoi a l'air le mode jour et le mode nuit. Une app
 // qui a besoin d'une couleur de plus l'ajoute ici, pas chez elle : c'est ce qui
 // garde les quatorze apps pareilles.
 //
-// Le choix jour/nuit suit la personne d'une app à l'autre : il est retenu dans
-// le navigateur sous la clé « pep-mode ». On bascule une fois, tout le Toolbox
-// suit.
+// Chaque page s'ouvre en mode jour. La bascule vaut pour la page en cours.
 //
 // Usage direct :
 //   const [mode, setMode] = useModePep();
@@ -20,8 +18,6 @@ import { useState, useEffect, createContext, useContext } from 'react';
 //   <FournisseurPalette mode={mode}> ... </FournisseurPalette>
 //   et dans n'importe quel composant en dessous : const th = usePalette();
 // ---------------------------------------------------------------------------
-
-export const CLE_MODE = 'pep-mode';
 
 export const PALETTES = {
   night: {
@@ -74,29 +70,11 @@ export const ROUGE_VIF = '#e4022e';
 export const NAVY = '#14213d';
 
 export function useModePep() {
-  // On part toujours en mode jour : le serveur rend la page sans savoir ce que
-  // le navigateur a retenu, et un désaccord entre les deux ferait clignoter la
-  // page. La vraie valeur arrive juste après, au premier effet.
-  const [mode, setModeInterne] = useState('day');
-
-  useEffect(() => {
-    try {
-      const retenu = window.localStorage.getItem(CLE_MODE);
-      if (retenu === 'night' || retenu === 'day') setModeInterne(retenu);
-    } catch (e) {
-      // navigation privée ou stockage bloqué : on reste en mode jour
-    }
-  }, []);
-
-  function setMode(nouveau) {
-    setModeInterne(nouveau);
-    try {
-      window.localStorage.setItem(CLE_MODE, nouveau);
-    } catch (e) {
-      // rien à faire : le choix vaudra pour la session en cours seulement
-    }
-  }
-
+  // Chaque page s'ouvre en mode jour, toujours. Le choix vaut pour la page en
+  // cours : on change d'app, on repart au soleil. C'est voulu — une app qui
+  // s'ouvre en foncé sans qu'on l'ait demandé sur cet écran-là surprend plus
+  // qu'elle ne rend service.
+  const [mode, setMode] = useState('day');
   return [mode, setMode];
 }
 
