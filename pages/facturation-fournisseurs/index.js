@@ -222,15 +222,15 @@ export default function FacturationFournisseursPage() {
 
   if (loading) return <Center><Spinner /><div>Chargement…</div></Center>;
   if (!session) return <Center><div>Tu dois être connecté pour accéder à cette page.</div></Center>;
-  if (denied) return <Center><div>Accès refusé à Facturation Fournisseurs.</div></Center>;
+  if (denied) return <Center><div>Accès refusé à Validation factures de fournisseurs.</div></Center>;
 
   return (
     <div style={{ minHeight: '100vh', background: BG, fontFamily: 'Calibri, sans-serif', color: '#222' }}>
-      <Head><title>Facturation Fournisseurs — Toolbox PEP</title></Head>
+      <Head><title>Validation factures de fournisseurs — Toolbox PEP</title></Head>
 
       <div style={{ background: NAVY, padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
         <img src={LOGO_PEP} alt="PEP" style={{ height: 40 }} />
-        <h1 style={{ color: '#fff', fontSize: 19, margin: 0, flex: 1 }}>Facturation Fournisseurs</h1>
+        <h1 style={{ color: '#fff', fontSize: 19, margin: 0, flex: 1 }}>Validation factures de fournisseurs</h1>
         {notifState === 'actif' && (
           <button style={{ ...btnGhost, background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.5)' }} onClick={desactiverNotifications}>
             🔕 Désactiver les notifications
@@ -629,7 +629,7 @@ function OngletFactures({ peutModifier, fournisseurs, bonsCommande, factures, fl
           <Page size="A4" style={styles.page} wrap>
             <View style={styles.headerBar} fixed>
               {logoDataUrl && <Image style={styles.logo} src={logoDataUrl} />}
-              <Text style={styles.titre}>Facturation Fournisseurs — Fiche de facture</Text>
+              <Text style={styles.titre}>Validation factures de fournisseurs — Fiche de facture</Text>
               <Text style={styles.sousTitre}>{new Date().toLocaleDateString('fr-CA')}</Text>
             </View>
 
