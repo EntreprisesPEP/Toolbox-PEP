@@ -650,18 +650,24 @@ function TopBar({ profil, date, setDate, onSwitchProfile, masquerDate, onMenuSel
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: "0.02em" }}>PEP2000 — ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 12 }}>{profil.nom} · {ROLES.find((r) => r.value === profil.role)?.label}</div>
-              <a href="/" style={{ color: "#AEC0F5", fontSize: 11, textDecoration: "underline" }}>→ Retour au Toolbox PEP</a>
             </div>
           )}
           {isPhone && (
             <div>
               <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "0.02em" }}>ORDRE DU JOUR</div>
               <div style={{ color: "#B9C2CC", fontSize: 11 }}>{profil.nom}</div>
-              <a href="/" style={{ color: "#AEC0F5", fontSize: 10, textDecoration: "underline" }}>→ Retour au Toolbox PEP</a>
             </div>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <a href="/" style={{
+            color: "#fff", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.35)",
+            padding: isPhone ? "5px 9px" : "7px 12px", borderRadius: 6, textDecoration: "none",
+            fontSize: isPhone ? 11 : 13, fontWeight: 600, whiteSpace: "nowrap",
+          }}>
+            {isPhone ? "\u2190 Toolbox" : "\u2190 Retour au Toolbox PEP"}
+          </a>
+
           {/* Bouton menu hamburger */}
           <div style={{ position: "relative" }}>
             <button
