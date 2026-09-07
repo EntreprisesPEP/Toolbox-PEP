@@ -16,7 +16,9 @@ export function usePrefs() {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(KEY);
-      if (raw) setPrefs({ ...DEFAULTS, ...JSON.parse(raw) });
+      // Le theme n'est jamais restaure : chaque page du Toolbox s'ouvre en
+      // mode jour, et c'est la bascule du bandeau qui commande a partir de la.
+      if (raw) setPrefs({ ...DEFAULTS, ...JSON.parse(raw), theme: DEFAULTS.theme });
     } catch (e) {
       /* ignore */
     }
