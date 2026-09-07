@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Truck, Users, Wrench, ClipboardList, Package, ChevronDown, Fuel, Bell, Mail,
-  Save, CheckCircle2, AlertCircle, LogOut, RefreshCw, Plus, ChevronRight, SendHorizontal
+  Save, CheckCircle2, AlertCircle, RefreshCw, Plus, ChevronRight, SendHorizontal
 } from "lucide-react";
 import { storage } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
-import AuthGate from "./AuthGate";
+import GardeConnexion from "../commun/GardeConnexion";
+import EnTeteApp from "../commun/EnTeteApp";
+import { useModePep } from "../commun/ThemeToolbox";
+import PaletteOrdreDuJour from "./PaletteOrdreDuJour";
 
 /* Hook responsive */
 function useWindowWidth() {
@@ -213,13 +216,13 @@ const STATUTS = {
 };
 
 const TONE_HEX = {
-  blue:   "#2E86C1",  // ajout personnel
-  steel:  "#0F2138",  // même personnel
-  orange: "#E67E22",  // retrait personnel
-  green:  "#3C8C5D",  // ajout machinerie
-  gray:   "#6b7480",  // même machinerie
-  red:    "#C23B3B",  // retrait machinerie
-  rust:   "#F0A202",  // conservé pour autres usages
+  blue:   "var(--odj-lien)",    // ajout personnel
+  steel:  "var(--odj-accent)",  // même personnel
+  orange: "var(--odj-orange)",  // retrait personnel
+  green:  "var(--odj-ok)",      // ajout machinerie
+  gray:   "var(--odj-dim)",     // même machinerie
+  red:    "var(--odj-err)",     // retrait machinerie
+  rust:   "var(--odj-ambre)",   // conservé pour autres usages
 };
 
 function emptyLignes(list) {
@@ -487,10 +490,10 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "sans-serif" }}>
-          <div style={{ maxWidth: 480, background: "#fff", border: "1px solid #D7DBE0", padding: 20 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8, color: "#C23B3B" }}>Une erreur est survenue</div>
-            <div style={{ fontSize: 13, color: "#495260", whiteSpace: "pre-wrap" }}>{String(this.state.error?.message || this.state.error)}</div>
+        <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "sans-serif" }}>
+          <div style={{ maxWidth: 480, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--odj-err)" }}>Une erreur est survenue</div>
+            <div style={{ fontSize: 13, color: "var(--odj-texte2)", whiteSpace: "pre-wrap" }}>{String(this.state.error?.message || this.state.error)}</div>
           </div>
         </div>
       );
@@ -503,7 +506,7 @@ class ErrorBoundary extends React.Component {
    PLATE — badge signature (coin coupé, style plaque d'équipement)
 --------------------------------------------------------------------- */
 function Plate({ children, tone = "steel", size = "sm" }) {
-  const bg = tone === "steel" ? "#0F2138" : TONE_HEX[tone] || "#0F2138";
+  const bg = tone === "steel" ? "var(--odj-accent)" : TONE_HEX[tone] || "var(--odj-accent)";
   return (
     <span
       style={{
@@ -526,14 +529,15 @@ function Plate({ children, tone = "steel", size = "sm" }) {
 }
 
 /* ---------------------------------------------------------------------
-   (Phase 3) L'ancien ProfileGate (choix du nom + NIP) et l'ancien
-   AdminPanel (gestion des NIP) ont été retirés — remplacés par AuthGate
-   (vrai login Supabase Auth) et par le panneau /administration/ du
-   Toolbox. Voir components/ordre-du-jour/AuthGate.js.
+   Il n'y a plus d'écran de connexion ici. On entre par le Toolbox, et
+   components/commun/GardeConnexion.js vérifie la session et l'accès à
+   l'app. Cette page ne garde de ordre_du_jour.profils que la fiche
+   métier : le nom affiché et le rôle.
 --------------------------------------------------------------------- */
 
 /* ---------------------------------------------------------------------
-   TOP BAR
+   BARRE D'OUTILS — sous le bandeau commun. Rien de propre à l'app ne
+   monte dans le bandeau : ni le menu, ni les notifications, ni la date.
 --------------------------------------------------------------------- */
 // Centre de notifications — boîte personnelle, avec lu/non-lu
 function NotificationCenter({ profil, onNaviguer }) {
@@ -582,12 +586,12 @@ function NotificationCenter({ profil, onNaviguer }) {
     <div style={{ position: "relative" }}>
       <button
         onClick={() => setOuvert((o) => !o)}
-        style={{ position: "relative", background: "transparent", border: "1px solid #4A5A70", color: "#B9C2CC", padding: "6px 9px", cursor: "pointer", display: "flex", alignItems: "center" }}
+        style={{ position: "relative", background: "transparent", border: "1px solid var(--odj-navyLine)", color: "#B9C2CC", padding: "6px 9px", cursor: "pointer", display: "flex", alignItems: "center" }}
         title="Notifications"
       >
         <Bell size={14} />
         {nonLues > 0 && (
-          <span style={{ position: "absolute", top: -6, right: -6, background: "#E4022E", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ position: "absolute", top: -6, right: -6, background: "var(--odj-rouge)", color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {nonLues > 9 ? "9+" : nonLues}
           </span>
         )}
@@ -598,26 +602,26 @@ function NotificationCenter({ profil, onNaviguer }) {
           <div
             style={
               isPhone
-                ? { position: "fixed", top: 64, left: 8, right: 8, maxHeight: "70vh", overflowY: "auto", background: "#fff", border: "1px solid #D7DBE0", zIndex: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.25)" }
-                : { position: "absolute", top: "calc(100% + 6px)", right: 0, width: 320, maxWidth: "90vw", maxHeight: 420, overflowY: "auto", background: "#fff", border: "1px solid #D7DBE0", zIndex: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }
+                ? { position: "fixed", top: 64, left: 8, right: 8, maxHeight: "70vh", overflowY: "auto", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", zIndex: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.25)" }
+                : { position: "absolute", top: "calc(100% + 6px)", right: 0, width: 320, maxWidth: "90vw", maxHeight: 420, overflowY: "auto", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", zIndex: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }
             }
           >
-            <div style={{ padding: "10px 14px", borderBottom: "1px solid #EDEFF1", fontWeight: 700, fontSize: 13, fontFamily: "'Oswald',sans-serif", color: "#0F2138", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--odj-lineFaible)", fontWeight: 700, fontSize: 13, fontFamily: "'Oswald',sans-serif", color: "var(--odj-accent)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
               Notifications
             </div>
             {notifs.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "#8a93a0", fontSize: 13, fontFamily: "'Inter',sans-serif" }}>Aucune notification</div>
+              <div style={{ padding: 24, textAlign: "center", color: "var(--odj-dim)", fontSize: 13, fontFamily: "'Inter',sans-serif" }}>Aucune notification</div>
             ) : (
               notifs.map((n) => (
                 <button
                   key={n.key}
                   onClick={() => cliquer(n)}
-                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", borderBottom: "1px solid #EDEFF1", background: n.lu ? "#fff" : "#EAF1FB", cursor: "pointer" }}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", borderBottom: "1px solid var(--odj-lineFaible)", background: n.lu ? "var(--odj-panel)" : "var(--odj-surligne)", cursor: "pointer" }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: n.lu ? 500 : 700, color: "#15181B", fontFamily: "'Inter',sans-serif" }}>
+                  <div style={{ fontSize: 13, fontWeight: n.lu ? 500 : 700, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>
                     {icone[n.type] || ""} {n.titre}
                   </div>
-                  {n.corps && <div style={{ fontSize: 12, color: "#6b7480", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>{n.corps}</div>}
+                  {n.corps && <div style={{ fontSize: 12, color: "var(--odj-dim)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>{n.corps}</div>}
                 </button>
               ))
             )}
@@ -628,108 +632,87 @@ function NotificationCenter({ profil, onNaviguer }) {
   );
 }
 
-function TopBar({ profil, date, setDate, onSwitchProfile, masquerDate, onMenuSelect, onNaviguerNotification }) {
+function BarreOutils({ profil, date, setDate, masquerDate, onMenuSelect, onNaviguerNotification }) {
   const { isPhone } = useDevice();
   const [menuOuvert, setMenuOuvert] = useState(false);
 
   const MENU_ITEMS = [
-    { type: "item", label: "← Retour au menu", id: "retour" },
-    { type: "titre", label: "Information générale" },
+    { type: "item", label: "\u2190 Retour au menu", id: "retour" },
+    { type: "titre", label: "Information g\u00e9n\u00e9rale" },
     { type: "item", label: "Projets en cours", id: "projets" },
     { type: "item", label: "Liste contacts", id: "contacts" },
     { type: "item", label: "Notification PUSH", id: "notifications" },
     { type: "item", label: "Comment utiliser la plateforme", id: "guide" },
   ];
 
+  const boutonStyle = {
+    background: "var(--odj-panel)", border: "1px solid var(--odj-line)", color: "var(--odj-texte2)",
+    padding: isPhone ? "5px 8px" : "7px 10px", cursor: "pointer", display: "flex",
+    alignItems: "center", gap: 5, fontSize: 12, fontFamily: "'Inter',sans-serif",
+  };
+
   return (
-    <div style={{ background: "#0F2138", borderTop: "4px solid #E4022E", position: "relative" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: isPhone ? "10px 14px" : "14px 20px", display: "flex", flexWrap: "wrap", gap: isPhone ? 8 : 12, alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={LOGO_PEP} alt="Les Entreprises PEP" style={{ height: isPhone ? 42 : 60, width: "auto", flexShrink: 0 }} />
-          {!isPhone && (
-            <div>
-              <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, letterSpacing: "0.02em" }}>PEP2000 — ORDRE DU JOUR</div>
-              <div style={{ color: "#B9C2CC", fontSize: 12 }}>{profil.nom} · {ROLES.find((r) => r.value === profil.role)?.label}</div>
-            </div>
-          )}
-          {isPhone && (
-            <div>
-              <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14, letterSpacing: "0.02em" }}>ORDRE DU JOUR</div>
-              <div style={{ color: "#B9C2CC", fontSize: 11 }}>{profil.nom}</div>
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <a href="/" style={{
-            color: "#fff", background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.35)",
-            padding: isPhone ? "5px 9px" : "7px 12px", borderRadius: 6, textDecoration: "none",
-            fontSize: isPhone ? 11 : 13, fontWeight: 600, whiteSpace: "nowrap",
-          }}>
-            {isPhone ? "\u2190 Toolbox" : "\u2190 Retour au Toolbox PEP"}
-          </a>
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: isPhone ? "0 14px 10px" : "0 20px 12px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ fontSize: 12.5, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>
+        {ROLES.find((r) => r.value === profil.role)?.label}
+      </div>
 
-          {/* Bouton menu hamburger */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setMenuOuvert((v) => !v)}
-              title="Menu"
-              style={{ background: menuOuvert ? "#243447" : "transparent", border: "1px solid #4A5A70", color: "#B9C2CC", padding: isPhone ? "5px 8px" : "7px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: "'Inter',sans-serif" }}
-            >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>☰</span>
-              {!isPhone && <span style={{ fontSize: 12 }}>Menu</span>}
-            </button>
-            {menuOuvert && (
-              <>
-                <div onClick={() => setMenuOuvert(false)} style={{ position: "fixed", inset: 0, zIndex: 998 }} />
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", minWidth: 200, zIndex: 999 }}>
-                  {MENU_ITEMS.map((item, i) =>
-                    item.type === "titre" ? (
-                      <div key={i} style={{ padding: "10px 16px 6px", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", borderBottom: "1px solid #EDEFF1", userSelect: "none" }}>
-                        {item.label}
-                      </div>
-                    ) : (
-                      <button
-                        key={i}
-                        onClick={() => { onMenuSelect(item.id); setMenuOuvert(false); }}
-                        style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px", background: "transparent", border: "none", fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#15181B", cursor: "pointer", borderBottom: i < MENU_ITEMS.length - 1 ? "1px solid #EDEFF1" : "none" }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "#F7F8F9"}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                      >
-                        {item.label}
-                      </button>
-                    )
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          <NotificationCenter profil={profil} onNaviguer={onNaviguerNotification} />
-
-          {!masquerDate && (
-            <input
-              type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              style={{ fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: isPhone ? 12 : 13, padding: isPhone ? "5px 7px" : "7px 10px", border: "1px solid #4A5A70", background: "#243447", color: "#fff" }}
-            />
-          )}
-          <button onClick={onSwitchProfile} title="Déconnexion" style={{ background: "transparent", border: "1px solid #4A5A70", color: "#B9C2CC", padding: isPhone ? "5px 8px" : "7px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontFamily: "'Inter',sans-serif" }}>
-            <LogOut size={13} />{!isPhone && " Déconnexion"}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Menu */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setMenuOuvert((v) => !v)}
+            title="Menu"
+            style={{ ...boutonStyle, background: menuOuvert ? "var(--odj-surligne)" : "var(--odj-panel)" }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>&#9776;</span>
+            {!isPhone && <span style={{ fontSize: 12 }}>Menu</span>}
           </button>
+          {menuOuvert && (
+            <>
+              <div onClick={() => setMenuOuvert(false)} style={{ position: "fixed", inset: 0, zIndex: 998 }} />
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", boxShadow: "0 4px 16px rgba(0,0,0,0.25)", minWidth: 200, zIndex: 999 }}>
+                {MENU_ITEMS.map((item, i) =>
+                  item.type === "titre" ? (
+                    <div key={i} style={{ padding: "10px 16px 6px", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", borderBottom: "1px solid var(--odj-lineFaible)", userSelect: "none" }}>
+                      {item.label}
+                    </div>
+                  ) : (
+                    <button
+                      key={i}
+                      onClick={() => { onMenuSelect(item.id); setMenuOuvert(false); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px", background: "transparent", border: "none", fontFamily: "'Inter',sans-serif", fontSize: 14, color: "var(--odj-texte)", cursor: "pointer", borderBottom: i < MENU_ITEMS.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--odj-panelAlt)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                )}
+              </div>
+            </>
+          )}
         </div>
+
+        <NotificationCenter profil={profil} onNaviguer={onNaviguerNotification} />
+
+        {!masquerDate && (
+          <input
+            type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            style={{ fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: isPhone ? 12 : 13, padding: isPhone ? "5px 7px" : "7px 10px", border: "1px solid var(--odj-line)", background: "var(--odj-panel)", color: "var(--odj-texte)" }}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-/* ---------------------------------------------------------------------
-   SECTION WRAPPER
---------------------------------------------------------------------- */
 function Section({ icon: Icon, title, children }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #D7DBE0", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid #D7DBE0", background: "#F7F8F9" }}>
+    <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--odj-line)", background: "var(--odj-panelAlt)" }}>
         <Icon size={16} color="#0F2138" />
-        <span style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase", color: "#15181B" }}>{title}</span>
+        <span style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--odj-texte)" }}>{title}</span>
       </div>
       <div style={{ padding: 16 }}>{children}</div>
     </div>
@@ -746,9 +729,9 @@ function StatutChoix({ groupe, valeur, onChange }) {
             key={opt.value} type="button" onClick={() => onChange(opt.value)}
             style={{
               padding: "8px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13,
-              border: `1.5px solid ${active ? TONE_HEX[opt.tone] : "#D7DBE0"}`,
-              background: active ? TONE_HEX[opt.tone] : "#fff",
-              color: active ? "#fff" : "#15181B", cursor: "pointer",
+              border: `1.5px solid ${active ? TONE_HEX[opt.tone] : "var(--odj-line)"}`,
+              background: active ? TONE_HEX[opt.tone] : "var(--odj-panel)",
+              color: active ? "#fff" : "var(--odj-texte)", cursor: "pointer",
             }}
           >
             {opt.label}
@@ -766,27 +749,27 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
     <div style={{ display: "grid", gap: isPhone ? 12 : 8 }}>
       {items.map((item) => (
         <div key={item.key} style={isPhone
-          ? { display: "grid", gridTemplateColumns: "1fr 60px", gap: 6, alignItems: "start", background: "#F7F8F9", padding: "10px 12px", border: "1px solid #EDEFF1" }
+          ? { display: "grid", gridTemplateColumns: "1fr 60px", gap: 6, alignItems: "start", background: "var(--odj-panelAlt)", padding: "10px 12px", border: "1px solid var(--odj-lineFaible)" }
           : { display: "grid", gridTemplateColumns: "minmax(120px,160px) 70px 1fr", gap: 8, alignItems: "center" }
         }>
           <div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: "#15181B", fontFamily: "'Inter',sans-serif" }}>{item.label}</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>{item.label}</div>
             {showStock && item.stock != null && (
-              <div style={{ fontSize: 11, color: "#8a93a0", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", marginTop: 1 }}>Flotte: {item.stock}</div>
+              <div style={{ fontSize: 11, color: "var(--odj-dim)", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", marginTop: 1 }}>Flotte: {item.stock}</div>
             )}
             {isPhone && (
               <input
                 placeholder="Commentaire (optionnel)"
                 value={valeurs[item.key]?.commentaire ?? ""}
                 onChange={(e) => onChangeCommentaire(item.key, e.target.value)}
-                style={{ padding: "5px 8px", border: "1px solid #D7DBE0", fontSize: 12, fontFamily: "'Inter',sans-serif", marginTop: 4, width: "100%", boxSizing: "border-box" }}
+                style={{ padding: "5px 8px", border: "1px solid var(--odj-line)", fontSize: 12, fontFamily: "'Inter',sans-serif", marginTop: 4, width: "100%", boxSizing: "border-box" }}
               />
             )}
           </div>
           <select
             value={valeurs[item.key]?.qte ?? "0"}
             onChange={(e) => onChangeQte(item.key, e.target.value)}
-            style={{ padding: isPhone ? "10px 6px" : "7px 6px", border: "1px solid #D7DBE0", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: isPhone ? 18 : 14, fontWeight: 600, textAlign: "center", background: "#fff" }}
+            style={{ padding: isPhone ? "10px 6px" : "7px 6px", border: "1px solid var(--odj-line)", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: isPhone ? 18 : 14, fontWeight: 600, textAlign: "center", background: "var(--odj-panel)" }}
           >
             {Array.from({ length: 21 }, (_, i) => i).map((n) => <option key={n} value={String(n)}>{n}</option>)}
           </select>
@@ -795,7 +778,7 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
               placeholder="Commentaire (optionnel)"
               value={valeurs[item.key]?.commentaire ?? ""}
               onChange={(e) => onChangeCommentaire(item.key, e.target.value)}
-              style={{ padding: "7px 10px", border: "1px solid #D7DBE0", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}
+              style={{ padding: "7px 10px", border: "1px solid var(--odj-line)", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}
             />
           )}
         </div>
@@ -804,9 +787,9 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
   );
 }
 
-const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid #D7DBE0", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box" };
-const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#495260", marginBottom: 6 };
-const selectStyle = { ...inputStyle, appearance: "none", background: "#fff" };
+const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box" };
+const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--odj-texte2)", marginBottom: 6 };
+const selectStyle = { ...inputStyle, appearance: "none", background: "var(--odj-panel)" };
 
 /* ---------------------------------------------------------------------
    CONTREMAÎTRE FORM
@@ -840,26 +823,26 @@ function HistoriquePersonnel({ fiches }) {
   }, [joursTravailles]);
 
   const hasMoyennes = POSTES.some((p) => moyennes[p.key] > 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-        {POSTES.filter((p) => moyennes[p.key] > 0).map((p) => <StatCard key={p.key} label={`Moyenne — ${p.label}`} value={moyennes[p.key]} tone="#0F2138" />)}
-        {!hasMoyennes && <StatCard label="Main d'oeuvre demandée" value="—" tone="#0F2138" />}
+        {POSTES.filter((p) => moyennes[p.key] > 0).map((p) => <StatCard key={p.key} label={`Moyenne — ${p.label}`} value={moyennes[p.key]} tone="var(--odj-accent)" />)}
+        {!hasMoyennes && <StatCard label="Main d'oeuvre demandée" value="—" tone="var(--odj-accent)" />}
       </div>
-      <div style={{ fontSize: 11.5, color: "#8a93a0", marginBottom: 12 }}>
+      <div style={{ fontSize: 11.5, color: "var(--odj-dim)", marginBottom: 12 }}>
         Moyenne sur les {joursTravailles.length} derniers jours travaillés (fiches « Aucun travaux » exclues).
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune requête envoyée dans les deux dernières semaines.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Chantier</th>
                 {POSTES.map((p) => <th key={p.key} style={{ ...thStyle, textAlign: "center" }}>{p.label}</th>)}
@@ -868,19 +851,19 @@ function HistoriquePersonnel({ fiches }) {
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     {labelDate(l.date)}{l.seq > 1 ? ` (${l.seq}e)` : ""}
                   </td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   {l.aucunTravaux ? (
-                    <td colSpan={POSTES.length} style={{ padding: "9px 12px", textAlign: "center", color: "#8a93a0", fontStyle: "italic" }}>Aucun travaux prévu</td>
+                    <td colSpan={POSTES.length} style={{ padding: "9px 12px", textAlign: "center", color: "var(--odj-dim)", fontStyle: "italic" }}>Aucun travaux prévu</td>
                   ) : POSTES.map((p) => (
                     <td key={p.key} style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {l.postes[p.key].qte === 0 ? "—" : <b>{l.postes[p.key].qte}</b>}
                     </td>
                   ))}
-                  <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 200 }}>{l.aucunTravaux ? "" : (l.notes || "—")}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 200 }}>{l.aucunTravaux ? "" : (l.notes || "—")}</td>
                 </tr>
               ))}
             </tbody>
@@ -908,29 +891,29 @@ function HistoriqueCamions({ fiches }) {
     return { douze: Math.round((t.douze / n) * 10) / 10, deux: Math.round((t.deux / n) * 10) / 10, trois: Math.round((t.trois / n) * 10) / 10 };
   }, [joursTravailles]);
 
-  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const thCenter = { ...thLeft, textAlign: "center" };
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-        <StatCard label="Moyenne 12 roues" value={moyennes.douze} tone="#0F2138" />
-        <StatCard label="Moyenne 2 essieux" value={moyennes.deux} tone="#0F2138" />
-        <StatCard label="Moyenne 3 essieux" value={moyennes.trois} tone="#0F2138" />
-        <StatCard label="Moyenne camions" value={Math.round((moyennes.douze + moyennes.deux + moyennes.trois) * 10) / 10} tone="#F0A202" />
+        <StatCard label="Moyenne 12 roues" value={moyennes.douze} tone="var(--odj-accent)" />
+        <StatCard label="Moyenne 2 essieux" value={moyennes.deux} tone="var(--odj-accent)" />
+        <StatCard label="Moyenne 3 essieux" value={moyennes.trois} tone="var(--odj-accent)" />
+        <StatCard label="Moyenne camions" value={Math.round((moyennes.douze + moyennes.deux + moyennes.trois) * 10) / 10} tone="var(--odj-ambre)" />
       </div>
-      <div style={{ fontSize: 11.5, color: "#8a93a0", marginBottom: 12 }}>
+      <div style={{ fontSize: 11.5, color: "var(--odj-dim)", marginBottom: 12 }}>
         Moyenne sur les {joursTravailles.length} derniers jours travaillés (fiches « Aucun travaux » exclues).
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune requête envoyée dans les deux dernières semaines.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thLeft}>Date</th>
                 <th style={thLeft}>Chantier</th>
                 <th style={thCenter}>12 roues</th>
@@ -944,11 +927,11 @@ function HistoriqueCamions({ fiches }) {
               {lignes.map((l, i) => {
                 const d = Number(l.camions.douze) || 0, e2 = Number(l.camions.deux) || 0, e3 = Number(l.camions.trois) || 0;
                 return (
-                  <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                  <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                     <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{labelDate(l.date)}{l.seq > 1 ? ` (${l.seq}e)` : ""}</td>
-                    <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                     {l.aucunTravaux ? (
-                      <td colSpan={4} style={{ padding: "9px 12px", textAlign: "center", color: "#8a93a0", fontStyle: "italic" }}>Aucun travaux prévu</td>
+                      <td colSpan={4} style={{ padding: "9px 12px", textAlign: "center", color: "var(--odj-dim)", fontStyle: "italic" }}>Aucun travaux prévu</td>
                     ) : (
                       <>
                         <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>{d > 0 ? <b>{d}</b> : "—"}</td>
@@ -957,7 +940,7 @@ function HistoriqueCamions({ fiches }) {
                         <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 700 }}>{d + e2 + e3}</td>
                       </>
                     )}
-                    <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 220 }}>{l.aucunTravaux ? "" : (l.camions.notes || "—")}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 220 }}>{l.aucunTravaux ? "" : (l.camions.notes || "—")}</td>
                   </tr>
                 );
               })}
@@ -977,19 +960,19 @@ function HistoriqueMachinerie({ fiches }) {
     return { date: f.date, seq: f.seq, chantier: f.data.chantier, ajout, retrait, aucunTravaux: f.data.aucunTravaux };
   }), [fiches]);
 
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune requête envoyée dans les deux dernières semaines.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Chantier</th>
                 <th style={thStyle}>Ajout</th>
@@ -998,15 +981,15 @@ function HistoriqueMachinerie({ fiches }) {
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{labelDate(l.date)}{l.seq > 1 ? ` (${l.seq}e)` : ""}</td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   {l.aucunTravaux ? (
-                    <td colSpan={2} style={{ padding: "9px 12px", textAlign: "center", color: "#8a93a0", fontStyle: "italic" }}>Aucun travaux prévu</td>
+                    <td colSpan={2} style={{ padding: "9px 12px", textAlign: "center", color: "var(--odj-dim)", fontStyle: "italic" }}>Aucun travaux prévu</td>
                   ) : (
                     <>
-                      <td style={{ padding: "9px 12px", color: "#3C8C5D" }}>{l.ajout.length > 0 ? l.ajout.map((x) => `${x.label} : ${x.qte}`).join(", ") : "—"}</td>
-                      <td style={{ padding: "9px 12px", color: "#C23B3B" }}>{l.retrait.length > 0 ? l.retrait.map((x) => `${x.label} : ${x.qte}`).join(", ") : "—"}</td>
+                      <td style={{ padding: "9px 12px", color: "var(--odj-ok)" }}>{l.ajout.length > 0 ? l.ajout.map((x) => `${x.label} : ${x.qte}`).join(", ") : "—"}</td>
+                      <td style={{ padding: "9px 12px", color: "var(--odj-err)" }}>{l.retrait.length > 0 ? l.retrait.map((x) => `${x.label} : ${x.qte}`).join(", ") : "—"}</td>
                     </>
                   )}
                 </tr>
@@ -1021,19 +1004,19 @@ function HistoriqueMachinerie({ fiches }) {
 
 function HistoriqueDiesel({ fiches }) {
   const lignes = fiches.map((f) => ({ date: f.date, seq: f.seq, chantier: f.data.chantier, diesel: f.data.diesel || {}, aucunTravaux: f.data.aucunTravaux }));
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune requête envoyée dans les deux dernières semaines.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
                 <th style={thStyle}>Chantier</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Requis</th>
@@ -1044,17 +1027,17 @@ function HistoriqueDiesel({ fiches }) {
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={`${l.date}-${l.seq}`} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{labelDate(l.date)}{l.seq > 1 ? ` (${l.seq}e)` : ""}</td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   {l.aucunTravaux ? (
-                    <td colSpan={4} style={{ padding: "9px 12px", textAlign: "center", color: "#8a93a0", fontStyle: "italic" }}>Aucun travaux prévu</td>
+                    <td colSpan={4} style={{ padding: "9px 12px", textAlign: "center", color: "var(--odj-dim)", fontStyle: "italic" }}>Aucun travaux prévu</td>
                   ) : (
                     <>
                       <td style={{ padding: "9px 12px", textAlign: "center" }}>{l.diesel.requis === "oui" ? "Oui" : l.diesel.requis === "non" ? "Non" : "—"}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>{l.diesel.requis === "oui" ? (l.diesel.grosses || 0) : "—"}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>{l.diesel.requis === "oui" ? (l.diesel.petites || 0) : "—"}</td>
-                      <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 220 }}>{l.diesel.commentaire || "—"}</td>
+                      <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 220 }}>{l.diesel.commentaire || "—"}</td>
                     </>
                   )}
                 </tr>
@@ -1133,7 +1116,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
       {!cacherBouton && estVendredi && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "#495260", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", cursor: "pointer" }}>
           <input type="checkbox" checked={ciblerSamedi} onChange={(e) => setCiblerSamedi(e.target.checked)} style={{ width: 16, height: 16 }} />
           Cette requête est pour samedi (au lieu de lundi)
         </label>
@@ -1142,7 +1125,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
         <button
           onClick={() => onNouvelle(estVendredi && ciblerSamedi ? dateCible : undefined)}
           style={{
-            width: "100%", background: "#E4022E", color: "#fff", border: "none",
+            width: "100%", background: "var(--odj-rouge)", color: "#fff", border: "none",
             padding: "22px 20px", marginBottom: 12, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
             fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: "0.03em", textTransform: "uppercase",
@@ -1159,7 +1142,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
             onClick={enregistrerAucunTravaux}
             disabled={envoiAucunTravaux}
             style={{
-              width: "100%", background: "#fff", color: "#495260", border: "1.5px solid #D7DBE0",
+              width: "100%", background: "var(--odj-panel)", color: "var(--odj-texte2)", border: "1.5px solid var(--odj-line)",
               padding: "12px 20px", cursor: "pointer",
               fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 14,
               opacity: envoiAucunTravaux ? 0.6 : 1,
@@ -1167,43 +1150,43 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
           >
             {envoiAucunTravaux ? "…" : `Aucun travaux ${nomJourCible}`}
           </button>
-          <div style={{ fontSize: 11.5, color: "#8a93a0", textAlign: "center", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
+          <div style={{ fontSize: 11.5, color: "var(--odj-dim)", textAlign: "center", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
             Prochaine journée ouvrable — saute automatiquement la fin de semaine
           </div>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 10 }}>
-        <button onClick={() => setVueType(null)} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueType ? "#0F2138" : "#D7DBE0"}`, background: !vueType ? "#0F2138" : "#fff", color: !vueType ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType(null)} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueType ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueType ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueType ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Vue générale
         </button>
-        <button onClick={() => setVueType("personnel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "personnel" ? "#0F2138" : "#D7DBE0"}`, background: vueType === "personnel" ? "#0F2138" : "#fff", color: vueType === "personnel" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("personnel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Main d'oeuvre
         </button>
-        <button onClick={() => setVueType("camions")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "camions" ? "#0F2138" : "#D7DBE0"}`, background: vueType === "camions" ? "#0F2138" : "#fff", color: vueType === "camions" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("camions")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Camions
         </button>
-        <button onClick={() => setVueType("machinerie")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "machinerie" ? "#0F2138" : "#D7DBE0"}`, background: vueType === "machinerie" ? "#0F2138" : "#fff", color: vueType === "machinerie" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("machinerie")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Machinerie
         </button>
-        <button onClick={() => setVueType("diesel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "diesel" ? "#0F2138" : "#D7DBE0"}`, background: vueType === "diesel" ? "#0F2138" : "#fff", color: vueType === "diesel" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("diesel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Diesel (Fuel)
         </button>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 15, fontWeight: 600, color: "#495260", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 15, fontWeight: 600, color: "var(--odj-texte2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Vos requêtes — 2 dernières semaines
         </div>
-        <button onClick={charger} style={{ background: "transparent", border: "1px solid #D7DBE0", padding: "7px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={charger} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontFamily: "'Inter',sans-serif" }}>
           <RefreshCw size={13} /> Actualiser
         </button>
       </div>
 
       {loading ? (
-        <div style={{ padding: 30, textAlign: "center", color: "#6b7480" }}>Chargement…</div>
+        <div style={{ padding: 30, textAlign: "center", color: "var(--odj-dim)" }}>Chargement…</div>
       ) : fiches.length === 0 ? (
-        <div style={{ padding: 30, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 30, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune requête envoyée dans les deux dernières semaines.
         </div>
       ) : vueType === "personnel" ? (
@@ -1220,28 +1203,28 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
             <button
               key={`${f.date}-${f.seq}`}
               onClick={() => onOuvrirDate(f.date, f.seq)}
-              style={{ textAlign: "left", background: "#fff", border: "1px solid #D7DBE0", borderLeft: "4px solid #0F2138", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+              style={{ textAlign: "left", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderLeft: "4px solid var(--odj-accent)", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
             >
               <div>
-                <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14.5, color: "#15181B" }}>
+                <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14.5, color: "var(--odj-texte)" }}>
                   {labelDate(f.date)}
                   {f.seq > 1 && (
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "#0F2138", background: "#EDEFF1", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--odj-accent)", background: "var(--odj-bg)", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                       {f.seq}e demande
                     </span>
                   )}
                   {Array.isArray(f.data.commentaires) && f.data.commentaires.length > 0 && (
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "#8a5a00", background: "#FDF0D8", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--odj-avisTexte)", background: "var(--odj-avisBg)", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                       💬 {f.data.commentaires.length}
                     </span>
                   )}
                   {f.data.aucunTravaux && (
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "#495260", background: "#EDEFF1", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--odj-texte2)", background: "var(--odj-bg)", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                       Aucun travaux
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12.5, color: "#6b7480", marginTop: 2 }}>
+                <div style={{ fontSize: 12.5, color: "var(--odj-dim)", marginTop: 2 }}>
                   {f.data.aucunTravaux ? "Aucun travaux prévu" : (
                     <>
                       {f.data.chantier || "Aucun projet sélectionné"}
@@ -1362,12 +1345,12 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "#6b7480", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
   if (!fiche) {
     return (
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "#0F2138", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0 }}>← Retour à l'accueil</button>
-        <div style={{ padding: 30, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>Cette requête est introuvable.</div>
+        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0 }}>← Retour à l'accueil</button>
+        <div style={{ padding: 30, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>Cette requête est introuvable.</div>
       </div>
     );
   }
@@ -1381,33 +1364,33 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
-      <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "#0F2138", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+      <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
         ← Retour à l'accueil
       </button>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "#15181B" }}>Requête envoyée</div>
-        <div style={{ color: "#6b7480", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
-        {fiche.maj && <div style={{ color: "#8a93a0", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Envoyée le {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
+        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Requête envoyée</div>
+        <div style={{ color: "var(--odj-dim)", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
+        {fiche.maj && <div style={{ color: "var(--odj-dim)", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Envoyée le {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
       </div>
 
       {fiche.aucunTravaux && (
-        <div style={{ background: "#F7F8F9", border: "1px solid #D7DBE0", padding: "16px 18px", marginBottom: 16, fontStyle: "italic", color: "#495260", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
+        <div style={{ background: "var(--odj-panelAlt)", border: "1px solid var(--odj-line)", padding: "16px 18px", marginBottom: 16, fontStyle: "italic", color: "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
           Aucun travaux prévu — pas de main d'œuvre requise pour cette journée.
         </div>
       )}
 
       {commentaires.length > 0 && (
-        <div style={{ background: "#FDF0D8", border: "1px solid #F0A202", borderLeft: "4px solid #F0A202", padding: "12px 16px", marginBottom: 12, display: "grid", gap: 10 }}>
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.03em", color: "#8a5a00" }}>
+        <div style={{ background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "4px solid var(--odj-ambre)", padding: "12px 16px", marginBottom: 12, display: "grid", gap: 10 }}>
+          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-avisTexte)" }}>
             Commentaires
           </div>
           {commentaires.map((c, i) => (
             <div key={i}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: c.type === "ecart" ? "#C23B3B" : "#8a5a00", marginBottom: 2 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-avisTexte)", marginBottom: 2 }}>
                 {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
               </div>
-              <div style={{ fontSize: 13.5, color: "#5c4400", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
             </div>
           ))}
         </div>
@@ -1416,7 +1399,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       <div style={{ marginBottom: 16 }}>
         <button
           onClick={() => setModalEcartOuvert(true)}
-          style={{ background: "transparent", border: "1px solid #C23B3B", color: "#C23B3B", padding: "9px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+          style={{ background: "transparent", border: "1px solid var(--odj-err)", color: "var(--odj-err)", padding: "9px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
         >
           ⚠️ Signaler un écart (dispatch n'a pas livré ce qui était demandé)
         </button>
@@ -1424,25 +1407,25 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
 
       {modalEcartOuvert && (
         <div onClick={() => setModalEcartOuvert(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxWidth: 480, borderTop: "3px solid #C23B3B", padding: "24px 20px 20px" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "#0F2138", marginBottom: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-err)", padding: "24px 20px 20px" }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 16 }}>
               Signaler un écart
             </div>
             <textarea
               value={texteEcart}
               onChange={(e) => setTexteEcart(e.target.value)}
               placeholder="Ex. Reçu 3 camions au lieu des 7 demandés."
-              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #D7DBE0", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
+              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
             />
             <div style={{ display: "grid", gap: 8 }}>
               <button
                 onClick={envoyerEcart}
                 disabled={envoiEcartEnCours || !texteEcart.trim()}
-                style={{ width: "100%", background: "#C23B3B", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEcartEnCours || !texteEcart.trim()) ? 0.6 : 1 }}
+                style={{ width: "100%", background: "var(--odj-err)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEcartEnCours || !texteEcart.trim()) ? 0.6 : 1 }}
               >
                 {envoiEcartEnCours ? "Envoi…" : "Envoyer le signalement"}
               </button>
-              <button onClick={() => setModalEcartOuvert(false)} style={{ width: "100%", background: "transparent", color: "#6b7480", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <button onClick={() => setModalEcartOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                 Annuler
               </button>
             </div>
@@ -1456,12 +1439,12 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
             value={texteReponse}
             onChange={(e) => setTexteReponse(e.target.value)}
             placeholder="Répondre…"
-            style={{ width: "100%", minHeight: 70, padding: "10px 12px", border: "1px solid #D7DBE0", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 8 }}
+            style={{ width: "100%", minHeight: 70, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 8 }}
           />
           <button
             onClick={envoyerReponse}
             disabled={envoiEnCours || !texteReponse.trim()}
-            style={{ background: "#0F2138", color: "#fff", border: "none", padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteReponse.trim()) ? 0.6 : 1 }}
+            style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteReponse.trim()) ? 0.6 : 1 }}
           >
             {envoiEnCours ? "Envoi…" : "Répondre"}
           </button>
@@ -1470,7 +1453,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
 
 
       <Section icon={ClipboardList} title="Chantier / projet">
-        <div style={{ fontSize: 14.5 }}>{fiche.chantier || <span style={{ color: "#8a93a0" }}>Aucun projet sélectionné</span>}</div>
+        <div style={{ fontSize: 14.5 }}>{fiche.chantier || <span style={{ color: "var(--odj-dim)" }}>Aucun projet sélectionné</span>}</div>
         {fiche.chantier && adresseDuProjet(fiche.chantier) && (
           <div style={{ fontSize: 12.5, color: "#B9C2CC", marginTop: 4 }}>{adresseDuProjet(fiche.chantier)}</div>
         )}
@@ -1482,9 +1465,9 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
             {postesActifs.map((l) => `${l.label}: ${l.qte}${l.commentaire ? ` (${l.commentaire})` : ""}`).join(" · ")}
           </div>
         ) : (
-          <div style={{ fontSize: 13.5, color: "#8a93a0" }}>Aucune main d'oeuvre demandée</div>
+          <div style={{ fontSize: 13.5, color: "var(--odj-dim)" }}>Aucune main d'oeuvre demandée</div>
         )}
-        {fiche.personnel?.notes && <div style={{ fontSize: 13.5, color: "#495260", marginTop: 6 }}>{fiche.personnel.notes}</div>}
+        {fiche.personnel?.notes && <div style={{ fontSize: 13.5, color: "var(--odj-texte2)", marginTop: 6 }}>{fiche.personnel.notes}</div>}
       </Section>
 
       <Section icon={Wrench} title="Machinerie">
@@ -1495,17 +1478,17 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
         </div>
         {equipActifs.length > 0 && (
           <div style={{ fontSize: 13.5, marginBottom: 4 }}>
-            <span style={{ fontWeight: 600, color: "#495260", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>Machines — </span>
+            <span style={{ fontWeight: 600, color: "var(--odj-texte2)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>Machines — </span>
             {equipActifs.map((l) => `${l.label}: ${l.qte}${l.commentaire ? ` (${l.commentaire})` : ""}`).join(" · ")}
           </div>
         )}
         {accessActifs.length > 0 && (
           <div style={{ fontSize: 13.5, marginBottom: 6 }}>
-            <span style={{ fontWeight: 600, color: "#495260", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>Accessoires — </span>
+            <span style={{ fontWeight: 600, color: "var(--odj-texte2)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>Accessoires — </span>
             {accessActifs.map((l) => `${l.label}: ${l.qte}${l.commentaire ? ` (${l.commentaire})` : ""}`).join(" · ")}
           </div>
         )}
-        {fiche.machinerie?.notes && <div style={{ fontSize: 13.5, color: "#495260" }}>{fiche.machinerie.notes}</div>}
+        {fiche.machinerie?.notes && <div style={{ fontSize: 13.5, color: "var(--odj-texte2)" }}>{fiche.machinerie.notes}</div>}
       </Section>
 
       <Section icon={Fuel} title="Diesel (Fuel)">
@@ -1513,23 +1496,23 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
           <>
             <div style={{ fontSize: 13.5 }}>{fiche.diesel.requis === "oui" ? "Oui" : "Non"}</div>
             {fiche.diesel.requis === "oui" && (Number(fiche.diesel.grosses) > 0 || Number(fiche.diesel.petites) > 0) && (
-              <div style={{ fontSize: 13.5, color: "#495260", marginTop: 6 }}>
+              <div style={{ fontSize: 13.5, color: "var(--odj-texte2)", marginTop: 6 }}>
                 Grosses machines : <b>{Number(fiche.diesel.grosses) || 0}</b> · Petites machines : <b>{Number(fiche.diesel.petites) || 0}</b>
               </div>
             )}
-            {fiche.diesel.commentaire && <div style={{ fontSize: 13.5, color: "#495260", marginTop: 6 }}>{fiche.diesel.commentaire}</div>}
+            {fiche.diesel.commentaire && <div style={{ fontSize: 13.5, color: "var(--odj-texte2)", marginTop: 6 }}>{fiche.diesel.commentaire}</div>}
           </>
         ) : (
-          <div style={{ fontSize: 13.5, color: "#8a93a0" }}>Non précisé</div>
+          <div style={{ fontSize: 13.5, color: "var(--odj-dim)" }}>Non précisé</div>
         )}
       </Section>
 
       <Section icon={Truck} title="Transport en vrac">
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontSize: 16, fontWeight: 400, flexWrap: "wrap" }}>
           <span>12 roues: <b style={{ fontWeight: 700 }}>{fiche.camions?.douze || 0}</b></span>
-          <span style={{ color: "#D7DBE0" }}>|</span>
+          <span style={{ color: "var(--odj-dim)" }}>|</span>
           <span>2 essieux: <b style={{ fontWeight: 700 }}>{fiche.camions?.deux || 0}</b></span>
-          <span style={{ color: "#D7DBE0" }}>|</span>
+          <span style={{ color: "var(--odj-dim)" }}>|</span>
           <span>3 essieux: <b style={{ fontWeight: 700 }}>{fiche.camions?.trois || 0}</b></span>
         </div>
         {[["douze", "12 roues"], ["deux", "2 essieux"], ["trois", "3 essieux"]].map(([k, l]) => {
@@ -1540,31 +1523,31 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
           ].filter(Boolean);
           if (!drapeaux.length) return null;
           return (
-            <div key={k} style={{ fontSize: 12.5, color: "#495260", marginTop: 6 }}>
+            <div key={k} style={{ fontSize: 12.5, color: "var(--odj-texte2)", marginTop: 6 }}>
               <span style={{ fontWeight: 600 }}>{l} — </span>{drapeaux.join(" · ")}
             </div>
           );
         })}
-        {fiche.camions?.notes && <div style={{ fontSize: 13.5, color: "#495260", marginTop: 8 }}>{fiche.camions.notes}</div>}
+        {fiche.camions?.notes && <div style={{ fontSize: 13.5, color: "var(--odj-texte2)", marginTop: 8 }}>{fiche.camions.notes}</div>}
       </Section>
 
       <Section icon={ClipboardList} title="Description des travaux du lendemain">
-        <div style={{ fontSize: 14.5, whiteSpace: "pre-wrap" }}>{fiche.travaux || <span style={{ color: "#8a93a0" }}>Aucune description</span>}</div>
+        <div style={{ fontSize: 14.5, whiteSpace: "pre-wrap" }}>{fiche.travaux || <span style={{ color: "var(--odj-dim)" }}>Aucune description</span>}</div>
       </Section>
 
       <Section icon={Package} title="Commentaires connexes">
-        <div style={{ fontSize: 14.5, whiteSpace: "pre-wrap" }}>{fiche.materiel || <span style={{ color: "#8a93a0" }}>Aucun</span>}</div>
+        <div style={{ fontSize: 14.5, whiteSpace: "pre-wrap" }}>{fiche.materiel || <span style={{ color: "var(--odj-dim)" }}>Aucun</span>}</div>
       </Section>
 
       {modifiable ? (
         <button
           onClick={onModifier}
-          style={{ width: "100%", background: "#0F2138", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+          style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
         >
           Modifier cette requête
         </button>
       ) : (
-        <div style={{ textAlign: "center", fontSize: 12.5, color: "#8a93a0", padding: "10px 0" }}>
+        <div style={{ textAlign: "center", fontSize: 12.5, color: "var(--odj-dim)", padding: "10px 0" }}>
           Cette requête a été envoyée il y a plus de 4h et ne peut plus être modifiée.
         </div>
       )}
@@ -1753,34 +1736,34 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
     setDiag(out.join("  ·  "));
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "#6b7480", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
 
   if (confirme) {
     const heure = new Date().getHours() * 60 + new Date().getMinutes();
     const avant12h = heure < 12 * 60;
     return (
-      <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter',sans-serif" }}>
-        <div style={{ width: "100%", maxWidth: 440, background: "#fff", border: "1px solid #D7DBE0", textAlign: "center" }}>
-          <div style={{ background: "#EAF6EF", padding: "40px 24px 28px", borderTop: "4px solid #3C8C5D" }}>
+      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter',sans-serif" }}>
+        <div style={{ width: "100%", maxWidth: 440, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", textAlign: "center" }}>
+          <div style={{ background: "var(--odj-okBg)", padding: "40px 24px 28px", borderTop: "4px solid var(--odj-ok)" }}>
             <CheckCircle2 size={56} color="#3C8C5D" style={{ marginBottom: 14 }} />
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 24, color: "#1F5C3C" }}>Merci de votre envoi !</div>
-            <div style={{ fontSize: 15, color: avant12h ? "#2F5844" : "#C23B3B", marginTop: 6 }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 24, color: "var(--odj-ok)" }}>Merci de votre envoi !</div>
+            <div style={{ fontSize: 15, color: avant12h ? "var(--odj-ok)" : "var(--odj-err)", marginTop: 6 }}>
               {avant12h
                 ? "Demande avant 12h00, super ça, merci !"
                 : "On comprend que des fois il y a des exceptions mais on essaye d'envoyer ça avant 12h00 svp !"}
             </div>
-            <div style={{ fontSize: 13.5, color: "#4d6b5a", marginTop: 10 }}>Les dispatchs et la direction peuvent maintenant voir votre requête pour {labelDate(date).toLowerCase()}.</div>
+            <div style={{ fontSize: 13.5, color: "var(--odj-ok)", marginTop: 10 }}>Les dispatchs et la direction peuvent maintenant voir votre requête pour {labelDate(date).toLowerCase()}.</div>
           </div>
           <div style={{ padding: 24, display: "grid", gap: 10 }}>
             <button
               onClick={onRetourAccueil}
-              style={{ width: "100%", background: "#0F2138", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+              style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
             >
               Confirmer, retour à l'accueil
             </button>
             <button
               onClick={() => setConfirme(false)}
-              style={{ width: "100%", background: "#fff", color: "#0F2138", border: "1.5px solid #0F2138", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+              style={{ width: "100%", background: "var(--odj-panel)", color: "var(--odj-accent)", border: "1.5px solid var(--odj-accent)", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
             >
               Modifier ma requête
             </button>
@@ -1792,13 +1775,13 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: isPhone ? "12px 12px 60px" : "20px 16px 60px" }}>
-      <button onClick={onRetourAccueil} style={{ background: "transparent", border: "none", color: "#0F2138", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+      <button onClick={onRetourAccueil} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
         ← Retour à l'accueil
       </button>
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "#15181B" }}>Fiche du lendemain</div>
-        <div style={{ color: "#6b7480", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
-        {fiche.maj && <div style={{ color: "#8a93a0", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Dernière mise à jour {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
+        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Fiche du lendemain</div>
+        <div style={{ color: "var(--odj-dim)", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
+        {fiche.maj && <div style={{ color: "var(--odj-dim)", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Dernière mise à jour {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
       </div>
 
       <Section icon={ClipboardList} title="Chantier / projet">
@@ -1807,7 +1790,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
             <option value="">— Sélectionner un projet —</option>
             {PROJETS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
-          <ChevronDown size={16} style={{ position: "absolute", right: 11, top: 12, color: "#6b7480", pointerEvents: "none" }} />
+          <ChevronDown size={16} style={{ position: "absolute", right: 11, top: 12, color: "var(--odj-dim)", pointerEvents: "none" }} />
         </div>
         {fiche.chantier && adresseDuProjet(fiche.chantier) && (
           <div style={{ fontSize: 12.5, color: "#B9C2CC", marginTop: 6 }}>{adresseDuProjet(fiche.chantier)}</div>
@@ -1888,9 +1871,9 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
                 onClick={() => update(["diesel", "requis"], val)}
                 style={{
                   flex: 1, padding: "9px 12px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Inter',sans-serif",
-                  border: `1.5px solid ${actif ? "#0F2138" : "#D7DBE0"}`,
-                  background: actif ? "#0F2138" : "#fff",
-                  color: actif ? "#fff" : "#495260",
+                  border: `1.5px solid ${actif ? "var(--odj-accent)" : "var(--odj-line)"}`,
+                  background: actif ? "var(--odj-accent)" : "var(--odj-panel)",
+                  color: actif ? "#fff" : "var(--odj-texte2)",
                   cursor: "pointer",
                 }}
               >
@@ -1959,9 +1942,9 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
                       onClick={() => update(["camions", champ], !actif)}
                       style={{
                         flex: 1, padding: "5px 4px", fontSize: 11, fontWeight: 600, fontFamily: "'Inter',sans-serif",
-                        border: `1.5px solid ${actif ? "#0F2138" : "#D7DBE0"}`,
-                        background: actif ? "#0F2138" : "#fff",
-                        color: actif ? "#fff" : "#495260",
+                        border: `1.5px solid ${actif ? "var(--odj-accent)" : "var(--odj-line)"}`,
+                        background: actif ? "var(--odj-accent)" : "var(--odj-panel)",
+                        color: actif ? "#fff" : "var(--odj-texte2)",
                         cursor: "pointer",
                       }}
                     >
@@ -1994,17 +1977,17 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
 
       <button
         onClick={save}
-        style={{ width: "100%", background: "#0F2138", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
       >
         {status === "saving" ? "Envoi en cours…" : status === "local" ? <><CheckCircle2 size={17} /> Brouillon local sauvegardé</> : <><SendHorizontal size={17} /> Envoyer ma requête</>}
       </button>
       {status === "local" && (
-        <div style={{ marginTop: 10, color: "#8a5a00", background: "#FFF6E5", border: "1px solid #E4A11B", padding: "10px 12px", fontSize: 13, display: "flex", alignItems: "flex-start", gap: 6 }}>
+        <div style={{ marginTop: 10, color: "var(--odj-avisTexte)", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", padding: "10px 12px", fontSize: 13, display: "flex", alignItems: "flex-start", gap: 6 }}>
           <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> Le stockage partagé est indisponible en ce moment — votre saisie est gardée localement (visible seulement par vous). Réessayez "Envoyer" plus tard pour la rendre visible aux dispatchs.
         </div>
       )}
       {status === "error" && (
-        <div style={{ marginTop: 10, color: "#C23B3B", fontSize: 13, display: "flex", alignItems: "flex-start", gap: 6 }}>
+        <div style={{ marginTop: 10, color: "var(--odj-err)", fontSize: 13, display: "flex", alignItems: "flex-start", gap: 6 }}>
           <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> Échec de l'envoi — {errMsg || "réessayez."}
         </div>
       )}
@@ -2017,9 +2000,9 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
 --------------------------------------------------------------------- */
 function StatCard({ label, value, tone, compact }) {
   return (
-    <div style={{ background: "#fff", border: "1px solid #D7DBE0", borderTop: `3px solid ${tone || "#0F2138"}`, padding: compact ? "8px 6px" : "14px 16px", minWidth: compact ? 0 : 110, flex: 1 }}>
-      <div style={{ fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600, fontSize: compact ? 20 : 26, color: "#15181B" }}>{value}</div>
-      <div style={{ fontSize: compact ? 9.5 : 12, lineHeight: 1.25, color: "#6b7480", textTransform: "uppercase", letterSpacing: "0.02em", marginTop: 2, wordBreak: compact ? "break-word" : "normal" }}>{label}</div>
+    <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderTop: `3px solid ${tone || "var(--odj-accent)"}`, padding: compact ? "8px 6px" : "14px 16px", minWidth: compact ? 0 : 110, flex: 1 }}>
+      <div style={{ fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600, fontSize: compact ? 20 : 26, color: "var(--odj-texte)" }}>{value}</div>
+      <div style={{ fontSize: compact ? 9.5 : 12, lineHeight: 1.25, color: "var(--odj-dim)", textTransform: "uppercase", letterSpacing: "0.02em", marginTop: 2, wordBreak: compact ? "break-word" : "normal" }}>{label}</div>
     </div>
   );
 }
@@ -2031,10 +2014,10 @@ function ligneResume(items, valeurs) {
 }
 
 function FicheCard({ f, precedent, profil, onCommentaire }) {
-  const separateur = { borderTop: "1px solid #EDEFF1", paddingTop: 10, marginTop: 2 };
-  const titreStyle = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 4 };
-  const contenuStyle = { fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "#2b3038" };
-  const commentaireStyle = { fontSize: 13, fontFamily: "'Inter',sans-serif", color: "#495260", marginTop: 4 };
+  const separateur = { borderTop: "1px solid var(--odj-lineFaible)", paddingTop: 10, marginTop: 2 };
+  const titreStyle = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 4 };
+  const contenuStyle = { fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)" };
+  const commentaireStyle = { fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", marginTop: 4 };
   const [modalOuvert, setModalOuvert] = useState(false);
   const [texteCommentaire, setTexteCommentaire] = useState("");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -2042,9 +2025,9 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
 
   if (f.data.aucunTravaux) {
     return (
-      <div style={{ background: "#fff", border: "1px solid #D7DBE0", borderLeft: "3px solid #8a93a0", marginBottom: 14, padding: "16px 18px" }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 15.5, color: "#15181B", marginBottom: 4 }}>{f.nom}</div>
-        <div style={{ fontSize: 13.5, color: "#6b7480", fontFamily: "'Inter',sans-serif", fontStyle: "italic" }}>Aucun travaux prévu — pas de main d'œuvre requise</div>
+      <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderLeft: "3px solid var(--odj-dim)", marginBottom: 14, padding: "16px 18px" }}>
+        <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 15.5, color: "var(--odj-texte)", marginBottom: 4 }}>{f.nom}</div>
+        <div style={{ fontSize: 13.5, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", fontStyle: "italic" }}>Aucun travaux prévu — pas de main d'œuvre requise</div>
       </div>
     );
   }
@@ -2117,12 +2100,12 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
     : <Plate tone="gray">Machinerie : Aucun changement</Plate>;
 
   return (
-    <div style={{ background: "#fff", border: "1px solid #D7DBE0", borderLeft: "3px dashed #B9C2CC", marginBottom: 14 }}>
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid #EDEFF1", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+    <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderLeft: "3px dashed var(--odj-dim)", marginBottom: 14 }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--odj-lineFaible)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16 }}>{f.nom}</div>
-            {f.data.chantier && <div style={{ fontSize: 14, color: "#6b7480", fontFamily: "'Inter',sans-serif" }}>{f.data.chantier}</div>}
+            {f.data.chantier && <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{f.data.chantier}</div>}
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -2141,7 +2124,7 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
               {Number(f.data.camions.douze) > 0 && <span>12 roues : {f.data.camions.douze}</span>}
               {Number(f.data.camions.deux) > 0 && <span>2 essieux : {f.data.camions.deux}</span>}
               {Number(f.data.camions.trois) > 0 && <span>3 essieux : {f.data.camions.trois}</span>}
-              {Number(f.data.camions.douze) === 0 && Number(f.data.camions.deux) === 0 && Number(f.data.camions.trois) === 0 && <span style={{ color: "#8a93a0" }}>Aucun</span>}
+              {Number(f.data.camions.douze) === 0 && Number(f.data.camions.deux) === 0 && Number(f.data.camions.trois) === 0 && <span style={{ color: "var(--odj-dim)" }}>Aucun</span>}
             </div>
             {f.data.camions.notes && <div style={commentaireStyle}><span style={{ fontWeight: 600 }}>Commentaire :</span> {f.data.camions.notes}</div>}
           </div>
@@ -2176,7 +2159,7 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
               {rangeeStatut(equipAjoutFinal, "ajout", "machinerie")}
               {rangeeStatut(equipRetraitFinal, "retrait", "machinerie")}
               {(accessAjoutFinal.length > 0 || accessRetraitFinal.length > 0) && (
-                <span style={{ color: "#7C5CBF", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>Accessoires</span>
+                <span style={{ color: "var(--odj-violet)", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 4 }}>Accessoires</span>
               )}
               {rangeeStatut(accessAjoutFinal, "ajout", "machinerie")}
               {rangeeStatut(accessRetraitFinal, "retrait", "machinerie")}
@@ -2206,13 +2189,13 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
       </div>
 
       {commentaires.length > 0 && (
-        <div style={{ margin: "0 16px 14px", background: "#FDF0D8", border: "1px solid #F0A202", borderLeft: "4px solid #F0A202", padding: "10px 14px", display: "grid", gap: 8 }}>
+        <div style={{ margin: "0 16px 14px", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "4px solid var(--odj-ambre)", padding: "10px 14px", display: "grid", gap: 8 }}>
           {commentaires.map((c, i) => (
             <div key={i}>
-              <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em", color: c.type === "ecart" ? "#C23B3B" : "#8a5a00", marginBottom: 2 }}>
+              <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em", color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-avisTexte)", marginBottom: 2 }}>
                 {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
               </div>
-              <div style={{ fontSize: 13.5, color: "#5c4400", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
             </div>
           ))}
         </div>
@@ -2222,7 +2205,7 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
         <div style={{ padding: "0 16px 14px" }}>
           <button
             onClick={() => setModalOuvert(true)}
-            style={{ background: "transparent", border: "1px solid #D7DBE0", padding: "7px 12px", fontSize: 12.5, fontFamily: "'Inter',sans-serif", cursor: "pointer", color: "#495260" }}
+            style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 12px", fontSize: 12.5, fontFamily: "'Inter',sans-serif", cursor: "pointer", color: "var(--odj-texte2)" }}
           >
             💬 {commentaires.length > 0 ? "Ajouter un commentaire" : "Commenter"}
           </button>
@@ -2231,20 +2214,20 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
 
       {modalOuvert && (
         <div onClick={() => setModalOuvert(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxWidth: 480, borderTop: "3px solid #F0A202", padding: "24px 20px 20px", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "#0F2138", marginBottom: 2 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-ambre)", padding: "24px 20px 20px", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
               Commentaires — {f.nom}
             </div>
-            {f.data.chantier && <div style={{ fontSize: 13, color: "#6b7480", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{f.data.chantier}</div>}
+            {f.data.chantier && <div style={{ fontSize: 13, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{f.data.chantier}</div>}
 
             {commentaires.length > 0 && (
-              <div style={{ display: "grid", gap: 10, marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #EDEFF1" }}>
+              <div style={{ display: "grid", gap: 10, marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid var(--odj-lineFaible)" }}>
                 {commentaires.map((c, i) => (
-                  <div key={i} style={{ background: "#F7F8F9", padding: "8px 12px" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: c.type === "ecart" ? "#C23B3B" : "#495260", marginBottom: 2 }}>
+                  <div key={i} style={{ background: "var(--odj-panelAlt)", padding: "8px 12px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-texte2)", marginBottom: 2 }}>
                       {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
                     </div>
-                    <div style={{ fontSize: 13.5, color: "#15181B", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+                    <div style={{ fontSize: 13.5, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
                   </div>
                 ))}
               </div>
@@ -2254,17 +2237,17 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
               value={texteCommentaire}
               onChange={(e) => setTexteCommentaire(e.target.value)}
               placeholder="Ex. On pourrait faire ça à 3 gars, pas besoin de 4."
-              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid #D7DBE0", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
+              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
             />
             <div style={{ display: "grid", gap: 8 }}>
               <button
                 onClick={envoyerCommentaire}
                 disabled={envoiEnCours || !texteCommentaire.trim()}
-                style={{ width: "100%", background: "#0F2138", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteCommentaire.trim()) ? 0.6 : 1 }}
+                style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteCommentaire.trim()) ? 0.6 : 1 }}
               >
                 {envoiEnCours ? "Envoi…" : "Ajouter ce commentaire"}
               </button>
-              <button onClick={() => setModalOuvert(false)} style={{ width: "100%", background: "transparent", color: "#6b7480", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <button onClick={() => setModalOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                 Annuler
               </button>
             </div>
@@ -2296,7 +2279,7 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
   }, [lignes]);
 
   const hasTotaux = POSTES.some((p) => totaux[p.key] > 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   const cellule = (qte, comm, delta) => {
     if (qte === 0 && !comm) return "—";
@@ -2310,7 +2293,7 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
             </span>
           )}
         </div>
-        {comm && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#8a93a0" }}>{comm}</div>}
+        {comm && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{comm}</div>}
       </div>
     );
   };
@@ -2321,18 +2304,18 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
         {POSTES.filter((p) => totaux[p.key] > 0).map((p) => <StatCard key={p.key} label={`Total — ${p.label}`} value={totaux[p.key]} tone={TONE_HEX.blue} />)}
         {!hasTotaux && <StatCard label="Main d'oeuvre demandée" value="—" tone={TONE_HEX.blue} />}
       </div>
-      <div style={{ fontSize: 12, color: "#8a93a0", marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: "var(--odj-dim)", marginBottom: 12 }}>
         Les chiffres entre parenthèses indiquent la différence avec la dernière requête soumise par cette personne.
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucune fiche soumise pour cette date pour l'instant.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
                 <th style={thStyle}>Chantier</th>
                 {POSTES.map((p) => <th key={p.key} style={{ ...thStyle, textAlign: "center" }}>{p.label}</th>)}
@@ -2341,15 +2324,15 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{l.nom}</td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   {POSTES.map((p) => (
                     <td key={p.key} style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {cellule(l.postes[p.key].qte, l.postes[p.key].commentaire, l.postes[p.key].delta)}
                     </td>
                   ))}
-                  <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 200 }}>{l.notes || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 200 }}>{l.notes || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -2376,26 +2359,26 @@ function VueCamionsDetail({ fiches }) {
     return t;
   }, [fiches]);
 
-  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const thCenter = { ...thLeft, textAlign: "center" };
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        <StatCard label="Total 12 roues" value={totaux.douze} tone="#0F2138" />
-        <StatCard label="Total 2 essieux" value={totaux.deux} tone="#0F2138" />
-        <StatCard label="Total 3 essieux" value={totaux.trois} tone="#0F2138" />
-        <StatCard label="Total camions" value={totaux.douze + totaux.deux + totaux.trois} tone="#F0A202" />
+        <StatCard label="Total 12 roues" value={totaux.douze} tone="var(--odj-accent)" />
+        <StatCard label="Total 2 essieux" value={totaux.deux} tone="var(--odj-accent)" />
+        <StatCard label="Total 3 essieux" value={totaux.trois} tone="var(--odj-accent)" />
+        <StatCard label="Total camions" value={totaux.douze + totaux.deux + totaux.trois} tone="var(--odj-ambre)" />
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Aucun camion demandé pour cette date pour l'instant.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thLeft}>Contremaître</th>
                 <th style={thLeft}>Chantier</th>
                 <th style={thCenter}>12 roues</th>
@@ -2414,23 +2397,23 @@ function VueCamionsDetail({ fiches }) {
                   l.camions[`${k}Toile`] && "Toile",
                 ].filter(Boolean).join(" · ");
                 return (
-                  <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                  <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                     <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{l.nom}</td>
-                    <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {d > 0 ? <b>{d}</b> : "—"}
-                      {drapeaux("douze") && <div style={{ fontSize: 10, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>{drapeaux("douze")}</div>}
+                      {drapeaux("douze") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("douze")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {e2 > 0 ? <b>{e2}</b> : "—"}
-                      {drapeaux("deux") && <div style={{ fontSize: 10, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>{drapeaux("deux")}</div>}
+                      {drapeaux("deux") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("deux")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {e3 > 0 ? <b>{e3}</b> : "—"}
-                      {drapeaux("trois") && <div style={{ fontSize: 10, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>{drapeaux("trois")}</div>}
+                      {drapeaux("trois") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("trois")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 700 }}>{d + e2 + e3}</td>
-                    <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 260 }}>{l.camions.notes || "—"}</td>
+                    <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 260 }}>{l.camions.notes || "—"}</td>
                   </tr>
                 );
               })}
@@ -2478,7 +2461,7 @@ function VueMachinerieDetail({ fiches }) {
 
   const colEquip  = EQUIPEMENTS.filter((e) => lignes.some((l) => l.ajout.equipements[e.key].qte > 0 || l.retrait.equipements[e.key].qte > 0));
   const colAccess = ACCESSOIRES.filter((a) => lignes.some((l) => l.ajout.accessoires[a.key].qte > 0 || l.retrait.accessoires[a.key].qte > 0));
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const hasAjouts  = EQUIPEMENTS.some((e) => totauxAjout[e.key] > 0)  || ACCESSOIRES.some((a) => totauxAjout[a.key] > 0);
   const hasRetraits = EQUIPEMENTS.some((e) => totauxRetrait[e.key] > 0) || ACCESSOIRES.some((a) => totauxRetrait[a.key] > 0);
 
@@ -2487,8 +2470,8 @@ function VueMachinerieDetail({ fiches }) {
     if (qteA === 0 && qteR === 0) return "—";
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
-        {qteA > 0 && <div><b style={{ color: isAccess ? "#7C5CBF" : TONE_HEX.green }}>+{qteA}</b>{commA && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#8a93a0" }}>{commA}</div>}</div>}
-        {qteR > 0 && <div><b style={{ color: TONE_HEX.red }}>-{qteR}</b>{commR && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#8a93a0" }}>{commR}</div>}</div>}
+        {qteA > 0 && <div><b style={{ color: isAccess ? "var(--odj-violet)" : TONE_HEX.green }}>+{qteA}</b>{commA && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{commA}</div>}</div>}
+        {qteR > 0 && <div><b style={{ color: TONE_HEX.red }}>-{qteR}</b>{commR && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{commR}</div>}</div>}
       </div>
     );
   };
@@ -2497,33 +2480,33 @@ function VueMachinerieDetail({ fiches }) {
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
         {EQUIPEMENTS.filter((e) => totauxAjout[e.key] > 0).map((e) => <StatCard key={`a-${e.key}`} label={`Ajout — ${e.label}`} value={totauxAjout[e.key]} tone={TONE_HEX.green} />)}
-        {ACCESSOIRES.filter((a) => totauxAjout[a.key] > 0).map((a) => <StatCard key={`a-${a.key}`} label={`Ajout — ${a.label}`} value={totauxAjout[a.key]} tone="#7C5CBF" />)}
+        {ACCESSOIRES.filter((a) => totauxAjout[a.key] > 0).map((a) => <StatCard key={`a-${a.key}`} label={`Ajout — ${a.label}`} value={totauxAjout[a.key]} tone="var(--odj-violet)" />)}
         {!hasAjouts && <StatCard label="Ajouts" value="—" tone={TONE_HEX.green} />}
-        {(hasAjouts || hasRetraits) && <div style={{ width: 1, background: "#D7DBE0", alignSelf: "stretch", margin: "0 4px" }} />}
+        {(hasAjouts || hasRetraits) && <div style={{ width: 1, background: "var(--odj-line)", alignSelf: "stretch", margin: "0 4px" }} />}
         {EQUIPEMENTS.filter((e) => totauxRetrait[e.key] > 0).map((e) => <StatCard key={`r-${e.key}`} label={`Retrait — ${e.label}`} value={totauxRetrait[e.key]} tone={TONE_HEX.red} />)}
         {ACCESSOIRES.filter((a) => totauxRetrait[a.key] > 0).map((a) => <StatCard key={`r-${a.key}`} label={`Retrait — ${a.label}`} value={totauxRetrait[a.key]} tone={TONE_HEX.red} />)}
         {!hasRetraits && <StatCard label="Retraits" value="—" tone={TONE_HEX.red} />}
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>Aucune fiche soumise pour cette date pour l'instant.</div>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>Aucune fiche soumise pour cette date pour l'instant.</div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
                 <th style={thStyle}>Chantier</th>
                 <th style={thStyle}>Statut</th>
                 {colEquip.map((e) => <th key={e.key} style={{ ...thStyle, textAlign: "center" }}>{e.label}</th>)}
-                {colAccess.map((a) => <th key={a.key} style={{ ...thStyle, textAlign: "center", color: "#7C5CBF" }}>{a.label}</th>)}
+                {colAccess.map((a) => <th key={a.key} style={{ ...thStyle, textAlign: "center", color: "var(--odj-violet)" }}>{a.label}</th>)}
                 <th style={thStyle}>Notes</th>
               </tr>
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{l.nom}</td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   <td style={{ padding: "9px 12px" }}>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {l.hasAjout && <Plate tone={STATUTS.machinerie.find((s) => s.value === "ajouter")?.tone} size="sm">Ajouter</Plate>}
@@ -2541,7 +2524,7 @@ function VueMachinerieDetail({ fiches }) {
                       {cellule(l.ajout.accessoires[a.key].qte, l.ajout.accessoires[a.key].commentaire, l.retrait.accessoires[a.key].qte, l.retrait.accessoires[a.key].commentaire, true)}
                     </td>
                   ))}
-                  <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 200 }}>{l.notes || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 200 }}>{l.notes || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -2570,23 +2553,23 @@ function VueDieselDetail({ fiches }) {
 
   const nbChantiersRequis = lignes.filter((l) => l.requis === "oui").length;
   const totalMachines = lignes.filter((l) => l.requis === "oui").reduce((s, l) => s + l.grosses + l.petites, 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
-        <StatCard label="Chantier avec diesel requis" value={nbChantiersRequis} tone="#F0A202" />
-        <StatCard label="Machines à remplir (total)" value={totalMachines} tone="#6b7480" />
+        <StatCard label="Chantier avec diesel requis" value={nbChantiersRequis} tone="var(--odj-ambre)" />
+        <StatCard label="Machines à remplir (total)" value={totalMachines} tone="var(--odj-dim)" />
       </div>
       {lignes.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+        <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
           Personne n'a précisé de besoin en diesel pour cette date pour l'instant.
         </div>
       ) : (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: "auto" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
             <thead>
-              <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
+              <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
                 <th style={thStyle}>Chantier</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>Grosses machines</th>
@@ -2596,12 +2579,12 @@ function VueDieselDetail({ fiches }) {
             </thead>
             <tbody>
               {lignes.map((l, i) => (
-                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid #EDEFF1" : "none" }}>
+                <tr key={l.nom} style={{ borderBottom: i < lignes.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}>
                   <td style={{ padding: "9px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>{l.nom}</td>
-                  <td style={{ padding: "9px 12px", color: "#6b7480" }}>{l.chantier || "—"}</td>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                   <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>{l.requis === "oui" ? l.grosses : "—"}</td>
                   <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>{l.requis === "oui" ? l.petites : "—"}</td>
-                  <td style={{ padding: "9px 12px", color: "#495260", maxWidth: 260 }}>
+                  <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 260 }}>
                     {l.requis === "oui" ? (l.commentaire || "Oui") : "Non"}
                   </td>
                 </tr>
@@ -2767,14 +2750,14 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: isPhone ? 16 : 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>Ordre du jour — Planification journalière</div>
-          <div style={{ color: "#6b7480", fontSize: 13 }}>{labelDate(date)} · {fiches.length} fiche{fiches.length !== 1 ? "s" : ""} soumise{fiches.length !== 1 ? "s" : ""}</div>
+          <div style={{ color: "var(--odj-dim)", fontSize: 13 }}>{labelDate(date)} · {fiches.length} fiche{fiches.length !== 1 ? "s" : ""} soumise{fiches.length !== 1 ? "s" : ""}</div>
         </div>
         <div style={{ display: "flex", gap: 8, width: isPhone ? "100%" : "auto", justifyContent: isPhone ? "space-between" : "flex-start" }}>
-          <button onClick={load} style={{ background: "transparent", border: "1px solid #D7DBE0", padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "'Inter',sans-serif" }}>
+          <button onClick={load} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "'Inter',sans-serif" }}>
             <RefreshCw size={14} /> Actualiser
           </button>
           {boutonRequete && (
-            <button onClick={() => boutonRequete()} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: "1.5px solid #E4022E", background: "#E4022E", color: "#fff", cursor: "pointer" }}>
+            <button onClick={() => boutonRequete()} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: "1.5px solid var(--odj-rouge)", background: "var(--odj-rouge)", color: "#fff", cursor: "pointer" }}>
               + Nouvelle requête
             </button>
           )}
@@ -2788,32 +2771,32 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
         }>
           <button
             onClick={() => setVueSpeciale(null)}
-            style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueSpeciale ? "#0F2138" : "#D7DBE0"}`, background: !vueSpeciale ? "#0F2138" : "#fff", color: !vueSpeciale ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}
+            style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueSpeciale ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueSpeciale ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueSpeciale ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}
           >
             Vue générale
           </button>
           {(profil.accesSpecial === "personnel" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("personnel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "personnel" ? "#0F2138" : "#D7DBE0"}`, background: vueSpeciale === "personnel" ? "#0F2138" : "#fff", color: vueSpeciale === "personnel" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("personnel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Main d'oeuvre
             </button>
           )}
           {(profil.accesSpecial === "camions" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("camions")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "camions" ? "#0F2138" : "#D7DBE0"}`, background: vueSpeciale === "camions" ? "#0F2138" : "#fff", color: vueSpeciale === "camions" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("camions")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Camions
             </button>
           )}
           {(profil.accesSpecial === "machinerie" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("machinerie")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "machinerie" ? "#0F2138" : "#D7DBE0"}`, background: vueSpeciale === "machinerie" ? "#0F2138" : "#fff", color: vueSpeciale === "machinerie" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("machinerie")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Machinerie
             </button>
           )}
           {(profil.accesSpecial === "machinerie" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("diesel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "diesel" ? "#0F2138" : "#D7DBE0"}`, background: vueSpeciale === "diesel" ? "#0F2138" : "#fff", color: vueSpeciale === "diesel" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("diesel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Diesel (Fuel)
             </button>
           )}
           {boutonRequete && (
-            <button onClick={() => setVueSpeciale("mesrequetes")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "mesrequetes" ? "#0F2138" : "#D7DBE0"}`, background: vueSpeciale === "mesrequetes" ? "#0F2138" : "#fff", color: vueSpeciale === "mesrequetes" ? "#fff" : "#15181B", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("mesrequetes")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "mesrequetes" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Mes requêtes
             </button>
           )}
@@ -2823,23 +2806,23 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       {vueSpeciale === "mesrequetes" ? (
         <ContremaitreAccueil profil={profil} onNouvelle={boutonRequete} onOuvrirDate={onOuvrirDate} cacherBouton />
       ) : vueSpeciale && profil?.accesSpecial ? (
-        loading ? <div style={{ padding: 40, textAlign: "center", color: "#6b7480" }}>Chargement…</div> :
+        loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)" }}>Chargement…</div> :
         vueSpeciale === "personnel" ? <VuePersonnelDetail fiches={fiches} date={date} precedents={precedents} /> :
         vueSpeciale === "camions" ? <VueCamionsDetail fiches={fiches} /> :
         vueSpeciale === "diesel" ? <VueDieselDetail fiches={fiches} /> : <VueMachinerieDetail fiches={fiches} />
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: isPhone ? "repeat(4,1fr)" : "repeat(auto-fill, minmax(130px,1fr))", gap: 10, marginBottom: 20 }}>
-            <StatCard label="Requêtes Main d'oeuvre reçues" value={totaux.mainOeuvre} tone="#0F2138" compact={isPhone} />
-            <StatCard label="Requêtes Camions reçues" value={totaux.camions} tone="#0F2138" compact={isPhone} />
-            <StatCard label="Requêtes Machinerie reçues" value={totaux.machinerie} tone="#3C8C5D" compact={isPhone} />
-            <StatCard label="Requêtes Diesel (Fuel) reçues" value={totaux.diesel} tone="#F0A202" compact={isPhone} />
+            <StatCard label="Requêtes Main d'oeuvre reçues" value={totaux.mainOeuvre} tone="var(--odj-accent)" compact={isPhone} />
+            <StatCard label="Requêtes Camions reçues" value={totaux.camions} tone="var(--odj-accent)" compact={isPhone} />
+            <StatCard label="Requêtes Machinerie reçues" value={totaux.machinerie} tone="var(--odj-ok)" compact={isPhone} />
+            <StatCard label="Requêtes Diesel (Fuel) reçues" value={totaux.diesel} tone="var(--odj-ambre)" compact={isPhone} />
           </div>
 
           {loading ? (
-            <div style={{ padding: 40, textAlign: "center", color: "#6b7480" }}>Chargement…</div>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)" }}>Chargement…</div>
           ) : fiches.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "#6b7480", border: "1px dashed #D7DBE0", background: "#fff" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>
               Aucune fiche soumise pour cette date pour l'instant.
             </div>
           ) : (
@@ -2955,37 +2938,37 @@ function NotificationsPushPage({ profil, onRetour }) {
   };
 
   return (
-    <div style={{ background: "#EDEFF1", minHeight: "100vh" }}>
+    <div style={{ background: "var(--odj-bg)", minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "#0F2138", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
           ← Retour
         </button>
 
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", padding: "32px 24px", textAlign: "center" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: "32px 24px", textAlign: "center" }}>
           <Bell size={40} color="#0F2138" style={{ marginBottom: 16 }} />
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "#15181B", marginBottom: 8 }}>
+          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
             Notification PUSH
           </div>
 
           {etat === "non-supporte" && (
-            <div style={{ fontSize: 14, color: "#6b7480", fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>
               Les notifications push ne sont pas disponibles sur cet appareil ou ce navigateur.
               {" "}Sur iPhone, assure-toi d'avoir ajouté l'app à l'écran d'accueil.
             </div>
           )}
 
           {etat === "verification" && (
-            <div style={{ fontSize: 14, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
           )}
 
           {etat === "actif" && (
             <>
-              <div style={{ fontSize: 14, color: "#3C8C5D", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: 600 }}>
+              <div style={{ fontSize: 14, color: "var(--odj-ok)", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: 600 }}>
                 ✓ Les notifications push sont activées sur cet appareil.
               </div>
               <button
                 onClick={desactiver}
-                style={{ background: "#fff", color: "#C23B3B", border: "1.5px solid #C23B3B", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer" }}
+                style={{ background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer" }}
               >
                 Désactiver
               </button>
@@ -2994,13 +2977,13 @@ function NotificationsPushPage({ profil, onRetour }) {
 
           {(etat === "inactif" || etat === "en-cours") && (
             <>
-              <div style={{ fontSize: 14, color: "#495260", fontFamily: "'Inter',sans-serif", marginBottom: 20 }}>
+              <div style={{ fontSize: 14, color: "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", marginBottom: 20 }}>
                 Voulez-vous recevoir des notifications push sur cet appareil pour les nouvelles requêtes et les commentaires?
               </div>
               <button
                 onClick={activer}
                 disabled={etat === "en-cours"}
-                style={{ background: "#0F2138", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etat === "en-cours" ? 0.6 : 1 }}
+                style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etat === "en-cours" ? 0.6 : 1 }}
               >
                 {etat === "en-cours" ? "…" : "Oui"}
               </button>
@@ -3008,19 +2991,19 @@ function NotificationsPushPage({ profil, onRetour }) {
           )}
         </div>
 
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", padding: "32px 24px", textAlign: "center", marginTop: 16 }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: "32px 24px", textAlign: "center", marginTop: 16 }}>
           <Mail size={40} color="#0F2138" style={{ marginBottom: 16 }} />
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "#15181B", marginBottom: 8 }}>
+          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
             Notification par courriel
           </div>
 
           {etatCourriel === "verification" && (
-            <div style={{ fontSize: 14, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
           )}
 
           {etatCourriel !== "verification" && (
             <>
-              <div style={{ fontSize: 14, color: etatCourriel === "actif" ? "#3C8C5D" : "#495260", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: etatCourriel === "actif" ? 600 : 400 }}>
+              <div style={{ fontSize: 14, color: etatCourriel === "actif" ? "var(--odj-ok)" : "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: etatCourriel === "actif" ? 600 : 400 }}>
                 {etatCourriel === "actif"
                   ? "✓ Les notifications par courriel sont activées pour toi."
                   : "Les notifications par courriel sont désactivées pour toi."}
@@ -3030,8 +3013,8 @@ function NotificationsPushPage({ profil, onRetour }) {
                 disabled={etatCourriel === "en-cours"}
                 style={
                   etatCourriel === "actif"
-                    ? { background: "#fff", color: "#C23B3B", border: "1.5px solid #C23B3B", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
-                    : { background: "#0F2138", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
+                    ? { background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
+                    : { background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
                 }
               >
                 {etatCourriel === "en-cours" ? "…" : etatCourriel === "actif" ? "Désactiver" : "Activer"}
@@ -3055,31 +3038,31 @@ function InfoGenerale({ section, onRetour }) {
     )
   );
 
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "#495260", whiteSpace: "nowrap", background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" };
-  const tdStyle = { padding: "9px 12px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "#2b3038", verticalAlign: "top", borderBottom: "1px solid #EDEFF1" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap", background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" };
+  const tdStyle = { padding: "9px 12px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)", verticalAlign: "top", borderBottom: "1px solid var(--odj-lineFaible)" };
 
   return (
-    <div style={{ background: "#EDEFF1", minHeight: "100vh" }}>
+    <div style={{ background: "var(--odj-bg)", minHeight: "100vh" }}>
 
       {/* Modal unique — projets ET contacts */}
       {contactOuvert && (
         <div onClick={() => setContactOuvert(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxWidth: 480, borderTop: "3px solid #0F2138", padding: "24px 20px 36px" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "#0F2138", marginBottom: 2 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-accent)", padding: "24px 20px 36px" }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
               {contactOuvert.numero ? `${contactOuvert.numero} — ${contactOuvert.nom}` : contactOuvert.nom}
             </div>
-            {contactOuvert.titre && <div style={{ fontSize: 13, color: "#6b7480", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{contactOuvert.titre}</div>}
+            {contactOuvert.titre && <div style={{ fontSize: 13, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{contactOuvert.titre}</div>}
             {contactOuvert.numero ? (
               <>
-                <div style={{ fontSize: 11, color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 12 }}>{contactOuvert.adresse}</div>
+                <div style={{ fontSize: 11, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 12 }}>{contactOuvert.adresse}</div>
                 <div style={{ display: "grid", gap: 12, marginBottom: 4 }}>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Chargé de projet</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.charge ? "#15181B" : "#c0c7d0" }}>{contactOuvert.charge || "—"}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Chargé de projet</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.charge ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.charge || "—"}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Surintendant</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.surintendant ? "#15181B" : "#c0c7d0" }}>{contactOuvert.surintendant || "—"}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Surintendant</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.surintendant ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.surintendant || "—"}</div>
                   </div>
                 </div>
               </>
@@ -3087,32 +3070,32 @@ function InfoGenerale({ section, onRetour }) {
               <div style={{ display: "grid", gap: 12, marginBottom: 4 }}>
                 {contactOuvert.cell && contactOuvert.cell !== "N/A" && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Cellulaire</div>
-                    <a href={`tel:${contactOuvert.cell}`} style={{ fontSize: 16, fontWeight: 600, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "#0F2138", textDecoration: "none" }}>{contactOuvert.cell}</a>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Cellulaire</div>
+                    <a href={`tel:${contactOuvert.cell}`} style={{ fontSize: 16, fontWeight: 600, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "var(--odj-accent)", textDecoration: "none" }}>{contactOuvert.cell}</a>
                   </div>
                 )}
                 {contactOuvert.poste && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Poste</div>
-                    <div style={{ fontSize: 15, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "#495260" }}>450-661-5050 p.{contactOuvert.poste}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Poste</div>
+                    <div style={{ fontSize: 15, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "var(--odj-texte2)" }}>450-661-5050 p.{contactOuvert.poste}</div>
                   </div>
                 )}
                 {contactOuvert.courriel && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8a93a0", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Courriel</div>
-                    <a href={`mailto:${contactOuvert.courriel}`} style={{ fontSize: 14, fontFamily: "'Inter',sans-serif", color: "#2E86C1", textDecoration: "none" }}>{contactOuvert.courriel}</a>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Courriel</div>
+                    <a href={`mailto:${contactOuvert.courriel}`} style={{ fontSize: 14, fontFamily: "'Inter',sans-serif", color: "var(--odj-lien)", textDecoration: "none" }}>{contactOuvert.courriel}</a>
                   </div>
                 )}
               </div>
             )}
-            <button onClick={() => setContactOuvert(null)} style={{ marginTop: 20, width: "100%", background: "#0F2138", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
+            <button onClick={() => setContactOuvert(null)} style={{ marginTop: 20, width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
               Fermer
             </button>
           </div>
         </div>
       )}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: isPhone ? "12px 12px 60px" : "20px 16px 60px" }}>
-        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "#0F2138", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
           ← Retour
         </button>
 
@@ -3124,12 +3107,12 @@ function InfoGenerale({ section, onRetour }) {
                 placeholder="Rechercher…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                style={{ padding: "7px 12px", border: "1px solid #D7DBE0", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "#fff" }}
+                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "var(--odj-panel)" }}
               />
             </div>
 
 
-            <div style={{ background: "#fff", border: "1px solid #D7DBE0", overflowX: isPhone ? "visible" : "auto" }}>
+            <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: isPhone ? "visible" : "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
@@ -3144,20 +3127,20 @@ function InfoGenerale({ section, onRetour }) {
                 </thead>
                 <tbody>
                   {projetsFiltres.map((p, i) => (
-                    <tr key={p.numero} style={{ background: i % 2 === 0 ? "#fff" : "#FAFBFC" }}>
-                      <td style={{ ...tdStyle, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600, whiteSpace: "nowrap", color: "#0F2138" }}>{p.numero}</td>
+                    <tr key={p.numero} style={{ background: i % 2 === 0 ? "var(--odj-panel)" : "var(--odj-panelAlt)" }}>
+                      <td style={{ ...tdStyle, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 600, whiteSpace: "nowrap", color: "var(--odj-accent)" }}>{p.numero}</td>
                       <td style={{ ...tdStyle, fontWeight: 600 }}>{p.nom}</td>
-                      {!isPhone && <td style={{ ...tdStyle, color: "#495260" }}>{p.adresse}</td>}
-                      {!isPhone && <td style={{ ...tdStyle, color: p.charge ? "#2b3038" : "#c0c7d0" }}>{p.charge || "—"}</td>}
-                      {!isPhone && <td style={{ ...tdStyle, color: p.surintendant ? "#2b3038" : "#c0c7d0" }}>{p.surintendant || "—"}</td>}
+                      {!isPhone && <td style={{ ...tdStyle, color: "var(--odj-texte2)" }}>{p.adresse}</td>}
+                      {!isPhone && <td style={{ ...tdStyle, color: p.charge ? "var(--odj-texte)" : "var(--odj-dim)" }}>{p.charge || "—"}</td>}
+                      {!isPhone && <td style={{ ...tdStyle, color: p.surintendant ? "var(--odj-texte)" : "var(--odj-dim)" }}>{p.surintendant || "—"}</td>}
                       {isPhone && (
-                        <td style={{ ...tdStyle, fontSize: 11, color: "#495260", maxWidth: 100 }}>{p.adresse}</td>
+                        <td style={{ ...tdStyle, fontSize: 11, color: "var(--odj-texte2)", maxWidth: 100 }}>{p.adresse}</td>
                       )}
                       {isPhone && (
                         <td style={{ ...tdStyle, textAlign: "center", padding: "6px 8px", verticalAlign: "middle" }}>
                           <button
                             onClick={() => setContactOuvert(p)}
-                            style={{ background: "#0F2138", color: "#fff", border: "none", width: 32, height: 32, fontSize: 15, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                            style={{ background: "var(--odj-navy)", color: "#fff", border: "none", width: 32, height: 32, fontSize: 15, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                           >
                             👤
                           </button>
@@ -3166,12 +3149,12 @@ function InfoGenerale({ section, onRetour }) {
                     </tr>
                   ))}
                   {projetsFiltres.length === 0 && (
-                    <tr><td colSpan={isPhone ? 4 : 5} style={{ ...tdStyle, textAlign: "center", color: "#8a93a0", padding: 32 }}>Aucun résultat</td></tr>
+                    <tr><td colSpan={isPhone ? 4 : 5} style={{ ...tdStyle, textAlign: "center", color: "var(--odj-dim)", padding: 32 }}>Aucun résultat</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#8a93a0", fontFamily: "'Inter',sans-serif" }}>{projetsFiltres.length} projet{projetsFiltres.length !== 1 ? "s" : ""}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{projetsFiltres.length} projet{projetsFiltres.length !== 1 ? "s" : ""}</div>
           </>
         )}
 
@@ -3183,11 +3166,11 @@ function InfoGenerale({ section, onRetour }) {
                 placeholder="Rechercher…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                style={{ padding: "7px 12px", border: "1px solid #D7DBE0", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "#fff" }}
+                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "var(--odj-panel)" }}
               />
             </div>
 
-            <div style={{ marginBottom: 16, padding: "10px 14px", background: "#FFF6E5", border: "1px solid #E4A11B", borderLeft: "3px solid #E4A11B", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "#7a5000" }}>
+            <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "3px solid var(--odj-ambre)", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-avisTexte)" }}>
               📞 Tout numéro indiqué avec un poste est accessible via le numéro principal : <b>450-661-5050</b> + le numéro de poste
             </div>
             {[
@@ -3272,10 +3255,10 @@ function InfoGenerale({ section, onRetour }) {
               if (membres.length === 0) return null;
               return (
                 <div key={groupe.dept} style={{ marginBottom: 20 }}>
-                  <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", color: "#0F2138", background: "#E8ECF0", padding: "8px 14px", marginBottom: 0, borderLeft: "3px solid #E4022E" }}>
+                  <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-accent)", background: "var(--odj-surligne)", padding: "8px 14px", marginBottom: 0, borderLeft: "3px solid var(--odj-rouge)" }}>
                     {groupe.dept}
                   </div>
-                  <div style={{ background: "#fff", border: "1px solid #D7DBE0", borderTop: "none", overflowX: isPhone ? "visible" : "auto" }}>
+                  <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderTop: "none", overflowX: isPhone ? "visible" : "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                       <colgroup>
                         <col style={{ width: isPhone ? "50%" : "22%" }} />
@@ -3285,38 +3268,38 @@ function InfoGenerale({ section, onRetour }) {
                         {!isPhone && <col style={{ width: "22%" }} />}
                       </colgroup>
                       <thead>
-                        <tr style={{ background: "#F7F8F9", borderBottom: "1px solid #D7DBE0" }}>
-                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a93a0" }}>Nom</th>
-                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a93a0" }}>Titre</th>}
-                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a93a0" }}>Cellulaire</th>
-                          {isPhone && <th style={{ padding: "7px 14px", textAlign: "center", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a93a0" }}>Info</th>}
-                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a93a0" }}>Courriel</th>}
+                        <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
+                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Nom</th>
+                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Titre</th>}
+                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Cellulaire</th>
+                          {isPhone && <th style={{ padding: "7px 14px", textAlign: "center", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Info</th>}
+                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Courriel</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {membres.map((m, i) => (
-                          <tr key={m.nom} style={{ borderBottom: i < membres.length - 1 ? "1px solid #EDEFF1" : "none", background: i % 2 === 0 ? "#fff" : "#FAFBFC" }}>
-                            <td style={{ padding: "9px 14px", fontWeight: 600, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "#15181B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.nom}</td>
-                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "#495260", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.titre}</td>}
+                          <tr key={m.nom} style={{ borderBottom: i < membres.length - 1 ? "1px solid var(--odj-lineFaible)" : "none", background: i % 2 === 0 ? "var(--odj-panel)" : "var(--odj-panelAlt)" }}>
+                            <td style={{ padding: "9px 14px", fontWeight: 600, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.nom}</td>
+                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.titre}</td>}
                             <td style={{ padding: "9px 14px", fontSize: 13, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                               {m.cell && m.cell !== "N/A" ? (
-                                <a href={`tel:${m.cell}`} style={{ color: "#0F2138", textDecoration: "none", fontWeight: 600 }}>{m.cell}</a>
+                                <a href={`tel:${m.cell}`} style={{ color: "var(--odj-accent)", textDecoration: "none", fontWeight: 600 }}>{m.cell}</a>
                               ) : m.poste ? (
-                                <span style={{ color: "#8a93a0" }}>Poste {m.poste}</span>
+                                <span style={{ color: "var(--odj-dim)" }}>Poste {m.poste}</span>
                               ) : "—"}
                             </td>
                             {isPhone && (
                               <td style={{ padding: "6px 8px", textAlign: "center", verticalAlign: "middle" }}>
                                 <button
                                   onClick={() => setContactOuvert(m)}
-                                  style={{ background: "#0F2138", color: "#fff", border: "none", width: 32, height: 32, fontSize: 15, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                                  style={{ background: "var(--odj-navy)", color: "#fff", border: "none", width: 32, height: 32, fontSize: 15, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                                 >
                                   👤
                                 </button>
                               </td>
                             )}
                             {!isPhone && <td style={{ padding: "9px 14px", fontSize: 12.5, fontFamily: "'Inter',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {m.courriel ? <a href={`mailto:${m.courriel}`} style={{ color: "#2E86C1", textDecoration: "none" }}>{m.courriel}</a> : "—"}
+                              {m.courriel ? <a href={`mailto:${m.courriel}`} style={{ color: "var(--odj-lien)", textDecoration: "none" }}>{m.courriel}</a> : "—"}
                             </td>}
                           </tr>
                         ))}
@@ -3345,13 +3328,13 @@ function SelecteurApercu({ apercu, onChange }) {
   return (
     <div style={{ position: "fixed", bottom: 14, right: 14, zIndex: 2000, fontFamily: "'Inter',sans-serif" }}>
       {ouvert && (
-        <div style={{ background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 2px 10px rgba(0,0,0,0.15)", marginBottom: 8, width: 240 }}>
-          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#8a93a0", borderBottom: "1px solid #EDEFF1" }}>
+        <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", boxShadow: "0 2px 10px rgba(0,0,0,0.15)", marginBottom: 8, width: 240 }}>
+          <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--odj-dim)", borderBottom: "1px solid var(--odj-lineFaible)" }}>
             Aperçu — voir comme
           </div>
           <button
             onClick={() => { onChange(null); setOuvert(false); }}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: !apercu ? "#EDEFF1" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: !apercu ? 700 : 400 }}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: !apercu ? "var(--odj-bg)" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: !apercu ? 700 : 400 }}
           >
             Mon rôle réel
           </button>
@@ -3359,7 +3342,7 @@ function SelecteurApercu({ apercu, onChange }) {
             <button
               key={o.label}
               onClick={() => { onChange({ role: o.role, accesSpecial: o.accesSpecial }); setOuvert(false); }}
-              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: optionActuelle?.label === o.label ? "#EDEFF1" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: optionActuelle?.label === o.label ? 700 : 400 }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", background: optionActuelle?.label === o.label ? "var(--odj-bg)" : "transparent", cursor: "pointer", fontSize: 13, fontWeight: optionActuelle?.label === o.label ? 700 : 400 }}
             >
               {o.label}
             </button>
@@ -3369,7 +3352,7 @@ function SelecteurApercu({ apercu, onChange }) {
       <button
         onClick={() => setOuvert((o) => !o)}
         style={{
-          background: apercu ? "#E4022E" : "#0F2138", color: "#fff", border: "none", borderRadius: 20,
+          background: apercu ? "var(--odj-rouge)" : "var(--odj-navy)", color: "#fff", border: "none", borderRadius: 20,
           padding: "10px 16px", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
           boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
         }}
@@ -3380,9 +3363,13 @@ function SelecteurApercu({ apercu, onChange }) {
   );
 }
 
-function AppInner() {
+function AppInner({ session, mode, onChangerMode }) {
   useGoogleFonts();
+  // profil = la fiche metier (role, acces special) de ordre_du_jour.profils.
+  // La session, elle, vient de GardeConnexion : une seule porte d'entree pour
+  // tout le Toolbox.
   const [profil, setProfil] = useState(null);
+  const [profilManquant, setProfilManquant] = useState(false);
   const [apercu, setApercu] = useState(null); // { role, accesSpecial } | null — mode test (voir profil.peutPrevisualiser)
   const [date, setDate] = useState(tomorrowISO());
   const [vue, setVue] = useState({ ecran: "accueil" });
@@ -3393,17 +3380,60 @@ function AppInner() {
   const [verifNouvelle, setVerifNouvelle] = useState(false);
 
   useEffect(() => { chargerJoursFeriesCache(); }, []);
+
+  // La fiche metier vit dans ordre_du_jour.profils. GardeConnexion a deja
+  // valide la session et l'acces a l'app; ici on va seulement chercher le
+  // role et le nom affiche.
+  useEffect(() => {
+    let actif = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("profils").select("*").eq("user_id", session.userId).maybeSingle();
+      if (!actif) return;
+      if (error || !data) { setProfilManquant(true); return; }
+      setProfil({
+        userId: session.userId,
+        nom: data.nom,
+        role: data.role,
+        accesSpecial: data.acces_special,
+        slug: slugify(data.nom),
+        peutPrevisualiser: !!data.peut_previsualiser,
+      });
+    })();
+    return () => { actif = false; };
+  }, [session.userId]);
   // Recharge le cache des membres (ordre_du_jour.profils) dès qu'une session
   // est établie — nécessaire pour les listes de destinataires de
   // notifications et la conversion userId -> nom affiché.
   useEffect(() => { if (profil) chargerMembresCache(); }, [profil]);
 
-  if (!profil) return <AuthGate onDone={setProfil} />;
+  if (profilManquant) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ maxWidth: 460, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24, fontFamily: "'Inter',sans-serif" }}>
+          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
+            Fiche manquante
+          </div>
+          <div style={{ fontSize: 14.5, color: "var(--odj-texte2)", lineHeight: 1.6, marginBottom: 18 }}>
+            Ton compte est bien connect\u00e9, mais tu n&apos;as pas encore de fiche dans Ordre du jour
+            (nom affich\u00e9 et r\u00f4le m\u00e9tier). Un administrateur peut la cr\u00e9er dans le panneau
+            d&apos;administration du Toolbox.
+          </div>
+          <a href="/" style={{ display: "block", textAlign: "center", background: "var(--odj-rouge)", color: "#fff", padding: 13, fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", textDecoration: "none" }}>
+            Retour au Toolbox PEP
+          </a>
+        </div>
+      </div>
+    );
+  }
 
-  const deconnecter = () => {
-    supabase.auth.signOut();
-    setProfil(null); setApercu(null); setVue({ ecran: "accueil" }); setMenuSection(null);
-  };
+  if (!profil) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
+        Chargement du profil\u2026
+      </div>
+    );
+  }
 
   // Mode Aperçu (profil.peutPrevisualiser) : change uniquement role/accesSpecial
   // pour l'affichage. Le nom (donc l'identité réelle pour tout ce qui est
@@ -3444,12 +3474,21 @@ function AppInner() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#EDEFF1" }}>
-      <TopBar
+    <div style={{ minHeight: "100vh", background: "var(--odj-bg)" }}>
+      <EnTeteApp
+        titre="Ordre du jour"
+        sousTitre="Demandes de main-d&apos;oeuvre, camions et machinerie"
+        mode={mode}
+        onChangerMode={onChangerMode}
+        nom={profil.nom}
+        poste={session.poste}
+        onAccueil={() => { setMenuSection(null); setVue({ ecran: "accueil" }); setResetSignal((n) => n + 1); }}
+      />
+
+      <BarreOutils
         profil={profilEffectif}
         date={date}
         setDate={setDate}
-        onSwitchProfile={deconnecter}
         masquerDate={profilEffectif.role === "contremaitre"}
         onMenuSelect={(id) => {
           if (id === "retour") {
@@ -3476,23 +3515,23 @@ function AppInner() {
       {profil.peutPrevisualiser && <SelecteurApercu apercu={apercu} onChange={setApercu} />}
       {confirmNouvelle && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,33,56,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
-          <div style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #D7DBE0", padding: 24, fontFamily: "'Inter',sans-serif" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 18, color: "#15181B", marginBottom: 10 }}>
+          <div style={{ width: "100%", maxWidth: 420, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24, fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
               Demande déjà soumise
             </div>
-            <div style={{ fontSize: 14.5, color: "#495260", marginBottom: 20, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 14.5, color: "var(--odj-texte2)", marginBottom: 20, lineHeight: 1.5 }}>
               Vous avez déjà soumis une demande pour {labelDate(confirmNouvelle.date).toLowerCase()}. Pour modifier votre demande existante, retournez-y directement depuis « Vos requêtes ». Voulez-vous en soumettre une deuxième malgré tout ?
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               <button
                 onClick={soumettreDeuxiemeDemande}
-                style={{ width: "100%", background: "#E4022E", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+                style={{ width: "100%", background: "var(--odj-rouge)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
               >
                 Soumettre une deuxième demande
               </button>
               <button
                 onClick={() => setConfirmNouvelle(null)}
-                style={{ width: "100%", background: "transparent", color: "#6b7480", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
               >
                 Annuler
               </button>
@@ -3552,9 +3591,17 @@ function AppInner() {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [mode, setMode] = useModePep();
+
+  if (!session) {
+    return <GardeConnexion appSlug="ordre-du-jour" nomApp="Ordre du jour" onPret={setSession} />;
+  }
+
   return (
     <ErrorBoundary>
-      <AppInner />
+      <PaletteOrdreDuJour mode={mode} />
+      <AppInner session={session} mode={mode} onChangerMode={setMode} />
     </ErrorBoundary>
   );
 }
