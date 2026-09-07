@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
+import GardeConnexion from '../../components/commun/GardeConnexion';
+import EnTeteApp from '../../components/commun/EnTeteApp';
+import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -8,46 +11,58 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'liste_projets' } });
 
-const NAVY = '#14213D';
+// Le bandeau, la porte d'entree et les deux palettes sont communs a toutes les
+// apps du Toolbox. Ici la palette s'appelle « pal » : « th » est deja pris par
+// le style des entetes de tableau, plus bas.
+
+
 const RED = '#C41230';
-const BG = '#EDEFF1';
 // Logo déjà déployé et utilisé ailleurs dans le Toolbox (Planification
-// hebdomadaire) — on réutilise le même fichier réel plutôt que d'en
-// fabriquer un nouveau.
+// hebdomadaire) — on réutilise le même fichier réel pour l'export PDF.
 const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
 
-function Center({ children }) {
+function Center({ pal, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: pal.bg, color: pal.text }}>
       {children}
     </div>
   );
 }
-function Spinner() {
+function Spinner({ pal }) {
   return (
     <>
-      <div style={{ border: '3px solid #ddd', borderTopColor: NAVY, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ border: `3px solid ${pal.line}`, borderTopColor: pal.accent, borderRadius: '50%', width: 28, height: 28, animation: 'spin 0.8s linear infinite' }} />
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
 
-const btn = { fontFamily: 'inherit', background: NAVY, color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
-const btnGhost = { ...btn, background: '#fff', color: NAVY, border: `1px solid ${NAVY}` };
-const btnDanger = { ...btn, background: RED };
 const btnSmall = { padding: '4px 10px', fontSize: 12 };
-const input = { padding: '7px 9px', borderRadius: 5, border: '1px solid #ccc', fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box' };
-const th = {
-  textAlign: 'left', padding: '7px 10px', color: '#fff', fontWeight: 600, fontSize: 11.5,
-  cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: NAVY,
-  textTransform: 'uppercase', letterSpacing: '0.03em',
-};
-const td = { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: '1px solid #EDEFF1', whiteSpace: 'nowrap' };
 
-export default function ListeProjetsPage() {
-  const [session, setSession] = useState(null);
+// Boutons, champs et cellules suivent le mode jour/nuit. Chaque composant
+// appelle styles(pal) une fois et retrouve ses constantes habituelles.
+function styles(pal) {
+  const btn = { fontFamily: 'inherit', background: pal.btnBg, color: '#fff', border: 'none', borderRadius: 5, padding: '7px 14px', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' };
+  return {
+    btn,
+    btnGhost: { ...btn, background: pal.panel, color: pal.accent, border: `1px solid ${pal.accent}` },
+    btnDanger: { ...btn, background: RED },
+    input: { padding: '7px 9px', borderRadius: 5, border: `1px solid ${pal.line}`, fontFamily: 'inherit', fontSize: 13, width: '100%', boxSizing: 'border-box', background: pal.inputBg, color: pal.text },
+    th: {
+      textAlign: 'left', padding: '7px 10px', color: '#fff', fontWeight: 600, fontSize: 11.5,
+      cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', background: pal.btnBg,
+      textTransform: 'uppercase', letterSpacing: '0.03em',
+    },
+    td: { padding: '6px 10px', verticalAlign: 'middle', fontSize: 13, borderBottom: `1px solid ${pal.line}`, whiteSpace: 'nowrap' },
+  };
+}
+
+function ListeProjets({ userId, nom, poste }) {
+  const [mode, setMode] = useModePep();
+  const pal = PALETTES[mode];
+  const { btn, btnGhost, btnDanger, input, th, td } = styles(pal);
+
   const [loading, setLoading] = useState(true);
-  const [denied, setDenied] = useState(false);
   const [peutModifier, setPeutModifier] = useState(false);
 
   const [tab, setTab] = useState('projets');
@@ -104,34 +119,24 @@ export default function ListeProjetsPage() {
     setPersonnel(resPersonnel.data || []);
   }
 
+  // GardeConnexion a deja verifie la session et l'acces a l'app. Reste le
+  // droit de modifier, qui est propre a cette app.
   useEffect(() => {
     (async () => {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      if (!s) { setLoading(false); return; }
-      setSession(s);
-
-      const { data: appAccess } = await supabase
-        .from('pep_user_apps').select('app_slug').eq('user_id', s.user.id).eq('app_slug', 'liste-projets').maybeSingle();
-
       const { data: roleRow } = await supabase
-        .from('pep_user_roles').select('role').eq('user_id', s.user.id).maybeSingle();
+        .from('pep_user_roles').select('role').eq('user_id', userId).maybeSingle();
       const estAdmin = roleRow?.role === 'admin';
-
-      if (!appAccess && !estAdmin) {
-        setDenied(true);
-        setLoading(false);
-        return;
-      }
 
       const { data: featureRow } = await supabase
         .from('pep_user_features').select('feature_key')
-        .eq('user_id', s.user.id).eq('app_slug', 'liste-projets').eq('feature_key', 'modifier').maybeSingle();
+        .eq('user_id', userId).eq('app_slug', 'liste-projets').eq('feature_key', 'modifier').maybeSingle();
       setPeutModifier(!!featureRow || estAdmin);
 
       await chargerTout();
       setLoading(false);
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   function emailDe(nomPersonnel) {
     return personnel.find((p) => p.nom === nomPersonnel)?.courriel || null;
@@ -493,44 +498,24 @@ export default function ListeProjetsPage() {
     setSaving(false);
   }
 
-  if (loading) return <Center><Spinner /><p>Chargement...</p></Center>;
-
-  if (!session) {
-    return (
-      <Center>
-        <h2>Connexion requise</h2>
-        <p>Connecte-toi depuis le Toolbox, puis reviens sur cette page.</p>
-        <a href="/">Aller au Toolbox PEP</a>
-      </Center>
-    );
-  }
-
-  if (denied) {
-    return (
-      <Center>
-        <h2>Accès refusé</h2>
-        <p>Demande l&apos;accès à un administrateur du Toolbox.</p>
-        <a href="/">&#8592; Retour au Toolbox PEP</a>
-      </Center>
-    );
-  }
+  if (loading) return <Center pal={pal}><Spinner pal={pal} /><p>Chargement...</p></Center>;
 
   return (
-    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: BG, minHeight: '100vh' }}>
+    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: pal.bg, minHeight: '100vh', color: pal.text }}>
       <Head><title>Liste des projets - Toolbox PEP</title></Head>
 
-      {/* En-tête PEP — figé en haut */}
+      {/* Le bandeau commun reste figé en haut : le tableau est long, et la
+          barre d'outils se colle juste en dessous. */}
       <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 60 }}>
-        <div style={{ height: 4, background: RED }} />
-        <header style={{ background: NAVY, color: '#fff', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <img src={LOGO_PEP} alt="Les Entreprises PEP2000" style={{ height: 46, width: 'auto' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-            <h1 style={{ margin: 0, fontSize: 19, fontFamily: "'Oswald',sans-serif", fontWeight: 700 }}>
-              Les Entreprises PEP2000 inc. — Liste des projets
-            </h1>
-          </div>
-          <a href="/" style={{ color: '#fff', background: 'rgba(255,255,255,0.15)', padding: '8px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>&#8592; Retour au Toolbox PEP</a>
-        </header>
+        <EnTeteApp
+          titre="Liste des projets"
+          sousTitre="Projets, types de projet et personnel"
+          mode={mode}
+          onChangerMode={setMode}
+          nom={nom}
+          poste={poste}
+          onAccueil={() => { setTab('projets'); setRecherche(''); setFiltreType(''); setVoirArchives(false); }}
+        />
       </div>
 
       <main style={{ maxWidth: 1300, margin: '0 auto', padding: '0 16px 60px' }}>
@@ -538,25 +523,25 @@ export default function ListeProjetsPage() {
         <div
           ref={barreRef}
          
-          style={{ position: 'sticky', top: headerH, zIndex: 55, background: BG, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
+          style={{ position: 'sticky', top: headerH, zIndex: 55, background: pal.bg, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
         >
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${personnel.length})`]].map(([key, label]) => (
               <button key={key} onClick={() => setTab(key)} style={tab === key ? btn : btnGhost}>{label}</button>
             ))}
             {!peutModifier && (
-              <span style={{ marginLeft: 'auto', fontSize: 12, color: '#8a93a0' }}>Lecture seule</span>
+              <span style={{ marginLeft: 'auto', fontSize: 12, color: pal.textDim }}>Lecture seule</span>
             )}
           </div>
 
           {erreur && (
-            <div style={{ background: '#FEECEC', border: '1px solid #f3b8b8', color: '#a31111', padding: '10px 14px', borderRadius: 6, marginBottom: 12, fontSize: 13.5 }}>
+            <div style={{ background: pal.errBg, border: `1px solid ${RED}`, color: pal.errTexte, padding: '10px 14px', borderRadius: 6, marginBottom: 12, fontSize: 13.5 }}>
               {erreur} <button onClick={() => setErreur('')} style={{ ...btnGhost, ...btnSmall, marginLeft: 10 }}>Fermer</button>
             </div>
           )}
 
           {tab === 'projets' && (
-            <div style={{ background: '#fff', borderRadius: '8px 8px 0 0', display: 'flex', gap: 10, padding: '14px 16px', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #eee' }}>
+            <div style={{ background: pal.panel, borderRadius: '8px 8px 0 0', display: 'flex', gap: 10, padding: '14px 16px', alignItems: 'center', flexWrap: 'wrap', borderBottom: `1px solid ${pal.line}` }}>
               <input
                 type="text" placeholder="Rechercher (numéro, nom, client, chargé, surintendant)..."
                 value={recherche} onChange={(e) => setRecherche(e.target.value)}
@@ -566,7 +551,7 @@ export default function ListeProjetsPage() {
                 <option value="">Tous les types</option>
                 {types.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
               </select>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: '#444', whiteSpace: 'nowrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: pal.text, whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={inclureEstimation} onChange={(e) => setInclureEstimation(e.target.checked)} />
                 Inclure les projets en estimation
               </label>
@@ -586,7 +571,7 @@ export default function ListeProjetsPage() {
 
         {tab === 'projets' && (
           <>
-            <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
+            <div style={{ background: pal.panel, borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: pal.ombre }}>
             <div style={{ overflow: 'auto', maxHeight: `calc(100vh - ${headerH + barreH + 20}px)` }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -607,13 +592,13 @@ export default function ListeProjetsPage() {
                     <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 9 : 8}>Aucun projet trouvé.</td></tr>
                   )}
                   {projetsActifsAffiches.map((p, i) => (
-                    <tr key={p.no} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
-                      <td style={{ ...td, fontWeight: 700, color: NAVY }}>{p.no}</td>
+                    <tr key={p.no} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt }}>
+                      <td style={{ ...td, fontWeight: 700, color: pal.accent }}>{p.no}</td>
                       <td style={{ ...td, whiteSpace: 'normal', minWidth: 160 }}>{p.nom}</td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>{p.client || '—'}</td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>
                         {p.contact_client_nom || '—'}
-                        {p.contact_client_courriel && <span style={{ color: '#8a93a0' }}> · {p.contact_client_courriel}</span>}
+                        {p.contact_client_courriel && <span style={{ color: pal.textDim }}> · {p.contact_client_courriel}</span>}
                       </td>
                       <td style={{ ...td, whiteSpace: 'normal' }}>{types.find((t) => t.code === p.type_projet)?.label || '—'}</td>
                       <td style={td}>{p.charge || '—'}</td>
@@ -638,7 +623,7 @@ export default function ListeProjetsPage() {
                 {voirArchives ? 'Masquer' : 'Afficher'} les projets archivés ({projetsArchivesAffiches.length})
               </button>
               {voirArchives && (
-                <div style={{ background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,.08)', marginTop: 10 }}>
+                <div style={{ background: pal.panel, borderRadius: 8, overflow: 'hidden', boxShadow: pal.ombre, marginTop: 10 }}>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
@@ -657,7 +642,7 @@ export default function ListeProjetsPage() {
                           <tr><td style={{ ...td, whiteSpace: 'normal' }} colSpan={peutModifier ? 7 : 6}>Aucun projet archivé.</td></tr>
                         )}
                         {projetsArchivesAffiches.map((p, i) => (
-                          <tr key={p.no} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC', color: '#8a93a0' }}>
+                          <tr key={p.no} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt, color: pal.textDim }}>
                             <td style={{ ...td, fontWeight: 700 }}>{p.no}</td>
                             <td style={{ ...td, whiteSpace: 'normal' }}>{p.nom}</td>
                             <td style={{ ...td, whiteSpace: 'normal' }}>{p.client || '—'}</td>
@@ -682,8 +667,8 @@ export default function ListeProjetsPage() {
         )}
 
         {tab === 'types' && (
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <p style={{ fontSize: 13, color: '#666', marginTop: 0 }}>
+          <div style={{ background: pal.panel, borderRadius: 8, padding: 20, boxShadow: pal.ombre }}>
+            <p style={{ fontSize: 13, color: pal.textDim, marginTop: 0 }}>
               Catégories utilisées soit comme travail interne sans numéro de projet, soit comme classification (« type ») attachable à n&apos;importe quel projet numéroté.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
@@ -700,7 +685,7 @@ export default function ListeProjetsPage() {
               </thead>
               <tbody>
                 {types.map((t, i) => (
-                  <tr key={t.code} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                  <tr key={t.code} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt }}>
                     <td style={{ ...td, whiteSpace: 'normal' }}>{t.label}</td>
                     <td style={{ ...td, whiteSpace: 'normal' }}>{t.client || '—'}</td>
                     <td style={td}>{t.charge || '—'}</td>
@@ -718,8 +703,8 @@ export default function ListeProjetsPage() {
         )}
 
         {tab === 'personnel' && (
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <p style={{ fontSize: 13, color: '#666', marginTop: 0 }}>
+          <div style={{ background: pal.panel, borderRadius: 8, padding: 20, boxShadow: pal.ombre }}>
+            <p style={{ fontSize: 13, color: pal.textDim, marginTop: 0 }}>
               Liste unique utilisée à la fois pour « Chargé de projet » et « Surintendant » — c&apos;est aussi ici que sont gérés les courriels internes (jamais affichés dans la liste des projets).
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
@@ -736,10 +721,10 @@ export default function ListeProjetsPage() {
               </thead>
               <tbody>
                 {personnel.map((p, i) => (
-                  <tr key={p.nom} style={{ background: i % 2 === 0 ? '#fff' : '#FAFBFC' }}>
+                  <tr key={p.nom} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt }}>
                     <td style={td}>{p.nom}</td>
                     <td style={td}>{p.courriel || '—'}</td>
-                    <td style={td}><span style={{ color: p.actif ? '#2E9F58' : '#8a93a0', fontWeight: 600 }}>&#9679; {p.actif ? 'Actif' : 'Inactif'}</span></td>
+                    <td style={td}><span style={{ color: p.actif ? pal.okLigne : pal.textDim, fontWeight: 600 }}>&#9679; {p.actif ? 'Actif' : 'Inactif'}</span></td>
                     {peutModifier && (
                       <td style={td}>
                         <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditPersonnel({ ...p, _ancienNom: p.nom })}>Modifier</button>
@@ -756,18 +741,20 @@ export default function ListeProjetsPage() {
 
       {editProjet && (
         <ModalProjet
+          pal={pal}
           projet={editProjet} personnel={personnel} types={types} emailDe={emailDe}
           onSave={sauvegarderProjet} onCancel={() => setEditProjet(null)} saving={saving}
         />
       )}
       {editPersonnel && (
-        <ModalPersonnel personne={editPersonnel} onSave={sauvegarderPersonnel} onCancel={() => setEditPersonnel(null)} saving={saving} />
+        <ModalPersonnel pal={pal} personne={editPersonnel} onSave={sauvegarderPersonnel} onCancel={() => setEditPersonnel(null)} saving={saving} />
       )}
       {editType && (
-        <ModalType type={editType} personnel={personnel} onSave={sauvegarderType} onCancel={() => setEditType(null)} saving={saving} />
+        <ModalType pal={pal} type={editType} personnel={personnel} onSave={sauvegarderType} onCancel={() => setEditType(null)} saving={saving} />
       )}
       {confirmSuppr && (
         <ModalConfirm
+          pal={pal}
           message={`Supprimer définitivement "${confirmSuppr.label}" ?`}
           saving={saving}
           onCancel={() => setConfirmSuppr(null)}
@@ -783,76 +770,85 @@ export default function ListeProjetsPage() {
   );
 }
 
-function Overlay({ children, width = 460 }) {
+export default function Page() {
+  const [session, setSession] = useState(null);
+  if (!session) {
+    return <GardeConnexion appSlug="liste-projets" nomApp="Liste des projets" onPret={setSession} />;
+  }
+  return <ListeProjets userId={session.userId} nom={session.nom} poste={session.poste} />;
+}
+
+function Overlay({ pal, children, width = 460 }) {
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,33,56,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: width, background: '#fff', borderRadius: 8, padding: 24, fontFamily: 'Calibri, sans-serif', maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,33,56,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: width, background: pal.panel, color: pal.text, borderRadius: 8, padding: 24, fontFamily: 'Calibri, sans-serif', maxHeight: '90vh', overflowY: 'auto', boxShadow: pal.ombre }}>
         {children}
       </div>
     </div>
   );
 }
-function Champ({ label, children }) {
+function Champ({ pal, label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 4 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: pal.textDim, marginBottom: 4 }}>{label}</label>
       {children}
     </div>
   );
 }
 
-function ModalProjet({ projet, personnel, types, emailDe, onSave, onCancel, saving }) {
+function ModalProjet({ pal, projet, personnel, types, emailDe, onSave, onCancel, saving }) {
+  const { btn, btnGhost, input } = styles(pal);
   const [form, setForm] = useState(projet);
   const estNouveau = !projet.no;
   const courrielApercu = form.charge ? emailDe(form.charge) : null;
 
   return (
-    <Overlay width={520}>
-      <h3 style={{ marginTop: 0, color: NAVY }}>{estNouveau ? 'Nouveau projet' : `Modifier ${projet.no}`}</h3>
+    <Overlay pal={pal} width={520}>
+      <h3 style={{ marginTop: 0, color: pal.accent }}>{estNouveau ? 'Nouveau projet' : `Modifier ${projet.no}`}</h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-        <Champ label="Numéro de projet *">
+        <Champ pal={pal} label="Numéro de projet *">
           <input style={input} value={form.no} disabled={!estNouveau} onChange={(e) => setForm({ ...form, no: e.target.value })} placeholder="ex: 26-201" />
         </Champ>
-        <Champ label="Type de projet">
+        <Champ pal={pal} label="Type de projet">
           <select style={input} value={form.type_projet || ''} onChange={(e) => setForm({ ...form, type_projet: e.target.value })}>
             <option value="">—</option>
             {types.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
           </select>
         </Champ>
       </div>
-      <Champ label="Nom du projet *">
+      <Champ pal={pal} label="Nom du projet *">
         <input style={input} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
       </Champ>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-        <Champ label="Client (compagnie)">
+        <Champ pal={pal} label="Client (compagnie)">
           <input style={input} value={form.client || ''} onChange={(e) => setForm({ ...form, client: e.target.value })} />
         </Champ>
-        <Champ label="Nom du contact client">
+        <Champ pal={pal} label="Nom du contact client">
           <input style={input} value={form.contact_client_nom || ''} onChange={(e) => setForm({ ...form, contact_client_nom: e.target.value })} />
         </Champ>
       </div>
-      <Champ label="Courriel du contact client">
+      <Champ pal={pal} label="Courriel du contact client">
         <input style={input} value={form.contact_client_courriel || ''} onChange={(e) => setForm({ ...form, contact_client_courriel: e.target.value })} />
       </Champ>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-        <Champ label="Chargé de projet">
+        <Champ pal={pal} label="Chargé de projet">
           <select style={input} value={form.charge || ''} onChange={(e) => setForm({ ...form, charge: e.target.value })}>
             <option value="">—</option>
             {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}{!p.actif ? ' (inactif)' : ''}</option>)}
           </select>
-          {courrielApercu && <div style={{ fontSize: 11, color: '#8a93a0', marginTop: 3 }}>Courriel lié : {courrielApercu}</div>}
+          {courrielApercu && <div style={{ fontSize: 11, color: pal.textDim, marginTop: 3 }}>Courriel lié : {courrielApercu}</div>}
         </Champ>
-        <Champ label="Surintendant">
+        <Champ pal={pal} label="Surintendant">
           <select style={input} value={form.surintendant || ''} onChange={(e) => setForm({ ...form, surintendant: e.target.value })}>
             <option value="">—</option>
             {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}{!p.actif ? ' (inactif)' : ''}</option>)}
           </select>
         </Champ>
       </div>
-      <Champ label="Contact inspection (sécurité — inspections de machinerie)">
+      <Champ pal={pal} label="Contact inspection (sécurité — inspections de machinerie)">
         <input style={input} value={form.contact_inspection || ''} onChange={(e) => setForm({ ...form, contact_inspection: e.target.value })} />
       </Champ>
-      <Champ label="Adresse du projet">
+      <Champ pal={pal} label="Adresse du projet">
         <input style={input} value={form.adresse || ''} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
       </Champ>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
@@ -863,15 +859,16 @@ function ModalProjet({ projet, personnel, types, emailDe, onSave, onCancel, savi
   );
 }
 
-function ModalPersonnel({ personne, onSave, onCancel, saving }) {
+function ModalPersonnel({ pal, personne, onSave, onCancel, saving }) {
+  const { btn, btnGhost, input } = styles(pal);
   const [form, setForm] = useState(personne);
   return (
-    <Overlay width={380}>
-      <h3 style={{ marginTop: 0, color: NAVY }}>{form._ancienNom ? `Modifier ${form._ancienNom}` : 'Nouvelle personne'}</h3>
-      <Champ label="Nom complet *">
+    <Overlay pal={pal} width={380}>
+      <h3 style={{ marginTop: 0, color: pal.accent }}>{form._ancienNom ? `Modifier ${form._ancienNom}` : 'Nouvelle personne'}</h3>
+      <Champ pal={pal} label="Nom complet *">
         <input style={input} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
       </Champ>
-      <Champ label="Courriel">
+      <Champ pal={pal} label="Courriel">
         <input style={input} value={form.courriel || ''} onChange={(e) => setForm({ ...form, courriel: e.target.value })} />
       </Champ>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 8 }}>
@@ -886,24 +883,25 @@ function ModalPersonnel({ personne, onSave, onCancel, saving }) {
   );
 }
 
-function ModalType({ type, personnel, onSave, onCancel, saving }) {
+function ModalType({ pal, type, personnel, onSave, onCancel, saving }) {
+  const { btn, btnGhost, input } = styles(pal);
   const [form, setForm] = useState(type);
   const estNouveau = !type.code;
   return (
-    <Overlay width={380}>
-      <h3 style={{ marginTop: 0, color: NAVY }}>{estNouveau ? 'Nouveau type de projet' : `Modifier ${type.label}`}</h3>
+    <Overlay pal={pal} width={380}>
+      <h3 style={{ marginTop: 0, color: pal.accent }}>{estNouveau ? 'Nouveau type de projet' : `Modifier ${type.label}`}</h3>
       {estNouveau && (
-        <Champ label="Code (identifiant unique, sans espace) *">
+        <Champ pal={pal} label="Code (identifiant unique, sans espace) *">
           <input style={input} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })} placeholder="ex: transport" />
         </Champ>
       )}
-      <Champ label="Nom affiché *">
+      <Champ pal={pal} label="Nom affiché *">
         <input style={input} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
       </Champ>
-      <Champ label="Client (si utilisé comme travail interne sans numéro)">
+      <Champ pal={pal} label="Client (si utilisé comme travail interne sans numéro)">
         <input style={input} value={form.client || ''} onChange={(e) => setForm({ ...form, client: e.target.value })} />
       </Champ>
-      <Champ label="Chargé de projet (si utilisé comme travail interne sans numéro)">
+      <Champ pal={pal} label="Chargé de projet (si utilisé comme travail interne sans numéro)">
         <select style={input} value={form.charge || ''} onChange={(e) => setForm({ ...form, charge: e.target.value })}>
           <option value="">—</option>
           {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
@@ -917,9 +915,10 @@ function ModalType({ type, personnel, onSave, onCancel, saving }) {
   );
 }
 
-function ModalConfirm({ message, onConfirm, onCancel, saving }) {
+function ModalConfirm({ pal, message, onConfirm, onCancel, saving }) {
+  const { btnGhost, btnDanger } = styles(pal);
   return (
-    <Overlay width={380}>
+    <Overlay pal={pal} width={380}>
       <p style={{ fontSize: 14.5 }}>{message}</p>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
         <button style={btnGhost} onClick={onCancel} disabled={saving}>Annuler</button>
