@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
+import { useModePep } from '../../components/commun/ThemeToolbox';
 import { DESTINATAIRES_FIXES_RAW } from '../../lib/arpentage-destinataires';
 import {
   Send, CheckCircle2, Users, FileText, Upload, Clock, MapPin, Moon, Sun,
@@ -839,7 +840,7 @@ function mapRowToDemande(row, projets) {
 }
 
 function DemandeArpentageApp({ userId, nom, poste, email, accessToken }) {
-  const [mode, setMode] = useState('day');
+  const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
   const [tab, setTab] = useState('nouvelle');
