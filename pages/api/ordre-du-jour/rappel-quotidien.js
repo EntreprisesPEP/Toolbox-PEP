@@ -15,6 +15,45 @@
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
 
+// ---------------------------------------------------------------------------
+// QUI PEUT DÉCLENCHER CE RAPPEL
+//
+// Avant ce correctif : personne ne vérifiait rien. N'importe qui sur Internet
+// pouvait appeler cette adresse et envoyer une notification à tous les
+// contremaîtres, autant de fois qu'il le voulait.
+//
+// Deux entrées légitimes, les mêmes que pour les tâches du Défi Strava :
+//   1. Vercel Cron, qui envoie « Authorization: Bearer <CRON_SECRET> »
+//   2. une session Toolbox valide avec le rôle admin — pour le mode test
+//      (POST { test: true }) déclenché depuis un navigateur déjà connecté
+// ---------------------------------------------------------------------------
+async function estAutorise(req) {
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const authHeader = req.headers.authorization;
+
+  // 1. La tâche planifiée de Vercel
+  if (process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`) return true;
+
+  // 2. Un administrateur du Toolbox, connecté dans son navigateur
+  if (!authHeader || !SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) return false;
+  try {
+    const supabaseAuth = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error } = await supabaseAuth.auth.getUser();
+    if (error || !userData?.user) return false;
+
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: roleRow } = await admin
+      .from("pep_user_roles").select("role").eq("user_id", userData.user.id).maybeSingle();
+    return roleRow?.role === "admin";
+  } catch (e) {
+    return false;
+  }
+}
+
 // Date de demain au format YYYY-MM-DD, en heure de l'Est.
 function demainMontreal(joursFeries = []) {
   const maintenant = new Date();
@@ -34,6 +73,10 @@ function demainMontreal(joursFeries = []) {
 }
 
 export default async function handler(req, res) {
+  if (!(await estAutorise(req))) {
+    return res.status(401).json({ error: "Non autorisé" });
+  }
+
   const { VAPID_PUBLIC_KEY: pub, ORDREDUJOUR_VAPID_PUBLIC_KEY, ORDREDUJOUR_VAPID_PRIVATE_KEY } = process.env;
   const VAPID_PUBLIC_KEY = ORDREDUJOUR_VAPID_PUBLIC_KEY || pub;
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
