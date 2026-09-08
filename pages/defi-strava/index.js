@@ -155,6 +155,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       const msg = {
         reussie: { type: 'ok', texte: '✅ Ton compte Strava est bien connecté !' },
         refusee: { type: 'erreur', texte: "L'autorisation Strava a été refusée. Réessaie si c'était une erreur." },
+        'permissions-incompletes': { type: 'erreur', texte: "Ton compte est branché, mais Strava ne nous laisse pas voir tes activités : aucune ne comptera. Rebranche-toi en laissant les DEUX cases cochées sur l'écran de Strava." },
         erreur: { type: 'erreur', texte: "Une erreur est survenue pendant la connexion à Strava. Réessaie, ou contacte William si ça persiste." },
       }[router.query.connexion];
       if (msg) setMessageConnexionStrava(msg);
