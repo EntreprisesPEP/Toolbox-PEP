@@ -59,6 +59,7 @@ const initialForm = {
   nom: '',
   projetNo: '',
   priorite: '',
+  dateRequise: '',
   objet: '',
   details: [''],
   infosComplementaires: '',
@@ -318,6 +319,7 @@ function DemandeCard({ d, th, onOpen, onToggleStatut }) {
         </div>
         <div style={{ fontSize: 12, color: accomplie ? 'rgba(255,255,255,0.85)' : th.textDim, marginTop: 4 }}>
           Par {d.nom} · {formatDate(d.dateJour)}
+          {d.dateRequise && d.dateRequise !== d.dateJour ? ` → ${formatDate(d.dateRequise)}` : ''}
           {d.projet ? ` · ${d.projet.no} — ${d.projet.nom}` : ''}
         </div>
         {details.length > 0 && (
@@ -389,6 +391,7 @@ function DetailModal({ demande, th, onClose, onToggleStatut }) {
 
         <DetailRow th={th} label="Demandeur" value={demande.nom} />
         <DetailRow th={th} label="Date de la demande" value={formatDate(demande.dateJour)} />
+        <DetailRow th={th} label="Date idéale requise" value={formatDate(demande.dateRequise)} />
         <DetailRow th={th} label="Niveau de priorité" value={<PrioriteBadge priorite={demande.priorite} small />} />
         <DetailRow th={th} label="Objet de la demande" value={demande.objet} />
         <DetailRow th={th} label="Projet" value={demande.projet ? `${demande.projet.no} — ${demande.projet.nom}` : '—'} />
@@ -434,56 +437,94 @@ function DetailModal({ demande, th, onClose, onToggleStatut }) {
   );
 }
 
-// Une demande de garage n'a pas de date de fin : elle est posée sur sa
-// date de soumission. Le calendrier montre donc une pastille par demande,
-// le jour où elle a été faite, colorée par priorité (verte si accomplie).
-function PastilleDemande({ d, th, onOpen, compact }) {
+// Une demande de garage court de sa date de soumission jusqu'à la date
+// idéale requise : elle s'affiche en barre continue, comme dans Demandes
+// d'arpentage. Les deux bornes sont incluses; si la demande n'a qu'une
+// journée, la barre occupe une seule case.
+function bornesDemande(d) {
+  const debut = d.dateJour;
+  const fin = d.dateRequise && d.dateRequise > d.dateJour ? d.dateRequise : d.dateJour;
+  return [debut, fin];
+}
+
+// Portion visible d'une demande dans une semaine de 7 dates ISO : renvoie
+// les colonnes de début/fin (0..6), ou null si la demande ne touche pas
+// cette semaine.
+function trancheSemaine(demande, isoSemaine) {
+  if (!demande.dateJour) return null;
+  const [debut, fin] = bornesDemande(demande);
+  if (fin < isoSemaine[0] || debut > isoSemaine[6]) return null;
+  let colDebut = 0;
+  let colFin = 6;
+  for (let i = 0; i < 7; i++) {
+    if (isoSemaine[i] >= debut) { colDebut = i; break; }
+  }
+  for (let i = 6; i >= 0; i--) {
+    if (isoSemaine[i] <= fin) { colFin = i; break; }
+  }
+  if (colFin < colDebut) return null;
+  return { colDebut, colFin, debutReel: debut >= isoSemaine[0], finReelle: fin <= isoSemaine[6] };
+}
+
+function BarreDemande({ d, isoSemaine, th, onOpen }) {
+  const tranche = trancheSemaine(d, isoSemaine);
+  if (!tranche) return null;
   const couleur = couleurDemande(d);
   const libelle = `#${d.numero} · ${d.objet} · ${d.nom}`;
+  const [debut, fin] = bornesDemande(d);
+
   return (
-    <div
-      onClick={(e) => { e.stopPropagation(); onOpen(d); }}
-      title={`${libelle} — ${d.priorite}`}
-      style={{
-        background: couleur, color: '#fff', borderRadius: 4,
-        padding: compact ? '1px 4px' : '3px 8px',
-        fontSize: compact ? 9 : 10.5, fontWeight: 700,
-        cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-        marginBottom: 2,
-      }}>
-      {compact ? `#${d.numero}` : libelle}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0, height: 18 }}>
+      <div
+        onClick={(e) => { e.stopPropagation(); onOpen(d); }}
+        title={`${libelle} — ${d.priorite} — du ${formatDate(debut)} au ${formatDate(fin)}`}
+        style={{
+          gridColumn: `${tranche.colDebut + 1} / ${tranche.colFin + 2}`,
+          background: couleur, color: '#fff',
+          borderTopLeftRadius: tranche.debutReel ? 4 : 0,
+          borderBottomLeftRadius: tranche.debutReel ? 4 : 0,
+          borderTopRightRadius: tranche.finReelle ? 4 : 0,
+          borderBottomRightRadius: tranche.finReelle ? 4 : 0,
+          boxSizing: 'border-box', height: 18,
+          display: 'flex', alignItems: 'center',
+          paddingLeft: tranche.debutReel ? 6 : 3, paddingRight: 4,
+          fontSize: 9.5, fontWeight: 700, cursor: 'pointer',
+          overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+        }}>
+        {libelle}
+      </div>
     </div>
   );
 }
 
 function BlocSemaine({ jours, th, onOpen, demandes, moisReference, onJourClick }) {
+  const isoSemaine = jours.map(toISODate);
   const ajourdhuiIso = toISODate(new Date());
+  const demandesSemaine = demandes.filter(d => trancheSemaine(d, isoSemaine) !== null);
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 }}>
-      {jours.map((jour, i) => {
-        const iso = toISODate(jour);
-        const horsMois = moisReference !== undefined && jour.getMonth() !== moisReference;
-        const estAuj = iso === ajourdhuiIso;
-        const duJour = demandes.filter(d => d.dateJour === iso);
-        return (
-          <div key={i} onClick={() => onJourClick(jour)} style={{
-            border: `1px solid ${estAuj ? BRAND_RED : th.line}`,
-            borderRadius: 4, padding: 4, minHeight: 58, cursor: 'pointer',
-            background: horsMois ? 'transparent' : th.panel,
-            opacity: horsMois ? 0.5 : 1,
-          }}>
-            <div style={{
-              fontSize: 11, textAlign: 'center', marginBottom: 3,
-              color: estAuj ? BRAND_RED : th.textDim, fontWeight: estAuj ? 700 : 400,
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 0, marginBottom: 4 }}>
+        {jours.map((jour, i) => {
+          const iso = isoSemaine[i];
+          const horsMois = moisReference !== undefined && jour.getMonth() !== moisReference;
+          const estAuj = iso === ajourdhuiIso;
+          return (
+            <div key={i} onClick={() => onJourClick(jour)} style={{
+              textAlign: 'center', fontSize: 11, padding: '3px 0', cursor: 'pointer',
+              color: horsMois ? `${th.textDim}80` : estAuj ? BRAND_RED : th.text,
+              fontWeight: estAuj ? 700 : 400,
             }}>
               {jour.getDate()}
             </div>
-            {duJour.map(d => (
-              <PastilleDemande key={d.numero} d={d} th={th} onOpen={onOpen} compact />
-            ))}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minHeight: 6 }}>
+        {demandesSemaine.map(d => (
+          <BarreDemande key={d.numero} d={d} isoSemaine={isoSemaine} th={th} onOpen={onOpen} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -572,7 +613,11 @@ function CalendarView({ demandesTriees, th, onOpen }) {
 
       {vue === 'jour' && (() => {
         const iso = toISODate(refDate);
-        const liste = demandesTriees.filter(d => d.dateJour === iso);
+        const liste = demandesTriees.filter(d => {
+          if (!d.dateJour) return false;
+          const [debut, fin] = bornesDemande(d);
+          return iso >= debut && iso <= fin;
+        });
         return liste.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: th.textDim, fontSize: 13 }}>
             Aucune demande ce jour-là.
@@ -688,6 +733,7 @@ function mapRowToDemande(row, projets) {
   return {
     numero: row.numero,
     dateJour: row.date_jour,
+    dateRequise: row.date_requise || row.date_jour,
     nom: row.nom,
     projetNo: row.projet_no,
     priorite: row.priorite,
@@ -783,6 +829,8 @@ function DemandeGarageApp({ userId, nom, poste, email, accessToken }) {
   function validate() {
     const errs = {};
     if (!form.priorite) errs.priorite = 'Choisis un niveau de priorité';
+    if (!form.dateRequise) errs.dateRequise = 'Choisis une date idéale';
+    else if (form.dateRequise < todayISO()) errs.dateRequise = 'La date ne peut pas être passée';
     if (!form.objet.trim()) errs.objet = 'Requis';
     if (form.details.filter(d => d.trim()).length === 0) errs.details = 'Décris au moins un problème';
     setErrors(errs);
@@ -801,6 +849,7 @@ function DemandeGarageApp({ userId, nom, poste, email, accessToken }) {
       demandeur_email: email,
       projet_no: form.projetNo || null,
       priorite: form.priorite,
+      date_requise: form.dateRequise || null,
       objet: form.objet.trim(),
       details: form.details.map(d => d.trim()).filter(Boolean),
       infos_complementaires: form.infosComplementaires,
@@ -999,6 +1048,15 @@ function DemandeGarageApp({ userId, nom, poste, email, accessToken }) {
                     {p}
                   </button>
                 ))}
+              </div>
+            </Field>
+
+            <Field th={th} label="Date idéale requise" error={errors.dateRequise}>
+              <input type="date" value={form.dateRequise} min={todayISO()}
+                onChange={e => updateField('dateRequise', e.target.value)}
+                style={{ ...inputStyle, colorScheme: mode === 'night' ? 'dark' : 'light' }} />
+              <div style={{ fontSize: 11, color: th.textDim, marginTop: 5 }}>
+                Dans le calendrier, la demande s'étire de la date du jour jusqu'à cette date.
               </div>
             </Field>
 
