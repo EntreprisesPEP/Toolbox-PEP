@@ -98,6 +98,7 @@ function construireHtml(demande, projet) {
     ['Demandeur', echapper(demande.nom), true],
     ['Date de la demande', formatDateFr(demande.date_jour)],
     ['Niveau de priorité', badgePriorite(demande.priorite), true],
+    ['Date idéale requise', formatDateFr(demande.date_requise), true],
     ['Objet (numéro du véhicule ou autre)', echapper(ouTiret(demande.objet)), true],
     ['Projet', echapper(projetTexte)],
     ['Chargé de projet', echapper(ouTiret(projet?.charge))],
