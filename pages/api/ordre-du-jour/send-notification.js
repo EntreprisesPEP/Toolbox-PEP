@@ -10,6 +10,7 @@
 // n'ont pas désactivé les courriels (préférence stockée par user_id).
 
 import { createClient } from "@supabase/supabase-js";
+import { peutNotifier } from "../../../lib/ordre-du-jour/auth";
 
 const LOGO_URL = "https://toolbox-pep.com/_static/ordre-du-jour/logo-pep.png";
 
@@ -83,7 +84,7 @@ function section(titre, contenuHtml, accentColor) {
   `;
 }
 
-function construireHtml({ nom, dateTexte, chantier, personnel, machinerie, camions, diesel }) {
+function construireHtml({ nom, dateTexte, chantier, personnel, machinerie, camions, diesel, aucunTravaux }) {
   const personnelHtml = lignesItems(personnel);
 
   const machinerieHtml = [
@@ -124,7 +125,7 @@ function construireHtml({ nom, dateTexte, chantier, personnel, machinerie, camio
           </td>
           <td valign="middle" style="padding-left:12px; font-family:Arial,sans-serif;">
             <div style="font-weight:bold; font-size:18px; color:#ffffff;">PEP2000 &mdash; ORDRE DU JOUR</div>
-            <div style="font-size:12.5px; color:#B9C2CC; margin-top:2px;">Nouvelle requête soumise par ${nom}</div>
+            <div style="font-size:12.5px; color:#B9C2CC; margin-top:2px;">${aucunTravaux ? `Aucun travaux prévu &mdash; ${nom}` : `Nouvelle requête soumise par ${nom}`}</div>
           </td>
         </tr>
       </table>
@@ -213,7 +214,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Méthode non autorisée" });
   }
 
-  const { nom, date, chantier, personnel, machinerie, camions, diesel, commentateur, commentaire } = req.body || {};
+  // Révision 42 : cette route n'avait aucune authentification. N'importe qui
+  // pouvait faire envoyer un courriel à toute la direction, avec le contenu
+  // de son choix, en se faisant passer pour n'importe quel contremaître.
+  if (!(await peutNotifier(req))) {
+    return res.status(401).json({ error: "Non autorisé" });
+  }
+
+  const { nom, date, chantier, personnel, machinerie, camions, diesel, commentateur, commentaire, aucunTravaux } = req.body || {};
   if (!nom || !date) {
     return res.status(400).json({ error: "Champs manquants (nom, date requis)" });
   }
@@ -229,10 +237,17 @@ export default async function handler(req, res) {
   const dateTexte = formaterDateFr(date);
   const titreOriginal = `Ordre du jour - ${dateTexte} - ${nom}`;
   const estCommentaire = !!(commentateur && commentaire);
-  const sujet = estCommentaire ? `IMPORTANT - ${commentateur} - ${titreOriginal}` : titreOriginal;
+  // Révision 43 : « Aucun travaux » envoie maintenant le même courriel que
+  // n'importe quelle requête. Sans ce drapeau, le lecteur verrait un courriel
+  // rempli de zéros sans savoir si c'est « pas de travaux » ou « fiche vide
+  // envoyée par erreur ». On le dit donc explicitement, dans le sujet comme
+  // dans l'en-tête.
+  const sujet = estCommentaire
+    ? `IMPORTANT - ${commentateur} - ${titreOriginal}`
+    : (aucunTravaux ? `AUCUN TRAVAUX - ${titreOriginal}` : titreOriginal);
   const html = estCommentaire
     ? construireHtmlCommentaire({ nom, dateTexte, chantier, commentateur, commentaire })
-    : construireHtml({ nom, dateTexte, chantier, personnel, machinerie, camions, diesel });
+    : construireHtml({ nom, dateTexte, chantier, personnel, machinerie, camions, diesel, aucunTravaux });
 
   try {
     const resendRes = await fetch("https://api.resend.com/emails", {

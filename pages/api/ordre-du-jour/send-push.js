@@ -5,10 +5,17 @@
 
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
+import { peutNotifier } from "../../../lib/ordre-du-jour/auth";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
+  }
+
+  // Révision 42 : cette route n'avait aucune authentification. N'importe qui
+  // pouvait envoyer une notification push à tous les appareils abonnés.
+  if (!(await peutNotifier(req))) {
+    return res.status(401).json({ error: "Non autorisé" });
   }
 
   const { title, body } = req.body || {};
