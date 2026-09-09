@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
@@ -262,15 +262,20 @@ function Administration({ nom, poste, mode, onChangerMode }) {
     setSaving(false);
   }
 
+  // Revision 43 : meme traitement que onSavePermissions. Sans ca, le message
+  // de confirmation aurait affiche « Acces accorde » meme sur un echec, pour
+  // les personnes qui n'ont pas encore de compte — pire que pas de message.
   async function onSaveAccesAttente(email, appSlug, hasAppAccess, featureKeys) {
     setSaving(true);
     try {
       await callApi({ action: 'upsert_pending_access', email, app_slug: appSlug, has_app_access: hasAppAccess, feature_keys: featureKeys });
       await loadAll();
+      return { ok: true };
     } catch (e) {
-      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+      return { ok: false, message: e.message };
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function onDeleteAccesAttente(email, appSlug) {
@@ -340,6 +345,15 @@ function Administration({ nom, poste, mode, onChangerMode }) {
     setSaving(false);
   }
 
+  // Revision 43 : cette fonction renvoie maintenant le resultat au lieu de
+  // l'avaler dans une alerte. Avant, « Sauvegarder » ne donnait AUCUN signe
+  // de reussite — ni message, ni changement visible — et en cas d'echec une
+  // alerte bloquante s'ouvrait. Le composant affiche desormais lui-meme un
+  // message a cote du bouton, dans les deux cas.
+  //
+  // Le loadAll() est DANS le try et AVANT le retour : on ne dit « enregistre »
+  // qu'apres avoir relu les droits depuis le serveur. Ce qui s'affiche est
+  // donc ce qui est reellement stocke, pas ce qui a ete clique.
   async function onSavePermissions(user, appSlug, hasAppAccess, featureKeys) {
     setSaving(true);
     try {
@@ -351,10 +365,12 @@ function Administration({ nom, poste, mode, onChangerMode }) {
         feature_keys: featureKeys,
       });
       await loadAll();
+      return { ok: true };
     } catch (e) {
-      alert(`Erreur: ${e.message}`); // eslint-disable-line no-alert
+      return { ok: false, message: e.message };
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function onSaveOrdreDuJourProfil(user, nom, role, accesSpecial, peutPrevisualiser) {
@@ -700,6 +716,29 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
   const th = usePalette();
   const [localApps, setLocalApps] = useState(new Set(user.apps));
   const [localFeatures, setLocalFeatures] = useState(new Set(user.features));
+  // Revision 43 — un message par app, affiche a cote de son bouton.
+  const [appMsg, setAppMsg] = useState({});
+  // Les minuteries d'effacement, une par app, pour pouvoir les annuler.
+  const minuteries = useRef({});
+  useEffect(() => () => {
+    Object.values(minuteries.current).forEach(clearTimeout);
+  }, []);
+
+  // Revision 43 — resynchronisation des cases avec le serveur.
+  //
+  // Ces deux Set etaient initialises une seule fois, au premier rendu. Apres
+  // une sauvegarde le parent relit tout et nous passe des droits a jour, mais
+  // les cases gardaient l'ancien etat local. Une sauvegarde echouee laissait
+  // donc une case cochee alors que le droit n'existait pas — l'ecran mentait.
+  // On se resynchronise des que les droits venus du serveur changent
+  // vraiment (cle triee, donc insensible a l'ordre).
+  const clefApps = [...(user.apps || [])].sort().join('|');
+  const clefFeatures = [...(user.features || [])].sort().join('|');
+  useEffect(() => {
+    setLocalApps(new Set(user.apps));
+    setLocalFeatures(new Set(user.features));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, clefApps, clefFeatures]);
 
   // NOUVEAU — champs du profil metier Ordre du jour
   const [odjNom, setOdjNom] = useState(user.ordre_du_jour_profil?.nom || user.email?.split('@')[0] || '');
@@ -747,12 +786,69 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
     setLocalFeatures(next);
   }
 
-  function saveApp(slug) {
+  // Revision 43 — « Sauvegarder » confirme maintenant ce qu'il a fait.
+  //
+  // Deux problemes se cachaient derriere « rien ne s'affiche » :
+  //   1. aucun message, ni en cas de reussite ni en cas d'echec;
+  //   2. les cases a cocher venaient d'un etat local initialise UNE seule
+  //      fois. Elles restaient donc cochees meme si l'enregistrement avait
+  //      echoue — l'ecran affirmait un droit qui n'existait pas.
+  // Le point 2 est regle par le useEffect de resynchronisation ci-dessus :
+  // apres chaque sauvegarde le parent relit les droits, et les cases
+  // reprennent ce que le serveur dit vraiment.
+  async function saveApp(slug) {
     const hasAccess = localApps.has(slug);
     const featureKeys = features
       .filter((f) => f.app_slug === slug && localFeatures.has(`${slug}:${f.feature_key}`))
       .map((f) => f.feature_key);
-    onSave(slug, hasAccess, featureKeys);
+
+    // Un message de reussite s'effacait tout seul apres 4 secondes — mais
+    // sa minuterie continuait de courir. Si on resauvegardait entre-temps,
+    // elle effacait le message SUIVANT, y compris un message d'echec. On
+    // annule donc la minuterie en attente avant d'afficher quoi que ce soit.
+    if (minuteries.current[slug]) {
+      clearTimeout(minuteries.current[slug]);
+      delete minuteries.current[slug];
+    }
+
+    setAppMsg((m) => ({ ...m, [slug]: { texte: 'Enregistrement…', ok: null } }));
+    const r = await onSave(slug, hasAccess, featureKeys);
+
+    // Les autres appelants de ce composant (les acces en attente) ne
+    // renvoient rien : dans ce cas, pas d'erreur remontee = c'est passe.
+    const ok = r ? r.ok !== false : true;
+
+    if (ok) {
+      setAppMsg((m) => ({
+        ...m,
+        [slug]: { texte: hasAccess ? 'Accès accordé ✓' : 'Accès retiré ✓', ok: true },
+      }));
+      minuteries.current[slug] = setTimeout(() => {
+        delete minuteries.current[slug];
+        setAppMsg((m) => {
+          const n = { ...m };
+          delete n[slug];
+          return n;
+        });
+      }, 5000);
+    } else {
+      // Echec : on remet les cases telles qu'elles sont VRAIMENT cote
+      // serveur. Sans ca, l'ecran garderait la case telle qu'on l'a
+      // cliquee et affirmerait un droit qui n'a pas ete enregistre.
+      // Le useEffect de resynchronisation ne suffit pas ici : les donnees
+      // du parent n'ont pas change, puisque la sauvegarde a echoue.
+      setLocalApps(new Set(user.apps));
+      setLocalFeatures(new Set(user.features));
+      setAppMsg((m) => ({
+        ...m,
+        [slug]: {
+          texte: `Échec, rien n'a été enregistré : ${r?.message || 'erreur inconnue'}`,
+          ok: false,
+        },
+      }));
+      // Le message d'echec ne s'effface pas tout seul : il doit rester
+      // sous les yeux jusqu'a la prochaine tentative.
+    }
   }
 
   async function saveOdjProfil() {
@@ -891,9 +987,22 @@ function PermissionsGrid({ user, apps, features, ordreDuJourRoles, ordreDuJourAc
                 {f.label}
               </label>
             ))}
-            <button onClick={() => saveApp(app.slug)} disabled={saving} style={{ ...btnStyle(th), marginTop: 8, fontSize: 12 }}>
-              Sauvegarder {app.label}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+              <button onClick={() => saveApp(app.slug)} disabled={saving} style={{ ...btnStyle(th), fontSize: 12 }}>
+                Sauvegarder {app.label}
+              </button>
+              {appMsg[app.slug] && (
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: appMsg[app.slug].ok === false ? ROUGE
+                       : appMsg[app.slug].ok === true ? VERT
+                       : th.textDim,
+                }}>
+                  {appMsg[app.slug].texte}
+                </span>
+              )}
+            </div>
           </div>
         );
       })}
