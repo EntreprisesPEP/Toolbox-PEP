@@ -2,14 +2,13 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>To do list</title>
 <meta name="theme-color" content="#14213d">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js"></script>
 <style>
   :root{
     --bg: #10192e;
@@ -1264,6 +1263,21 @@
 
   .sticky-top-scroll{ max-height:44vh !important; }
 }
+
+/* Revision 43 — banque de projets en lecture seule */
+.proj-source-note{
+  /* Les couleurs viennent des variables de l'app : ce fichier a le theme
+     NUIT sur :root et le jour en surcharge. Un gris fixe serait illisible
+     de nuit. */
+  font-size:13px; line-height:1.55; color:var(--text-dim);
+  background:var(--bg); border-left:3px solid var(--brand-red);
+  padding:11px 13px; margin-bottom:14px;
+}
+.proj-source-note strong{ color:var(--text-primary); }
+.proj-source-lien{
+  display:inline-block; margin-top:7px; font-weight:600; font-size:12.5px;
+  color:var(--text-primary); text-decoration:underline;
+}
 </style>
 </head>
 <body>
@@ -1439,20 +1453,13 @@
       <h2>Banque de projets</h2>
       <button type="button" class="modal-close" id="closeProjModal" aria-label="Fermer">✕</button>
     </div>
-    <div class="csv-import-row">
-      <label for="csvFileInput" class="btn-csv">Importer un fichier</label>
-      <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
-      <span class="csv-hint">CSV ou Excel · Colonne A : numéro · Colonne B : nom</span>
-    </div>
-    <div id="csvImportMsg" class="csv-import-msg"></div>
-    <div class="modal-add-row">
-      <input type="text" id="newProjNum" placeholder="N° de projet">
-      <input type="text" id="newProjName" placeholder="Nom du projet">
-      <button type="button" class="btn-add" id="addProjBtn">Ajouter</button>
+    <div class="proj-source-note">
+      Cette liste vient de l'application <strong>Liste des projets</strong>. Pour ajouter,
+      renommer ou archiver un projet, ça se fait là — le changement apparaît ici tout seul.
+      <a href="/liste-projets/" class="proj-source-lien">Ouvrir Liste des projets</a>
     </div>
     <div class="proj-list-header">
       <span class="proj-count" id="projCount"></span>
-      <button type="button" class="btn-clear-all" id="clearAllProjBtn">Tout effacer</button>
     </div>
     <div id="projListBody" class="proj-list"></div>
   </div>
@@ -1477,6 +1484,11 @@
 const SUPABASE_URL = 'https://qhiriieengchuzauweto.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFoaXJpaWVlbmdjaHV6YXV3ZXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NjIzNTEsImV4cCI6MjEwMTQzODM1MX0.-7FspobjqoAARhPIJI2aO0CPcWOwRSqFTWsDj5piCkk';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/* Revision 43 — la banque de projets vient maintenant de l'application
+   « Liste des projets » (schema liste_projets), plus de la table todo_projects.
+   Un projet ajoute la-bas apparait ici sans qu'on retape quoi que ce soit,
+   et on ne peut plus avoir deux listes qui divergent. */
+const sbProjets = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'liste_projets' } });
 let currentUser = null;
 
 const DEFAULT_CATEGORIES = ["Autre","Courriel","Estimation","Fournisseur","Interne","Projet","Sous-traitant","Téléphone"];
@@ -1625,7 +1637,7 @@ async function loadState(){
     const [tasksRes, catsRes, projsRes] = await Promise.all([
       sb.from('todo_tasks').select('*').order('created_at', { ascending: true }),
       sb.from('todo_categories').select('*').order('name', { ascending: true }),
-      sb.from('todo_projects').select('*')
+      sbProjets.from('projets').select('no, nom, archive').or('archive.is.null,archive.eq.false').order('no', { ascending: false })
     ]);
 
     if(tasksRes.error || catsRes.error || projsRes.error){
@@ -1634,7 +1646,7 @@ async function loadState(){
     }
 
     state.tasks = (tasksRes.data || []).map(taskRowToTask);
-    state.projects = (projsRes.data || []).map(p => ({ number: p.number, name: p.name }));
+    state.projects = (projsRes.data || []).map(p => ({ number: String(p.no || '').trim(), name: p.nom || '' })).filter(p => p.number);
 
     let cats = (catsRes.data || []).map(c => c.name);
     if(cats.length === 0){
@@ -1798,7 +1810,7 @@ function renderProjDropdown(filterText){
     : state.projects.slice();
   matches.sort((a,b)=> a.number.localeCompare(b.number, undefined, {numeric:true}));
   if(matches.length === 0){
-    dropdown.innerHTML = `<div class="proj-dropdown-empty">${state.projects.length === 0 ? 'Aucun projet dans la banque.' : 'Aucun résultat.'}</div>`;
+    dropdown.innerHTML = `<div class="proj-dropdown-empty">${state.projects.length === 0 ? 'Aucun projet actif dans Liste des projets.' : 'Aucun résultat.'}</div>`;
     return;
   }
   dropdown.innerHTML = matches.map(p => `
@@ -1851,27 +1863,17 @@ function renderProjectManagerList(){
   const countEl = document.getElementById('projCount');
   countEl.textContent = state.projects.length + ' projet(s)';
   if(state.projects.length === 0){
-    body.innerHTML = '<div class="proj-empty">Aucun projet dans la banque pour l\'instant.</div>';
+    body.innerHTML = '<div class="proj-empty">Aucun projet actif dans Liste des projets.</div>';
     return;
   }
   const sorted = state.projects.slice().sort((a,b)=> a.number.localeCompare(b.number, undefined, {numeric:true}));
+  // Revision 43 : plus de bouton de suppression — la liste est en lecture
+  // seule, elle vient de Liste des projets.
   body.innerHTML = sorted.map(p => `
     <div class="proj-row">
       <span class="pnum">${escapeHtml(p.number)}</span>
       <span class="pname">${escapeHtml(p.name)}</span>
-      <button type="button" class="del-btn" data-del-proj="${escapeHtml(p.number)}" title="Supprimer" aria-label="Supprimer">✕</button>
     </div>`).join('');
-  body.querySelectorAll('[data-del-proj]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const num = btn.getAttribute('data-del-proj');
-      state.projects = state.projects.filter(p => p.number !== num);
-      renderProjectDatalist();
-      renderProjectManagerList();
-      updateProjectLookup();
-      const { error } = await sb.from('todo_projects').delete().eq('number', num);
-      if(error){ console.error(error); showSaveErrorBanner(); }
-    });
-  });
 }
 
 /* ===================== RENDER ===================== */
@@ -2530,181 +2532,17 @@ document.getElementById('projModalOverlay').addEventListener('click', (e)=>{
 function closeProjModal(){
   document.getElementById('projModalOverlay').classList.remove('show');
 }
-document.getElementById('clearAllProjBtn').addEventListener('click', ()=>{
-  if(state.projects.length === 0) return;
-  document.getElementById('deleteWarningText').textContent =
-    `Tu es sur le point de supprimer les ${state.projects.length} projet(s) de la banque. Cette action est irréversible.`;
-  const input = document.getElementById('deleteConfirmInput');
-  input.value = '';
-  document.getElementById('confirmDeleteBtn').disabled = true;
-  document.getElementById('deleteConfirmOverlay').classList.add('show');
-  input.focus();
-});
-document.getElementById('deleteConfirmInput').addEventListener('input', (e)=>{
-  document.getElementById('confirmDeleteBtn').disabled = e.target.value.trim() !== 'DELETE';
-});
-document.getElementById('deleteConfirmInput').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter' && !document.getElementById('confirmDeleteBtn').disabled){
-    document.getElementById('confirmDeleteBtn').click();
-  }
-});
-document.getElementById('cancelDeleteBtn').addEventListener('click', closeDeleteModal);
-document.getElementById('deleteConfirmOverlay').addEventListener('click', (e)=>{
-  if(e.target.id === 'deleteConfirmOverlay') closeDeleteModal();
-});
-function closeDeleteModal(){
-  document.getElementById('deleteConfirmOverlay').classList.remove('show');
-}
-document.getElementById('confirmDeleteBtn').addEventListener('click', async ()=>{
-  state.projects = [];
-  renderProjectDatalist();
-  renderProjectManagerList();
-  updateProjectLookup();
-  closeDeleteModal();
-  const { error } = await sb.from('todo_projects').delete().not('id', 'is', null);
-  if(error){ console.error(error); showSaveErrorBanner(); }
-});
+/* Revision 43 — tout ce qui suivait ici est parti avec la banque de projets :
+     - « Tout effacer » et sa modale de confirmation « DELETE »
+     - l'import CSV / Excel (parseCsvLine, importRows, handleCsvImport,
+       handleExcelImport) et le champ de fichier
+     - l'ajout manuel d'un projet
+   La liste vient maintenant de Liste des projets : il n'y a plus rien a
+   ajouter, importer ou effacer d'ici. La librairie XLSX, qui ne servait
+   qu'a cet import, n'est plus chargee non plus.
 
-function parseCsvLine(line){
-  const delim = line.includes(';') && !line.includes(',') ? ';' : ',';
-  const result = [];
-  let cur = '';
-  let inQuotes = false;
-  for(let i=0;i<line.length;i++){
-    const ch = line[i];
-    if(inQuotes){
-      if(ch === '"'){
-        if(line[i+1] === '"'){ cur += '"'; i++; }
-        else { inQuotes = false; }
-      } else { cur += ch; }
-    } else {
-      if(ch === '"'){ inQuotes = true; }
-      else if(ch === delim){ result.push(cur); cur = ''; }
-      else { cur += ch; }
-    }
-  }
-  result.push(cur);
-  return result.map(s => s.trim());
-}
-
-async function importRows(rows){
-  const msgEl = document.getElementById('csvImportMsg');
-  if(!rows || rows.length === 0){
-    msgEl.textContent = 'Fichier vide.';
-    msgEl.className = 'csv-import-msg error';
-    return;
-  }
-  let added = 0, updated = 0, skipped = 0, duplicatesInFile = 0;
-  const upsertMap = new Map(); // key: lowercase number -> {number, name} — dedupes repeats within this file
-  rows.forEach((cols, idx)=>{
-    const num = String(cols[0] || '').trim();
-    const name = String(cols[1] || '').trim();
-    if(idx === 0 && (num.toLowerCase() === 'numero' || num.toLowerCase() === 'numéro' || num.toLowerCase() === 'no' || num.toLowerCase() === 'n°' || num.toLowerCase().includes('projet'))){
-      return;
-    }
-    if(!num || !name){ skipped++; return; }
-    const key = num.toLowerCase();
-    if(upsertMap.has(key)) duplicatesInFile++;
-    upsertMap.set(key, { number: num, name });
-  });
-
-  upsertMap.forEach(({ number, name })=>{
-    const existing = state.projects.find(p => p.number.trim().toLowerCase() === number.toLowerCase());
-    if(existing){
-      if(existing.name !== name){ existing.name = name; updated++; }
-    } else {
-      state.projects.push({ number, name });
-      added++;
-    }
-  });
-
-  renderProjectDatalist();
-  renderProjectManagerList();
-  updateProjectLookup();
-  let msg = `${added} projet(s) ajouté(s), ${updated} mis à jour`;
-  if(duplicatesInFile) msg += ` (${duplicatesInFile} doublon(s) dans le fichier fusionné(s))`;
-  if(skipped) msg += `, ${skipped} ligne(s) ignorée(s)`;
-  msgEl.textContent = msg + '.';
-  msgEl.className = 'csv-import-msg';
-
-  const toUpsert = Array.from(upsertMap.values());
-  if(toUpsert.length > 0){
-    const { error } = await sb.from('todo_projects').upsert(toUpsert, { onConflict: 'number' });
-    if(error){ console.error(error); showSaveErrorBanner(); }
-  }
-}
-
-function handleCsvImport(text){
-  const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim().length > 0);
-  const rows = lines.map(parseCsvLine);
-  importRows(rows);
-}
-
-function handleExcelImport(arrayBuffer){
-  const wb = XLSX.read(arrayBuffer, { type: 'array' });
-  const firstSheetName = wb.SheetNames[0];
-  const sheet = wb.Sheets[firstSheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
-  const filtered = rows.filter(r => r.some(cell => String(cell).trim().length > 0));
-  importRows(filtered);
-}
-
-document.getElementById('csvFileInput').addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const msgEl = document.getElementById('csvImportMsg');
-  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    try{
-      if(isExcel){
-        if(typeof XLSX === 'undefined'){
-          msgEl.textContent = "La lecture des fichiers Excel n'a pas pu se charger — essaie d'exporter ton fichier en CSV.";
-          msgEl.className = 'csv-import-msg error';
-          return;
-        }
-        handleExcelImport(ev.target.result);
-      } else {
-        handleCsvImport(ev.target.result);
-      }
-    }catch(err){
-      msgEl.textContent = "Impossible de lire ce fichier — vérifie qu'il s'agit bien d'un CSV ou d'un Excel.";
-      msgEl.className = 'csv-import-msg error';
-    }
-  };
-  reader.onerror = ()=>{
-    msgEl.textContent = 'Erreur de lecture du fichier.';
-    msgEl.className = 'csv-import-msg error';
-  };
-  if(isExcel){
-    reader.readAsArrayBuffer(file);
-  } else {
-    reader.readAsText(file, 'UTF-8');
-  }
-  e.target.value = '';
-});
-
-document.getElementById('addProjBtn').addEventListener('click', async ()=>{
-  const numEl = document.getElementById('newProjNum');
-  const nameEl = document.getElementById('newProjName');
-  const num = numEl.value.trim();
-  const name = nameEl.value.trim();
-  if(!num || !name) return;
-  const existing = state.projects.find(p => p.number.trim().toLowerCase() === num.toLowerCase());
-  if(existing){
-    existing.name = name;
-  } else {
-    state.projects.push({ number: num, name });
-  }
-  renderProjectDatalist();
-  renderProjectManagerList();
-  updateProjectLookup();
-  numEl.value = '';
-  nameEl.value = '';
-  numEl.focus();
-  const { error } = await sb.from('todo_projects').upsert({ number: num, name }, { onConflict: 'number' });
-  if(error){ console.error(error); showSaveErrorBanner(); }
-});
+   La modale de confirmation « deleteConfirmOverlay » reste dans le HTML :
+   elle sert aussi a la suppression des taches. */
 
 /* ===================== FILTERS ===================== */
 
