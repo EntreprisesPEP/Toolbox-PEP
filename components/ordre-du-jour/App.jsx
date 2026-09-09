@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { storage } from "./lib/storage";
 import { supabase } from "./lib/supabaseClient";
+import { entetesAuth } from "./lib/entetesAuth";
 import GardeConnexion from "../commun/GardeConnexion";
 import EnTeteApp from "../commun/EnTeteApp";
 import { useModePep } from "../commun/ThemeToolbox";
@@ -1106,6 +1107,62 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
         maj: new Date().toISOString(),
       };
       await storage.set(ficheKey(dateCible, slug, 1), JSON.stringify(donnees), true);
+
+      // ---------------------------------------------------------------------
+      // Revision 43 : « Aucun travaux » previent maintenant les memes
+      // personnes qu'une requete normale.
+      //
+      // Avant, cette fonction enregistrait la fiche et s'arretait la : aucun
+      // courriel, aucun push, rien dans le centre de notifications. Et comme
+      // la fiche compte comme « repondu », le rappel de 16 h et 20 h cessait
+      // de relancer la personne — le silence etait donc complet, personne
+      // n'apprenait qu'il n'y avait pas de travaux le lendemain.
+      //
+      // Les trois avis sont les memes que dans save(), avec des quantites a
+      // zero et un texte explicite. Chacun est dans son propre try/catch :
+      // la fiche est deja enregistree, une notification qui echoue ne doit
+      // jamais faire perdre la reponse du contremaitre.
+      // ---------------------------------------------------------------------
+      const dateTexte = new Date(dateCible + "T12:00:00")
+        .toLocaleDateString("fr-CA", { day: "numeric", month: "long", year: "numeric" });
+
+      try {
+        await fetch("/api/ordre-du-jour/send-notification/", {
+          method: "POST",
+          headers: await entetesAuth(),
+          body: JSON.stringify({
+            nom: profil.nom,
+            date: dateCible,
+            chantier: "Aucun travaux prévu",
+            aucunTravaux: true,
+            personnel: [],
+            machinerie: { ajout: [], retrait: [] },
+            camions: { douze: 0, deux: 0, trois: 0 },
+            diesel: { requis: "non", grosses: 0, petites: 0, commentaire: "" },
+          }),
+        });
+      } catch (eNotif) { /* notification secondaire — on ignore l'échec */ }
+
+      try {
+        await fetch("/api/ordre-du-jour/send-push/", {
+          method: "POST",
+          headers: await entetesAuth(),
+          body: JSON.stringify({
+            title: "PEP2000 — Ordre du jour",
+            body: `Aucun travaux prévu — ${profil.nom} — ${dateTexte}`,
+          }),
+        });
+      } catch (ePush) { /* notification secondaire — on ignore l'échec */ }
+
+      try {
+        await notifierNouvelleRequete(
+          profil,
+          { date: dateCible, slug: profil.userId, seq: 1 },
+          `Aucun travaux — ${profil.nom}`,
+          `Aucun travaux prévu pour le ${dateTexte}`
+        );
+      } catch (eCentre) { /* notification secondaire — on ignore l'échec */ }
+
       await charger();
       onOuvrirDate(dateCible, 1);
     } finally {
@@ -1288,14 +1345,14 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       try {
         await fetch("/api/ordre-du-jour/send-notification/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({ nom: profil.nom, date, chantier: donnees.chantier, commentateur: profil.nom, commentaire: nouveauTexte }),
         });
       } catch (eNotif) { /* secondaire */ }
       try {
         await fetch("/api/ordre-du-jour/send-push/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({ title: `IMPORTANT - ${profil.nom} - ${titreOriginal}`, body: nouveauTexte }),
         });
       } catch (ePush) { /* secondaire */ }
@@ -1326,14 +1383,14 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       try {
         await fetch("/api/ordre-du-jour/send-notification/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({ nom: profil.nom, date, chantier: donnees.chantier, commentateur: `${profil.nom} (Écart signalé)`, commentaire: nouveauTexte }),
         });
       } catch (eNotif) { /* secondaire */ }
       try {
         await fetch("/api/ordre-du-jour/send-push/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({ title: `ÉCART SIGNALÉ - ${profil.nom} - ${titreOriginal}`, body: nouveauTexte }),
         });
       } catch (ePush) { /* secondaire */ }
@@ -1663,7 +1720,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
           ];
           await fetch("/api/ordre-du-jour/send-notification/", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: await entetesAuth(),
             body: JSON.stringify({
               nom: profil.nom,
               date,
@@ -1688,7 +1745,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
         try {
           await fetch("/api/ordre-du-jour/send-push/", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: await entetesAuth(),
             body: JSON.stringify({
               title: "PEP2000 — Ordre du jour",
               body: `Nouvelle requête soumise par ${profil.nom}`,
@@ -2689,7 +2746,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       try {
         await fetch("/api/ordre-du-jour/send-notification/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({
             nom: nomPropre,
             date: f.date,
@@ -2703,7 +2760,7 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
       try {
         await fetch("/api/ordre-du-jour/send-push/", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await entetesAuth(),
           body: JSON.stringify({
             title: `IMPORTANT - ${profil.nom} - ${titreOriginal}`,
             body: texte,
