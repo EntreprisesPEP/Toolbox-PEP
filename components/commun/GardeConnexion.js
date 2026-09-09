@@ -104,6 +104,10 @@ export default function GardeConnexion({ appSlug, nomApp, adminSeulement = false
         poste,
         email: session.user.email,
         accessToken: session.access_token,
+        // Ajout purement additif : les apps qui ont un panneau reserve aux
+        // administrateurs n'ont plus a refaire la requete de role elles-memes.
+        // Les apps existantes ignorent simplement ce champ.
+        estAdmin,
       });
     }
 
