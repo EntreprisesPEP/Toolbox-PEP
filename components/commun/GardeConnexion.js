@@ -19,9 +19,15 @@ import { createClient } from '@supabase/supabase-js';
 //                          accessToken }).
 //
 // Le nom et le titre du poste viennent de Liste de contacts
-// (schéma personnel, table personnes). Repli sur l'ancienne liste
-// liste_projets.personnel, puis sur le courriel, pour que personne ne reste
-// bloqué si sa fiche manque.
+// (schéma personnel, table personnes). Repli sur le courriel, pour que
+// personne ne reste bloqué si sa fiche manque.
+//
+// Révision 42 : le repli intermédiaire sur l'ancienne liste
+// liste_projets.personnel a été retiré. Ses 15 fiches étaient toutes déjà
+// dans personnel.personnes (vérifié par courriel), donc le repli ne se
+// déclenchait jamais — il coûtait une requête inutile à chaque ouverture
+// d'app. Une personne absente de Liste de contacts voit maintenant son
+// courriel, exactement comme avant.
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,7 +35,6 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabasePers = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'personnel' } });
-const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'liste_projets' } });
 
 const NAVY = '#0f2138';
 const ROUGE = '#e4022e';
@@ -69,12 +74,7 @@ export default function GardeConnexion({ appSlug, nomApp, adminSeulement = false
         .from('personnes').select('nom, titre').eq('courriel', email).maybeSingle();
       if (p?.nom) return { nom: p.nom, poste: p.titre || '' };
 
-      // 2. Ancienne liste, sans titre
-      const { data: ancien } = await supabaseLP
-        .from('personnel').select('nom').eq('courriel', email).maybeSingle();
-      if (ancien?.nom) return { nom: ancien.nom, poste: '' };
-
-      // 3. Rien trouvé : au moins le courriel, pour ne bloquer personne
+      // 2. Rien trouvé : au moins le courriel, pour ne bloquer personne
       return { nom: email, poste: '' };
     }
 
