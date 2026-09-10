@@ -12,6 +12,7 @@ import PasswordModal from '../../components/planification-hebdomadaire/PasswordM
 import { usePrefs } from '../../hooks/planification-hebdomadaire/usePrefs';
 import { useBoard } from '../../hooks/planification-hebdomadaire/useBoard';
 import { mondayOf, today, dateKey } from '../../lib/planification-hebdomadaire/dates';
+import { entetesAuth } from '../../lib/commun/entetesAuth';
 
 const TABS = [
   { key: 'admin', label: 'ADMIN' },
@@ -63,14 +64,22 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
   async function soumettreMotDePasse(pwd) {
     setPwdOpen(false);
     try {
+      // La route exige maintenant une session Toolbox valide en plus du mot
+      // de passe : on joint le jeton, comme les autres appels de nos apps.
       const res = await fetch('/api/planification-hebdomadaire/check-password/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await entetesAuth(),
         body: JSON.stringify({ password: pwd }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.ok) {
         update({ role: 'edit' });
+      } else if (data.error) {
+        // 429 (trop d'essais) et 503 (mot de passe pas configure sur le
+        // serveur) portent un message utile — l'afficher plutot que le
+        // « mot de passe incorrect » generique, qui enverrait la personne
+        // reessayer pour rien.
+        window.alert(data.error);
       } else {
         window.alert('Mot de passe incorrect.');
       }
