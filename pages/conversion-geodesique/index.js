@@ -1,15 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
 import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
 import {
-  ArrowUpDown, Plus, Trash2, Save, MapPin, Ruler, AlertTriangle,
-  CheckCircle2, Copy, Check,
+  ArrowUpDown, Plus, Trash2, Save, MapPin, AlertTriangle,
+  CheckCircle2, Copy, Check, Anchor,
 } from 'lucide-react';
 import {
   analyserPiedsPouces, formaterPiedsPouces, analyserGeo, formaterGeo,
-  versGeo, versPieds, ecartEntre, PIED_EN_METRES,
+  versGeo, versPieds, PIED_EN_METRES,
 } from '../../lib/geodesique/conversion';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -22,34 +22,68 @@ const THEMES = PALETTES;
 const BRAND_RED = '#c41230';
 const VERT = '#019155';
 
+// Le geodesique quebecois est en metres, point. La revision 45 offrait un
+// choix metres/pieds « pour les rares plans en pieds » — il n'y en a jamais
+// eu un seul. Un reglage qu'on ne change jamais n'est pas une option, c'est
+// un piege : il suffit d'un clic de travers pour que tous les niveaux soient
+// faux d'un facteur 3,28. Retire a la revision 46.
+const UNITE = 'metres';
+const UNITE_TEXTE = 'm';
+
 const ONGLETS = [
-  { id: 'conversion', libelle: 'Conversion' },
-  { id: 'points', libelle: 'Points du projet' },
+  { id: 'brouillon', libelle: 'Brouillon' },
+  { id: 'projet', libelle: 'Conversion et points' },
   { id: 'reference', libelle: 'Référence' },
 ];
+
+// « 10 sept. 2026, 14 h 32 »
+function formaterQuand(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('fr-CA', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+// « par William Dubreuil le 10 sept. 2026, 14 h 32 »
+function signature(par, quand) {
+  const morceaux = [];
+  if (par) morceaux.push(`par ${par}`);
+  const q = formaterQuand(quand);
+  if (q) morceaux.push(`le ${q}`);
+  return morceaux.join(' ');
+}
 
 // ===========================================================================
 // L'APP
 // ===========================================================================
-function ConversionGeodesiqueApp({ userId, nom, poste }) {
+function ConversionGeodesiqueApp({ nom, poste }) {
   const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
-  const [onglet, setOnglet] = useState('conversion');
+  const [onglet, setOnglet] = useState('brouillon');
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState('');
 
   const [projets, setProjets] = useState([]);
   const [projetNo, setProjetNo] = useState('');
-  const [refs, setRefs] = useState({});      // projet_no -> { geo_100, unite_geo, note, maj_par, maj_le }
+  const [refs, setRefs] = useState({});      // projet_no -> ligne de references_projet
   const [points, setPoints] = useState([]);
 
-  // Les deux champs de conversion vivent ICI, pas dans l'onglet. Sinon un
-  // aller-retour vers « Points du projet » efface ce qu'on venait de taper —
-  // sur un chantier, on va verifier un point et on revient.
+  // Les champs de conversion du projet vivent ICI, pas dans l'onglet : sinon
+  // un aller-retour vers Référence efface ce qu'on venait de taper.
   const [champPieds, setChampPieds] = useState('');
   const [champGeo, setChampGeo] = useState('');
   const [dernier, setDernier] = useState(null);   // 'pieds' | 'geo'
+
+  // Le brouillon a sa propre reference et ses propres champs, et ne touche
+  // jamais la base. On les garde ici pour qu'un aller-retour vers un projet
+  // ne les efface pas.
+  const [brRef, setBrRef] = useState('');
+  const [brPieds, setBrPieds] = useState('');
+  const [brGeo, setBrGeo] = useState('');
+  const [brDernier, setBrDernier] = useState(null);
 
   // ---- chargement initial -------------------------------------------------
   const charger = useCallback(async () => {
@@ -86,23 +120,28 @@ function ConversionGeodesiqueApp({ userId, nom, poste }) {
 
   useEffect(() => { chargerPoints(projetNo); }, [projetNo, chargerPoints]);
 
-  // On change de projet : on vide les champs. La reference n'est plus la meme,
-  // donc la valeur affichee ne veut plus rien dire. Mieux vaut un champ vide
-  // qu'un chiffre juste pour l'ancien projet.
+  // On change de projet : on vide les champs du projet. La reference n'est
+  // plus la meme, le chiffre affiche ne voudrait plus rien dire. Le brouillon
+  // n'est pas touche — il ne depend d'aucun projet.
   useEffect(() => { setChampPieds(''); setChampGeo(''); setDernier(null); }, [projetNo]);
 
   const projet = projets.find((p) => p.no === projetNo) || null;
   const reference = refs[projetNo] || null;
   const refGeo = reference ? Number(reference.geo_100) : null;
-  const uniteGeo = reference ? reference.unite_geo : 'metres';
-  const uniteTexte = uniteGeo === 'pieds' ? 'pi' : 'm';
+
+  // Choisir un projet, c'est dire qu'on veut travailler dessus. On quitte donc
+  // le brouillon — sinon on choisit un projet et il ne se passe rien a l'ecran.
+  function choisirProjet(no) {
+    setProjetNo(no);
+    if (no && onglet === 'brouillon') setOnglet('projet');
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: th.bg, color: th.text,
       fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif" }}>
       <EnTeteApp
         titre="Conversion géodésique"
-        sousTitre="Pieds-pouces ↔ géodésique, par projet"
+        sousTitre="Pieds-pouces ↔ géodésique"
         mode={mode}
         onChangerMode={setMode}
         nom={nom}
@@ -114,18 +153,19 @@ function ConversionGeodesiqueApp({ userId, nom, poste }) {
         {/* ---- choix du projet ---- */}
         <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
           padding: 16, marginBottom: 16, boxShadow: th.ombre }}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, letterSpacing: '.06em',
-            textTransform: 'uppercase', color: th.textDim, marginBottom: 7 }}>
+          <label htmlFor="choixProjet" style={{ display: 'block', fontSize: 12, fontWeight: 700,
+            letterSpacing: '.06em', textTransform: 'uppercase', color: th.textDim, marginBottom: 7 }}>
             Projet
           </label>
           <select
+            id="choixProjet"
             value={projetNo}
-            onChange={(e) => setProjetNo(e.target.value)}
+            onChange={(e) => choisirProjet(e.target.value)}
             style={{ width: '100%', maxWidth: 520, padding: '10px 11px', fontSize: 15,
               background: th.inputBg, color: th.text, border: `1px solid ${th.line}`,
               borderRadius: 5, fontFamily: 'inherit' }}
           >
-            <option value="">— Choisir un projet —</option>
+            <option value="">— Aucun projet (brouillon) —</option>
             {projets.map((p) => (
               <option key={p.no} value={p.no}>{p.no} — {p.nom}</option>
             ))}
@@ -143,13 +183,22 @@ function ConversionGeodesiqueApp({ userId, nom, poste }) {
             <div style={{ marginTop: 12 }}>
               {reference ? (
                 <div style={{ background: th.okBg, border: `1px solid ${th.okLigne}`, borderRadius: 5,
-                  padding: '9px 12px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 9,
-                  flexWrap: 'wrap' }}>
-                  <CheckCircle2 size={16} style={{ color: th.okLigne, flexShrink: 0 }} />
-                  <span>
-                    <strong>100&apos;-0&quot; = {formaterGeo(refGeo)} {uniteTexte}</strong>
-                    {reference.note ? <span style={{ color: th.textDim }}> · {reference.note}</span> : null}
-                  </span>
+                  padding: '9px 12px', fontSize: 14, display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                  <CheckCircle2 size={16} style={{ color: th.okLigne, flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div>
+                      <strong>100&apos;-0&quot; = {formaterGeo(refGeo)} {UNITE_TEXTE}</strong>
+                      {reference.note ? <span style={{ color: th.textDim }}> · {reference.note}</span> : null}
+                    </div>
+                    {/* Qui a mis la reference, directement dans le bandeau : on
+                        voit d'un coup d'oeil sur quoi on travaille ET a qui
+                        s'adresser si le chiffre a l'air douteux. */}
+                    {signature(reference.maj_par, reference.maj_le) && (
+                      <div style={{ fontSize: 12.5, color: th.textDim, marginTop: 2 }}>
+                        Mise à jour {signature(reference.maj_par, reference.maj_le)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ background: th.avisBg, border: `1px solid ${th.avisTexte}`, borderRadius: 5,
@@ -192,17 +241,20 @@ function ConversionGeodesiqueApp({ userId, nom, poste }) {
           <div style={{ color: th.textDim, fontSize: 14, padding: 20 }}>Chargement…</div>
         ) : (
           <>
-            {onglet === 'conversion' && (
-              <OngletConversion th={th} refGeo={refGeo} uniteGeo={uniteGeo} uniteTexte={uniteTexte}
+            {onglet === 'brouillon' && (
+              <OngletBrouillon th={th}
+                brRef={brRef} setBrRef={setBrRef}
+                brPieds={brPieds} setBrPieds={setBrPieds}
+                brGeo={brGeo} setBrGeo={setBrGeo}
+                brDernier={brDernier} setBrDernier={setBrDernier} />
+            )}
+            {onglet === 'projet' && (
+              <OngletProjet th={th} refGeo={refGeo} reference={reference}
                 projetNo={projetNo} points={points}
+                rechargerPoints={() => chargerPoints(projetNo)} nom={nom}
                 champPieds={champPieds} setChampPieds={setChampPieds}
                 champGeo={champGeo} setChampGeo={setChampGeo}
                 dernier={dernier} setDernier={setDernier} />
-            )}
-            {onglet === 'points' && (
-              <OngletPoints th={th} refGeo={refGeo} uniteGeo={uniteGeo} uniteTexte={uniteTexte}
-                projetNo={projetNo} points={points} rechargerPoints={() => chargerPoints(projetNo)}
-                nom={nom} />
             )}
             {onglet === 'reference' && (
               <OngletReference th={th} projetNo={projetNo} projet={projet} reference={reference}
@@ -216,31 +268,33 @@ function ConversionGeodesiqueApp({ userId, nom, poste }) {
 }
 
 // ===========================================================================
-// ONGLET 1 — LA CONVERSION
-// Deux champs lies. On tape dans l'un, l'autre suit. Le champ qu'on est en
-// train de modifier n'est jamais reecrit sous les doigts : c'est ce qui
-// permet de taper « 100'-6 » sans que l'app reformate a chaque touche.
+// LES DEUX CHAMPS LIES — le coeur de l'interface, partage par le brouillon
+// et par le projet.
+//
+// On tape dans l'un, l'autre suit. Le champ qu'on est en train de modifier
+// n'est JAMAIS reecrit sous les doigts : c'est ce qui permet de taper
+// « 100'-6 » lentement sans que l'app reformate a chaque touche.
 // ===========================================================================
-function OngletConversion({ th, refGeo, uniteGeo, uniteTexte, projetNo, points,
-  champPieds, setChampPieds, champGeo, setChampGeo, dernier, setDernier }) {
+function ChampsLies({ th, refGeo, champPieds, setChampPieds, champGeo, setChampGeo,
+  dernier, setDernier, actif }) {
   const [copie, setCopie] = useState('');
+  const minuterie = useRef(null);
+  useEffect(() => () => { if (minuterie.current) clearTimeout(minuterie.current); }, []);
 
   const piedsLus = analyserPiedsPouces(champPieds);
   const geoLu = analyserGeo(champGeo);
 
-  // Quand on tape en pieds-pouces
   function saisirPieds(v) {
     setChampPieds(v);
     setDernier('pieds');
     const p = analyserPiedsPouces(v);
-    setChampGeo(p === null || refGeo === null ? '' : formaterGeo(versGeo(p, refGeo, uniteGeo)));
+    setChampGeo(p === null || refGeo === null ? '' : formaterGeo(versGeo(p, refGeo, UNITE)));
   }
-  // Quand on tape en géodésique
   function saisirGeo(v) {
     setChampGeo(v);
     setDernier('geo');
     const g = analyserGeo(v);
-    setChampPieds(g === null || refGeo === null ? '' : formaterPiedsPouces(versPieds(g, refGeo, uniteGeo)));
+    setChampPieds(g === null || refGeo === null ? '' : formaterPiedsPouces(versPieds(g, refGeo, UNITE)));
   }
 
   function copier(texte, quoi) {
@@ -248,18 +302,16 @@ function OngletConversion({ th, refGeo, uniteGeo, uniteTexte, projetNo, points,
     try {
       navigator.clipboard.writeText(texte);
       setCopie(quoi);
-      setTimeout(() => setCopie(''), 1600);
+      if (minuterie.current) clearTimeout(minuterie.current);
+      minuterie.current = setTimeout(() => setCopie(''), 1600);
     } catch (e) { /* le presse-papier peut etre refuse, ce n'est pas grave */ }
   }
 
-  const pretAConvertir = refGeo !== null;
-
-  // La valeur « propre » de chaque cote, pour l'affichage de controle
   const piedsResolu = dernier === 'geo'
-    ? (geoLu !== null && refGeo !== null ? versPieds(geoLu, refGeo, uniteGeo) : null)
+    ? (geoLu !== null && refGeo !== null ? versPieds(geoLu, refGeo, UNITE) : null)
     : piedsLus;
   const geoResolu = dernier === 'pieds'
-    ? (piedsLus !== null && refGeo !== null ? versGeo(piedsLus, refGeo, uniteGeo) : null)
+    ? (piedsLus !== null && refGeo !== null ? versGeo(piedsLus, refGeo, UNITE) : null)
     : geoLu;
 
   const saisieInvalide =
@@ -272,119 +324,57 @@ function OngletConversion({ th, refGeo, uniteGeo, uniteTexte, projetNo, points,
     borderRadius: 6, fontFamily: 'inherit', letterSpacing: '.01em',
   };
 
-  if (!projetNo) {
-    return <Vide th={th} texte="Choisis un projet pour commencer." />;
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-      <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
-        padding: 18, boxShadow: th.ombre, opacity: pretAConvertir ? 1 : 0.55 }}>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 14,
-          alignItems: 'end' }} className="geo-grille">
-          <div>
-            <EnTeteChamp th={th} pour="champPieds" texte="Pieds-pouces"
-              valeur={piedsResolu !== null ? formaterPiedsPouces(piedsResolu) : ''}
-              onCopier={() => copier(formaterPiedsPouces(piedsResolu), 'pieds')}
-              copie={copie === 'pieds'} />
-            <input
-              id="champPieds"
-              value={champPieds}
-              onChange={(e) => saisirPieds(e.target.value)}
-              disabled={!pretAConvertir}
-              placeholder={"100'-6 1/2\""}
-              inputMode="text"
-              autoComplete="off"
-              style={styleChamp}
-            />
-          </div>
-
-          <div style={{ paddingBottom: 14, color: th.textDim, display: 'flex',
-            justifyContent: 'center' }} className="geo-fleche">
-            <ArrowUpDown size={20} style={{ transform: 'rotate(90deg)' }} />
-          </div>
-
-          <div>
-            <EnTeteChamp th={th} pour="champGeo" texte={`Géodésique (${uniteTexte})`}
-              valeur={geoResolu !== null ? formaterGeo(geoResolu) : ''}
-              onCopier={() => copier(formaterGeo(geoResolu), 'geo')}
-              copie={copie === 'geo'} />
-            <input
-              id="champGeo"
-              value={champGeo}
-              onChange={(e) => saisirGeo(e.target.value)}
-              disabled={!pretAConvertir}
-              placeholder="45.402"
-              inputMode="decimal"
-              autoComplete="off"
-              style={styleChamp}
-            />
-          </div>
+    <div style={{ opacity: actif ? 1 : 0.55 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 14,
+        alignItems: 'end' }} className="geo-grille">
+        <div>
+          <EnTeteChamp th={th} pour="champPieds" texte="Pieds-pouces"
+            valeur={piedsResolu !== null ? formaterPiedsPouces(piedsResolu) : ''}
+            onCopier={() => copier(formaterPiedsPouces(piedsResolu), 'pieds')}
+            copie={copie === 'pieds'} />
+          <input
+            id="champPieds"
+            value={champPieds}
+            onChange={(e) => saisirPieds(e.target.value)}
+            disabled={!actif}
+            placeholder={"100'-6 1/2\""}
+            inputMode="text"
+            autoComplete="off"
+            style={styleChamp}
+          />
         </div>
 
-        {saisieInvalide && (
-          <div style={{ marginTop: 11, fontSize: 13.5, color: th.errTexte }}>
-            Je n&apos;arrive pas à lire cette valeur. Exemples acceptés : <code>100</code>,{' '}
-            <code>100&apos;-6&quot;</code>, <code>100-6</code>, <code>100&apos;-6 1/2&quot;</code>,{' '}
-            <code>98&apos;-10 3/8&quot;</code>, <code>-2&apos;-6&quot;</code>.
-          </div>
-        )}
+        <div style={{ paddingBottom: 14, color: th.textDim, display: 'flex',
+          justifyContent: 'center' }} className="geo-fleche">
+          <ArrowUpDown size={20} style={{ transform: 'rotate(90deg)' }} />
+        </div>
 
-        {!pretAConvertir && (
-          <div style={{ marginTop: 11, fontSize: 13.5, color: th.avisTexte }}>
-            Il manque la référence du projet — onglet <strong>Référence</strong>.
-          </div>
-        )}
-
+        <div>
+          <EnTeteChamp th={th} pour="champGeo" texte={`Géodésique (${UNITE_TEXTE})`}
+            valeur={geoResolu !== null ? formaterGeo(geoResolu) : ''}
+            onCopier={() => copier(formaterGeo(geoResolu), 'geo')}
+            copie={copie === 'geo'} />
+          <input
+            id="champGeo"
+            value={champGeo}
+            onChange={(e) => saisirGeo(e.target.value)}
+            disabled={!actif}
+            placeholder="45.402"
+            inputMode="decimal"
+            autoComplete="off"
+            style={styleChamp}
+          />
+        </div>
       </div>
 
-      {/* écart avec les points enregistrés */}
-      {pretAConvertir && geoResolu !== null && points.length > 0 && (
-        <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
-          padding: 18, boxShadow: th.ombre }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em',
-            textTransform: 'uppercase', color: th.textDim, marginBottom: 11 }}>
-            Écart avec les points du projet
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 420 }}>
-              <thead>
-                <tr>
-                  <Th th={th}>Point</Th>
-                  <Th th={th} droite>Géodésique</Th>
-                  <Th th={th} droite>Écart</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {points.map((pt) => {
-                  const e = ecartEntre(geoResolu, Number(pt.geo), uniteGeo);
-                  const dessus = e.geo >= 0;
-                  return (
-                    <tr key={pt.id} style={{ borderTop: `1px solid ${th.line}` }}>
-                      <td style={{ padding: '8px 10px' }}>{pt.nom}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right',
-                        fontVariantNumeric: 'tabular-nums' }}>{formaterGeo(Number(pt.geo))}</td>
-                      <td style={{ padding: '8px 10px', textAlign: 'right',
-                        fontVariantNumeric: 'tabular-nums',
-                        color: Math.abs(e.geo) < 0.0005 ? th.textDim : (dessus ? th.okLigne : th.errTexte) }}>
-                        {Math.abs(e.geo) < 0.0005 ? 'même niveau'
-                          : `${dessus ? '+' : '−'}${formaterPiedsPouces(Math.abs(e.pieds))}`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ marginTop: 9, fontSize: 12.5, color: th.textDim }}>
-            Un écart positif veut dire que la valeur saisie est <strong>au-dessus</strong> du point.
-          </div>
+      {saisieInvalide && (
+        <div style={{ marginTop: 11, fontSize: 13.5, color: th.errTexte }}>
+          Je n&apos;arrive pas à lire cette valeur. Exemples acceptés : <code>100</code>,{' '}
+          <code>100&apos;-6&quot;</code>, <code>100-6</code>, <code>100&apos;-6 1/2&quot;</code>,{' '}
+          <code>98&apos;-10 3/8&quot;</code>, <code>-2&apos;-6&quot;</code>.
         </div>
       )}
-
-      <AideSaisie th={th} uniteTexte={uniteTexte} uniteGeo={uniteGeo} />
 
       <style jsx>{`
         @media (max-width: 640px) {
@@ -396,10 +386,84 @@ function OngletConversion({ th, refGeo, uniteGeo, uniteTexte, projetNo, points,
   );
 }
 
+// ===========================================================================
+// ONGLET 1 — LE BROUILLON
+//
+// Une calculatrice qui n'enregistre rien. On entre la reference du plan qu'on
+// a sous les yeux, on convertit, on ferme. Pas de projet a choisir, pas de
+// ligne creee dans la base, rien a nettoyer apres.
+//
+// C'est le cas le plus frequent : on regarde un plan une minute pour verifier
+// un chiffre. Passer par « choisir un projet, enregistrer une reference »
+// pour ca, c'est trois clics et une ligne en base pour une question qui dure
+// dix secondes.
+// ===========================================================================
+function OngletBrouillon({ th, brRef, setBrRef, brPieds, setBrPieds, brGeo, setBrGeo,
+  brDernier, setBrDernier }) {
+  const refLue = analyserGeo(brRef);
+
+  // La reference change : les champs ne veulent plus rien dire, on repart.
+  function changerRef(v) {
+    setBrRef(v);
+    setBrPieds('');
+    setBrGeo('');
+    setBrDernier(null);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
+        padding: 18, boxShadow: th.ombre }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em',
+            textTransform: 'uppercase', color: th.textDim }}>
+            Brouillon — rien n&apos;est enregistré
+          </div>
+        </div>
+        <div style={{ fontSize: 13.5, color: th.textDim, marginBottom: 14, lineHeight: 1.6 }}>
+          Entre la référence du plan que tu as devant toi et convertis. Rien n&apos;est sauvegardé,
+          rien n&apos;est rattaché à un projet. Pour garder une référence et des points, choisis un
+          projet en haut.
+        </div>
+
+        <div style={{ maxWidth: 320 }}>
+          <Etiquette th={th}>Sur ce plan, 100&apos;-0&quot; = ({UNITE_TEXTE})</Etiquette>
+          <input value={brRef} onChange={(e) => changerRef(e.target.value)}
+            placeholder="45.250" inputMode="decimal" autoComplete="off"
+            style={{ width: '100%', padding: '11px 12px', fontSize: 17, fontWeight: 600,
+              background: th.inputBg, color: th.text, border: `1px solid ${th.line}`,
+              borderRadius: 5, fontFamily: 'inherit' }} />
+        </div>
+
+        {brRef.trim() !== '' && refLue === null && (
+          <div style={{ marginTop: 9, fontSize: 13.5, color: th.errTexte }}>
+            Cette référence est illisible. Exemple : <code>45,250</code>
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
+        padding: 18, boxShadow: th.ombre }}>
+        <ChampsLies th={th} refGeo={refLue}
+          champPieds={brPieds} setChampPieds={setBrPieds}
+          champGeo={brGeo} setChampGeo={setBrGeo}
+          dernier={brDernier} setDernier={setBrDernier}
+          actif={refLue !== null} />
+        {refLue === null && (
+          <div style={{ marginTop: 11, fontSize: 13.5, color: th.textDim }}>
+            Entre d&apos;abord la référence du plan ci-dessus.
+          </div>
+        )}
+      </div>
+
+      <AideSaisie th={th} />
+    </div>
+  );
+}
+
 // En-tete d'un champ : l'etiquette, et un bouton copier qui n'apparait que
-// quand il y a vraiment quelque chose a copier. Les deux grosses tuiles de
-// resultat qui etaient ici repetaient mot pour mot le contenu des champs —
-// vu au rendu, retirees.
+// quand il y a vraiment quelque chose a copier.
 function EnTeteChamp({ th, pour, texte, valeur, onCopier, copie }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -421,7 +485,7 @@ function EnTeteChamp({ th, pour, texte, valeur, onCopier, copie }) {
   );
 }
 
-function AideSaisie({ th, uniteTexte, uniteGeo }) {
+function AideSaisie({ th }) {
   return (
     <div style={{ background: th.infoBg, border: `1px solid ${th.line}`, borderRadius: 8,
       padding: '13px 15px', fontSize: 13.5, color: th.textDim, lineHeight: 1.65 }}>
@@ -432,21 +496,27 @@ function AideSaisie({ th, uniteTexte, uniteGeo }) {
       <code>-2&apos;-6&quot;</code>. La virgule marche aussi bien que le point.
       <div style={{ marginTop: 7 }}>
         Les résultats en pieds-pouces sont arrondis au <strong>1/8 de pouce</strong>, et le
-        géodésique s&apos;affiche à trois décimales{uniteGeo === 'metres'
-          ? <> — un millimètre</>
-          : <> ({uniteTexte})</>}.
+        géodésique s&apos;affiche à trois décimales — un millimètre.
       </div>
     </div>
   );
 }
 
 // ===========================================================================
-// ONGLET 2 — LES POINTS DU PROJET
-// On enregistre la valeur GEODESIQUE : c'est elle qui est absolue. Le
-// pieds-pouces se recalcule a l'affichage. Corriger une reference mal
-// saisie corrige donc tous les points d'un coup.
+// ONGLET 2 — LE PROJET : conversion en haut, points en bas
+//
+// Revision 46 : « Conversion » et « Points du projet » etaient deux onglets.
+// C'etait deux moities du meme geste — on convertit une valeur ET on la
+// compare aux niveaux du projet. Les separer obligeait a faire l'aller-retour
+// et affichait deux fois la meme liste de points, une fois avec les ecarts,
+// une fois sans.
+//
+// Une seule page maintenant, et surtout UN SEUL tableau : les points
+// enregistres, avec une colonne « ecart » qui se remplit des qu'il y a une
+// valeur dans la conversion au-dessus.
 // ===========================================================================
-function OngletPoints({ th, refGeo, uniteGeo, uniteTexte, projetNo, points, rechargerPoints, nom }) {
+function OngletProjet({ th, refGeo, reference, projetNo, points, rechargerPoints, nom,
+  champPieds, setChampPieds, champGeo, setChampGeo, dernier, setDernier }) {
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouveauPieds, setNouveauPieds] = useState('');
   const [nouveauGeo, setNouveauGeo] = useState('');
@@ -465,12 +535,12 @@ function OngletPoints({ th, refGeo, uniteGeo, uniteTexte, projetNo, points, rech
   function saisirPieds(v) {
     setNouveauPieds(v);
     const p = analyserPiedsPouces(v);
-    setNouveauGeo(p === null || refGeo === null ? '' : formaterGeo(versGeo(p, refGeo, uniteGeo)));
+    setNouveauGeo(p === null || refGeo === null ? '' : formaterGeo(versGeo(p, refGeo, UNITE)));
   }
   function saisirGeo(v) {
     setNouveauGeo(v);
     const g = analyserGeo(v);
-    setNouveauPieds(g === null || refGeo === null ? '' : formaterPiedsPouces(versPieds(g, refGeo, uniteGeo)));
+    setNouveauPieds(g === null || refGeo === null ? '' : formaterPiedsPouces(versPieds(g, refGeo, UNITE)));
   }
 
   async function ajouter() {
@@ -502,10 +572,44 @@ function OngletPoints({ th, refGeo, uniteGeo, uniteTexte, projetNo, points, rech
     afficher('Point supprimé ✓', true);
   }
 
-  if (!projetNo) return <Vide th={th} texte="Choisis un projet pour voir ses points." />;
-  if (refGeo === null) {
-    return <Vide th={th} texte="Il faut d'abord entrer la référence du projet, dans l'onglet Référence." />;
+  if (!projetNo) {
+    return <Vide th={th} texte="Choisis un projet en haut — ou reste dans le Brouillon pour un calcul rapide." />;
   }
+
+  // La valeur geodesique courante de la conversion, pour la colonne « ecart ».
+  const piedsLus = analyserPiedsPouces(champPieds);
+  const geoLu = analyserGeo(champGeo);
+  const geoCourant = dernier === 'pieds'
+    ? (piedsLus !== null && refGeo !== null ? versGeo(piedsLus, refGeo, UNITE) : null)
+    : geoLu;
+
+  // La reference EST le premier point du projet : c'est le niveau 100'-0",
+  // celui a partir duquel tous les autres se lisent. La montrer dans la liste
+  // evite d'avoir a se souvenir qu'elle existe ailleurs. Elle n'est pas une
+  // ligne de la table « points » — elle est derivee de la reference, donc
+  // elle ne peut jamais diverger d'elle, et il n'y a rien a synchroniser.
+  const lignes = [];
+  if (reference) {
+    lignes.push({
+      cle: 'reference',
+      estReference: true,
+      nom: 'Référence du projet',
+      geo: refGeo,
+      par: reference.maj_par,
+      quand: reference.maj_le,
+    });
+  }
+  points.forEach((pt) => {
+    lignes.push({
+      cle: pt.id,
+      estReference: false,
+      id: pt.id,
+      nom: pt.nom,
+      geo: Number(pt.geo),
+      par: pt.cree_par,
+      quand: pt.cree_le,
+    });
+  });
 
   const styleChamp = {
     padding: '9px 11px', fontSize: 14.5, background: th.inputBg, color: th.text,
@@ -515,114 +619,203 @@ function OngletPoints({ th, refGeo, uniteGeo, uniteTexte, projetNo, points, rech
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+      {/* ---------- 1. la conversion, en haut ---------- */}
       <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
         padding: 18, boxShadow: th.ombre }}>
-        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em',
-          textTransform: 'uppercase', color: th.textDim, marginBottom: 12 }}>
-          Ajouter un point
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) auto',
-          gap: 10, alignItems: 'end' }} className="geo-ajout">
-          <div>
-            <Etiquette th={th}>Nom</Etiquette>
-            <input value={nouveauNom} onChange={(e) => setNouveauNom(e.target.value)}
-              placeholder="Dessus de dalle" style={styleChamp} autoComplete="off" />
-          </div>
-          <div>
-            <Etiquette th={th}>Pieds-pouces</Etiquette>
-            <input value={nouveauPieds} onChange={(e) => saisirPieds(e.target.value)}
-              placeholder={"100'-0\""} style={styleChamp} autoComplete="off" />
-          </div>
-          <div>
-            <Etiquette th={th}>Géodésique ({uniteTexte})</Etiquette>
-            <input value={nouveauGeo} onChange={(e) => saisirGeo(e.target.value)}
-              placeholder="45.250" inputMode="decimal" style={styleChamp} autoComplete="off" />
-          </div>
-          <button onClick={ajouter} disabled={enCours} style={{
-            background: BRAND_RED, color: '#fff', border: 'none', borderRadius: 5,
-            padding: '10px 15px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-            display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'inherit',
-            whiteSpace: 'nowrap',
-          }}>
-            <Plus size={15} /> Ajouter
-          </button>
-        </div>
-        {message && (
-          <div style={{ marginTop: 11, fontSize: 13.5, fontWeight: 600,
-            color: message.ok ? VERT : th.errTexte }}>
-            {message.texte}
+        <ChampsLies th={th} refGeo={refGeo}
+          champPieds={champPieds} setChampPieds={setChampPieds}
+          champGeo={champGeo} setChampGeo={setChampGeo}
+          dernier={dernier} setDernier={setDernier}
+          actif={refGeo !== null} />
+        {refGeo === null && (
+          <div style={{ marginTop: 11, fontSize: 13.5, color: th.avisTexte }}>
+            Il manque la référence du projet — onglet <strong>Référence</strong>.
           </div>
         )}
       </div>
 
-      <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
-        boxShadow: th.ombre, overflow: 'hidden' }}>
-        <div style={{ padding: '13px 18px', borderBottom: `1px solid ${th.line}`,
-          fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-          color: th.textDim, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-          <span>Points enregistrés</span>
-          <span>{points.length}</span>
-        </div>
-        {points.length === 0 ? (
-          <div style={{ padding: 20, color: th.textDim, fontSize: 14 }}>
-            Aucun point pour ce projet. Le dessus de dalle, le radier, le fond d&apos;excavation —
-            tout ce que tu regardes plus d&apos;une fois gagne à être ici.
+      {refGeo !== null && (
+        <>
+          {/* ---------- 2. ajouter un point ---------- */}
+          <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
+            padding: 18, boxShadow: th.ombre }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em',
+              textTransform: 'uppercase', color: th.textDim, marginBottom: 12 }}>
+              Ajouter un point
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) auto',
+              gap: 10, alignItems: 'end' }} className="geo-ajout">
+              <div>
+                <Etiquette th={th}>Nom</Etiquette>
+                <input value={nouveauNom} onChange={(e) => setNouveauNom(e.target.value)}
+                  placeholder="Dessus de dalle" style={styleChamp} autoComplete="off" />
+              </div>
+              <div>
+                <Etiquette th={th}>Pieds-pouces</Etiquette>
+                <input value={nouveauPieds} onChange={(e) => saisirPieds(e.target.value)}
+                  placeholder={"100'-0\""} style={styleChamp} autoComplete="off" />
+              </div>
+              <div>
+                <Etiquette th={th}>Géodésique ({UNITE_TEXTE})</Etiquette>
+                <input value={nouveauGeo} onChange={(e) => saisirGeo(e.target.value)}
+                  placeholder="45.250" inputMode="decimal" style={styleChamp} autoComplete="off" />
+              </div>
+              <button onClick={ajouter} disabled={enCours} style={{
+                background: BRAND_RED, color: '#fff', border: 'none', borderRadius: 5,
+                padding: '10px 15px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
+              }}>
+                <Plus size={15} /> Ajouter
+              </button>
+            </div>
+            {message && (
+              <div style={{ marginTop: 11, fontSize: 13.5, fontWeight: 600,
+                color: message.ok ? VERT : th.errTexte }}>
+                {message.texte}
+              </div>
+            )}
           </div>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5, minWidth: 480 }}>
-              <thead>
-                <tr>
-                  <Th th={th}>Point</Th>
-                  <Th th={th} droite>Pieds-pouces</Th>
-                  <Th th={th} droite>Géodésique ({uniteTexte})</Th>
-                  <Th th={th}></Th>
-                </tr>
-              </thead>
-              <tbody>
-                {points.map((pt) => (
-                  <tr key={pt.id} style={{ borderTop: `1px solid ${th.line}` }}>
-                    <td style={{ padding: '9px 12px' }}>
-                      {pt.nom}
-                      {pt.cree_par && (
-                        <div style={{ fontSize: 11.5, color: th.textDim }}>par {pt.cree_par}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600,
-                      fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {formaterPiedsPouces(versPieds(Number(pt.geo), refGeo, uniteGeo))}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {formaterGeo(Number(pt.geo))}
-                    </td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                      <button onClick={() => supprimer(pt.id, pt.nom)} disabled={enCours}
-                        title="Supprimer" aria-label={`Supprimer ${pt.nom}`} style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: th.textDim, padding: 4, display: 'inline-flex',
-                        }}>
-                        <Trash2 size={15} />
-                      </button>
-                    </td>
+
+          {/* ---------- 3. les points, avec l'ecart ---------- */}
+          <div style={{ background: th.panel, border: `1px solid ${th.line}`, borderRadius: 8,
+            boxShadow: th.ombre, overflow: 'hidden',
+            // Le CSS des fiches telephone (plus bas) a besoin des couleurs du
+            // theme courant. On les passe en variables plutot que de les figer,
+            // sinon le mode nuit se retrouve avec des filets clairs.
+            '--geo-ligne': th.line, '--geo-dim': th.textDim }}>
+            <div style={{ padding: '13px 18px', borderBottom: `1px solid ${th.line}`,
+              fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+              color: th.textDim, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <span>Points enregistrés</span>
+              <span>{points.length}</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="geo-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5, minWidth: 560 }}>
+                <thead>
+                  <tr>
+                    <Th th={th}>Point</Th>
+                    <Th th={th} droite>Pieds-pouces</Th>
+                    <Th th={th} droite>Géodésique ({UNITE_TEXTE})</Th>
+                    <Th th={th} droite>Écart</Th>
+                    <Th th={th}></Th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {lignes.map((l) => {
+                    const ecartPieds = geoCourant !== null
+                      ? (geoCourant - l.geo) / PIED_EN_METRES
+                      : null;
+                    return (
+                      <tr key={l.cle} style={{ borderTop: `1px solid ${th.line}`,
+                        background: l.estReference ? th.panelAlt : 'transparent' }}>
+                        <td className="geo-nom" style={{ padding: '9px 12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            {l.estReference && <Anchor size={13} style={{ color: th.textDim, flexShrink: 0 }} />}
+                            <span style={{ fontWeight: l.estReference ? 700 : 400 }}>{l.nom}</span>
+                          </div>
+                          {signature(l.par, l.quand) && (
+                            <div style={{ fontSize: 11.5, color: th.textDim, marginTop: 1 }}>
+                              {signature(l.par, l.quand)}
+                            </div>
+                          )}
+                        </td>
+                        <td data-libelle="Pieds-pouces" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600,
+                          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {formaterPiedsPouces(versPieds(l.geo, refGeo, UNITE))}
+                        </td>
+                        <td data-libelle={`Géodésique (${UNITE_TEXTE})`} style={{ padding: '9px 12px', textAlign: 'right',
+                          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {formaterGeo(l.geo)}
+                        </td>
+                        <td data-libelle="Écart" style={{ padding: '9px 12px', textAlign: 'right', color: VERT,
+                          fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {ecartPieds === null ? '—' :
+                            (ecartPieds >= 0 ? '+' : '') + formaterPiedsPouces(ecartPieds)}
+                        </td>
+                        <td className="geo-actions" style={{ padding: '9px 12px', textAlign: 'right' }}>
+                          {l.estReference ? (
+                            <span style={{ fontSize: 11, color: th.textDim, whiteSpace: 'nowrap' }}>
+                              onglet Référence
+                            </span>
+                          ) : (
+                            <button onClick={() => supprimer(l.id, l.nom)} disabled={enCours}
+                              title="Supprimer" aria-label={`Supprimer ${l.nom}`} style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: th.textDim, padding: 4, display: 'inline-flex',
+                              }}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: '11px 18px', borderTop: `1px solid ${th.line}`,
+              fontSize: 12.5, color: th.textDim }}>
+              {geoCourant === null
+                ? "La colonne « écart » se remplit dès que tu tapes une valeur dans la conversion, en haut."
+                : <>Un écart positif veut dire que la valeur saisie est <strong>au-dessus</strong> du point.</>}
+            </div>
           </div>
-        )}
-      </div>
 
-      <div style={{ background: th.infoBg, border: `1px solid ${th.line}`, borderRadius: 8,
-        padding: '13px 15px', fontSize: 13.5, color: th.textDim, lineHeight: 1.6 }}>
-        C&apos;est la valeur <strong>géodésique</strong> qui est enregistrée, parce que c&apos;est
-        elle qui est absolue. Le pieds-pouces se recalcule à l&apos;affichage. Si tu corriges la
-        référence du projet, tous les points suivent d&apos;un coup au lieu de rester faux.
-      </div>
+          <div style={{ background: th.infoBg, border: `1px solid ${th.line}`, borderRadius: 8,
+            padding: '13px 15px', fontSize: 13.5, color: th.textDim, lineHeight: 1.6 }}>
+            C&apos;est la valeur <strong>géodésique</strong> qui est enregistrée, parce que c&apos;est
+            elle qui est absolue. Le pieds-pouces se recalcule à l&apos;affichage. Si tu corriges la
+            référence du projet, tous les points suivent d&apos;un coup au lieu de rester faux.
+          </div>
+        </>
+      )}
+
+      <AideSaisie th={th} />
 
       <style jsx>{`
         @media (max-width: 760px) {
           :global(.geo-ajout) { grid-template-columns: 1fr !important; }
+        }
+        /* ------------------------------------------------------------------
+           Sur telephone, le tableau devient une pile de fiches.
+
+           Cinq colonnes ne rentrent pas dans 390 px : au rendu, la colonne
+           « ecart » — justement celle qu'on regarde quand on est sur le
+           chantier avec le telephone — se retrouvait hors de l'ecran, il
+           fallait faire defiler le tableau lateralement pour la voir. Une
+           fiche par point, chaque valeur avec son etiquette : tout est
+           visible d'un coup, et plus rien ne defile de travers.
+           ------------------------------------------------------------------ */
+        @media (max-width: 640px) {
+          :global(.geo-table) { min-width: 0 !important; display: block; }
+          :global(.geo-table thead) { display: none; }
+          :global(.geo-table tbody), :global(.geo-table tr) { display: block; }
+          :global(.geo-table tr) {
+            border-top: none !important;
+            border: 1px solid var(--geo-ligne);
+            border-radius: 7px;
+            margin: 10px 12px;
+            padding: 4px 0;
+          }
+          :global(.geo-table td) {
+            display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px; text-align: right !important; padding: 5px 12px !important;
+            white-space: normal !important;
+          }
+          :global(.geo-table td[data-libelle]::before) {
+            content: attr(data-libelle);
+            font-size: 11.5px; font-weight: 700; letter-spacing: .05em;
+            text-transform: uppercase; color: var(--geo-dim);
+            text-align: left; flex: 0 0 auto;
+          }
+          :global(.geo-table td.geo-nom) {
+            display: block; text-align: left !important;
+            padding: 8px 12px 6px !important;
+            border-bottom: 1px solid var(--geo-ligne);
+            margin-bottom: 4px;
+          }
+          :global(.geo-table td.geo-actions) { justify-content: flex-end; padding-top: 2px !important; }
         }
       `}</style>
     </div>
@@ -634,7 +827,6 @@ function OngletPoints({ th, refGeo, uniteGeo, uniteTexte, projetNo, points, rech
 // ===========================================================================
 function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
   const [valeur, setValeur] = useState('');
-  const [unite, setUnite] = useState('metres');
   const [note, setNote] = useState('');
   const [message, setMessage] = useState(null);
   const [enCours, setEnCours] = useState(false);
@@ -642,7 +834,6 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
 
   useEffect(() => {
     setValeur(reference ? formaterGeo(Number(reference.geo_100)) : '');
-    setUnite(reference ? reference.unite_geo : 'metres');
     setNote(reference?.note || '');
     setMessage(null);
   }, [projetNo, reference]);
@@ -663,7 +854,7 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
     const { error } = await supabaseGeo.from('references_projet').upsert({
       projet_no: projetNo,
       geo_100: lue,
-      unite_geo: unite,
+      unite_geo: UNITE,
       note: note.trim() || null,
       maj_le: new Date().toISOString(),
       maj_par: nom,
@@ -674,7 +865,9 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
     afficher('Référence enregistrée ✓', true);
   }
 
-  if (!projetNo) return <Vide th={th} texte="Choisis un projet pour voir ou fixer sa référence." />;
+  if (!projetNo) {
+    return <Vide th={th} texte="Choisis un projet en haut pour voir ou fixer sa référence." />;
+  }
 
   const styleChamp = {
     padding: '11px 12px', fontSize: 17, fontWeight: 600, background: th.inputBg, color: th.text,
@@ -692,32 +885,16 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
           le niveau <strong>100&apos;-0&quot;</strong> correspond à :
         </div>
 
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <Etiquette th={th}>Valeur géodésique</Etiquette>
-            <input value={valeur} onChange={(e) => setValeur(e.target.value)}
-              placeholder="45.250" inputMode="decimal" style={styleChamp} autoComplete="off" />
-          </div>
-          <div>
-            <Etiquette th={th}>Unité du plan</Etiquette>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {[['metres', 'Mètres'], ['pieds', 'Pieds']].map(([v, l]) => (
-                <button key={v} onClick={() => setUnite(v)} style={{
-                  background: unite === v ? BRAND_RED : th.panelAlt,
-                  color: unite === v ? '#fff' : th.textDim,
-                  border: `1px solid ${unite === v ? BRAND_RED : th.line}`,
-                  borderRadius: 5, padding: '11px 18px', fontSize: 14, fontWeight: 600,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>{l}</button>
-              ))}
-            </div>
-          </div>
+        <div>
+          <Etiquette th={th}>Valeur géodésique ({UNITE_TEXTE})</Etiquette>
+          <input value={valeur} onChange={(e) => setValeur(e.target.value)}
+            placeholder="45.250" inputMode="decimal" style={styleChamp} autoComplete="off" />
         </div>
 
         <div style={{ marginTop: 14 }}>
           <Etiquette th={th}>Note (facultatif)</Etiquette>
           <input value={note} onChange={(e) => setNote(e.target.value)}
-            placeholder="Ex. : selon plan S-101, révision 3"
+            placeholder="Ex. : plan C100, révision 3"
             style={{ ...styleChamp, maxWidth: 520, fontSize: 14.5, fontWeight: 400 }}
             autoComplete="off" />
         </div>
@@ -730,13 +907,13 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
               Contrôle
             </div>
             <div style={{ fontVariantNumeric: 'tabular-nums' }}>
-              100&apos;-0&quot; = <strong>{formaterGeo(lue)}</strong> {unite === 'pieds' ? 'pi' : 'm'}<br />
-              101&apos;-0&quot; = <strong>{formaterGeo(versGeo(101, lue, unite))}</strong> {unite === 'pieds' ? 'pi' : 'm'}<br />
-              99&apos;-0&quot; = <strong>{formaterGeo(versGeo(99, lue, unite))}</strong> {unite === 'pieds' ? 'pi' : 'm'}
+              100&apos;-0&quot; = <strong>{formaterGeo(lue)}</strong> {UNITE_TEXTE}<br />
+              101&apos;-0&quot; = <strong>{formaterGeo(versGeo(101, lue, UNITE))}</strong> {UNITE_TEXTE}<br />
+              99&apos;-0&quot; = <strong>{formaterGeo(versGeo(99, lue, UNITE))}</strong> {UNITE_TEXTE}
             </div>
             <div style={{ marginTop: 7, fontSize: 13, color: th.textDim }}>
-              Un pied vaut {unite === 'pieds' ? '1,000 pi' : `${PIED_EN_METRES.toFixed(4)} m`}.
-              Compare avec ton plan avant d&apos;enregistrer.
+              Un pied vaut {PIED_EN_METRES.toFixed(4)} m. Compare avec ton plan avant
+              d&apos;enregistrer.
             </div>
           </div>
         )}
@@ -756,20 +933,11 @@ function OngletReference({ th, projetNo, projet, reference, nom, recharger }) {
           )}
         </div>
 
-        {reference && (
+        {reference && signature(reference.maj_par, reference.maj_le) && (
           <div style={{ marginTop: 12, fontSize: 12.5, color: th.textDim }}>
-            Dernière modification {reference.maj_par ? `par ${reference.maj_par}` : ''}
-            {reference.maj_le ? ` le ${new Date(reference.maj_le).toLocaleDateString('fr-CA')}` : ''}.
+            Dernière modification {signature(reference.maj_par, reference.maj_le)}.
           </div>
         )}
-      </div>
-
-      <div style={{ background: th.avisBg, border: `1px solid ${th.avisTexte}`, borderRadius: 8,
-        padding: '13px 15px', fontSize: 13.5, color: th.avisTexte, lineHeight: 1.65 }}>
-        <strong>L&apos;unité compte.</strong> Au Québec le géodésique est presque toujours en
-        mètres — c&apos;est le réglage par défaut. Si un plan donne le géodésique en pieds et que
-        l&apos;unité reste à « mètres », tous les niveaux seront faux d&apos;un facteur 3,28 sans
-        que rien ne le signale. Vérifie le bloc de contrôle ci-dessus avant d&apos;enregistrer.
       </div>
     </div>
   );
@@ -823,7 +991,6 @@ export default function ConversionGeodesiquePage() {
 
   return (
     <ConversionGeodesiqueApp
-      userId={session.userId}
       nom={session.nom}
       poste={session.poste}
     />
