@@ -6,7 +6,7 @@ import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-s
 import { semaineFinieLaPlusRecente, labelSemaine } from '../../../lib/defi-strava/weekUtils';
 import { getCurrentIsoMonth, formatMoisLisible, moisAvecPreposition } from '../../../lib/defi-strava/monthUtils';
 import { texteClassementLignes } from '../../../lib/defi-strava/format';
-import { heureActuelleEst, dateDuJourEst } from '../../../lib/defi-strava/timezone';
+import { heureActuelleEst, dateDuJourEst, jourDeSemaineEst, LUNDI } from '../../../lib/defi-strava/timezone';
 
 const CLE_ETAT = 'dernier_envoi_hebdo';
 
@@ -27,30 +27,60 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // Le cron Vercel (vercel.json) déclenche cette route à plusieurs heures
-  // UTC candidates chaque lundi (voir commentaire dans vercel.json) — on
-  // ne procède réellement que si c'est actuellement 8h heure de l'Est,
-  // peu importe si on est en heure avancée ou normale. C'est ÇA qui rend
-  // l'ajustement automatique au changement d'heure, plutôt qu'un horaire
-  // UTC fixe qui, lui, ne s'ajuste jamais tout seul.
-  if (!forcer && heureActuelleEst() !== 8) {
-    res.status(200).json({ ignore: true, raison: "Pas encore 8h heure de l'Est — ce n'est qu'un des essais horaires du cron." });
+  // Le lundi, à partir de 8h heure de l'Est.
+  //
+  // Revision 47 — CE COURRIEL NE PARTAIT PAS L'HIVER, ET PERSONNE NE LE
+  // SAVAIT. Le commentaire qui était ici disait que le cron déclenchait la
+  // route « à plusieurs heures UTC candidates chaque lundi ». Ce n'était pas
+  // vrai : vercel.json ne contenait qu'une seule entrée, « 0 12 * * 1 ».
+  // Douze heures UTC, c'est 8h chez nous l'été — mais 7h l'hiver. La garde
+  // « exactement 8h » refusait donc de s'exécuter, en silence, tous les
+  // lundis en heure normale. Rejoué sur une année : 34 lundis sur 52 seulement.
+  //
+  // Le cron appelle maintenant la route toutes les heures le lundi, et c'est
+  // elle qui choisit son moment. Il faut aussi vérifier le jour ICI : un
+  // lundi UTC commence le dimanche soir chez nous, et sans ça le résumé
+  // partirait le dimanche à 19h.
+  const HEURE_CIBLE_EST = 8;
+  if (!forcer && (jourDeSemaineEst() !== LUNDI || heureActuelleEst() < HEURE_CIBLE_EST)) {
+    res.status(200).json({
+      ignore: true,
+      raison: `Ce n'est pas encore lundi ${HEURE_CIBLE_EST}h heure de l'Est.`,
+    });
     return;
   }
 
-  // Évite un double envoi si jamais plus d'un essai horaire du cron tombe
-  // sur 8h (ne devrait normalement pas arriver, mais ne coûte rien).
+  // La journée est marquée comme envoyée AVANT d'envoyer, pas après.
+  //
+  // Revision 47. Maintenant que la route est appelée toutes les heures le
+  // lundi, l'ordre compte : si on marquait après l'envoi et que l'exécution
+  // était coupée au milieu, l'heure suivante recommencerait et tout le monde
+  // recevrait le courriel deux fois. En réservant d'abord, le pire cas est
+  // un lundi manqué, qu'on relance à la main avec « ?forcer=1 ».
   const aujourdHuiEst = dateDuJourEst();
   if (!forcer) {
+    let etat;
     try {
-      const { data: etat } = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
-      if (etat?.valeur === aujourdHuiEst) {
-        res.status(200).json({ ignore: true, raison: 'Déjà envoyé aujourd\'hui.' });
-        return;
-      }
+      const lecture = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
+      etat = lecture.data;
     } catch (err) {
-      // Si la clé n'existe pas encore, on continue simplement l'envoi.
       console.error('Erreur lecture dernier_envoi_hebdo:', err); // eslint-disable-line no-console
+      res.status(500).json({ error: "Impossible de lire l'état — rien n'a été envoyé, on réessaiera dans une heure." });
+      return;
+    }
+    if (etat?.valeur === aujourdHuiEst) {
+      res.status(200).json({ ignore: true, raison: 'Déjà envoyé aujourd\'hui.' });
+      return;
+    }
+
+    const { error: erreurReservation } = await supabase.from('defi_state').upsert(
+      { cle: CLE_ETAT, valeur: aujourdHuiEst, updated_at: new Date().toISOString() },
+      { onConflict: 'cle' }
+    );
+    if (erreurReservation) {
+      console.error('Erreur réservation dernier_envoi_hebdo:', erreurReservation); // eslint-disable-line no-console
+      res.status(500).json({ error: "Impossible de réserver la journée — rien n'a été envoyé, on réessaiera dans une heure." });
+      return;
     }
   }
 
@@ -155,18 +185,7 @@ export default async function handler(req, res) {
     resultatPush = { envoyes: 0, echecs: 0, erreur: err.message };
   }
 
-  if (!forcer) {
-    try {
-      await supabase.from('defi_state').upsert(
-        { cle: CLE_ETAT, valeur: aujourdHuiEst, updated_at: new Date().toISOString() },
-        { onConflict: 'cle' }
-      );
-    } catch (err) {
-      // Ne bloque jamais l'envoi réel si cette mémorisation échoue —
-      // au pire, un envoi en double est possible mais sans gravité.
-      console.error('Erreur enregistrement dernier_envoi_hebdo:', err); // eslint-disable-line no-console
-    }
-  }
+  // (la journee a ete reservee plus haut, avant les envois)
 
   res.status(200).json({
     courriel_envoye_a: destinataires,

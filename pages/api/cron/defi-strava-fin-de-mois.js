@@ -52,10 +52,26 @@ export default async function handler(req, res) {
   const sansEmail = req.query.sansEmail === '1';
   const sansPush = req.query.sansPush === '1';
 
-  // Ne procède que le 1er du mois à 8h heure de l'Est (peu importe
-  // l'heure d'été/hiver) — sauf si on force un test manuel.
-  if (!forcer && (jourDuMoisEst() !== 1 || heureActuelleEst() !== 8)) {
-    res.status(200).json({ ignore: true, raison: "Ce n'est ni le 1er du mois, ni 8h heure de l'Est." });
+  // Ne procède que le 1er du mois, à partir de 8h heure de l'Est.
+  //
+  // Revision 47 — pourquoi « a partir de » et non « exactement » :
+  // le cron Vercel est en UTC fixe, il ne connait pas l'heure avancee. Une
+  // seule entree de cron ne peut donc pas tomber sur 8h de l'Est toute
+  // l'annee : elle vise juste six mois par annee et rate les six autres.
+  // On appelle donc la route TOUTES LES HEURES le 1er (« 0 * 1 * * »), et
+  // c'est elle qui choisit son moment : la premiere execution a 8h ou plus
+  // tard, heure d'ici, fait le travail. Les 23 autres repartent tout de
+  // suite, soit parce qu'il est trop tot, soit parce que le mois est deja
+  // annonce.
+  //
+  // Bonus : si une execution echoue, celle de l'heure suivante reprend le
+  // relais — ce qu'une entree unique ne permettait pas.
+  const HEURE_CIBLE_EST = 8;
+  if (!forcer && (jourDuMoisEst() !== 1 || heureActuelleEst() < HEURE_CIBLE_EST)) {
+    res.status(200).json({
+      ignore: true,
+      raison: `Ce n'est pas le 1er du mois, ou il est moins de ${HEURE_CIBLE_EST}h heure de l'Est.`,
+    });
     return;
   }
 
@@ -64,17 +80,39 @@ export default async function handler(req, res) {
 
   const supabase = getSupabaseAdmin();
 
-  // Évite un double envoi si jamais plus d'un essai horaire du cron
-  // tombe sur la bonne heure le même jour, pour le même mois.
+  // Évite un double envoi : le mois est marqué comme annoncé AVANT
+  // d'envoyer quoi que ce soit, pas après.
+  //
+  // Revision 47. Maintenant que la route est appelée toutes les heures le
+  // 1er, l'ordre compte pour de vrai. Si on marquait après l'envoi et que
+  // Vercel coupait l'exécution au milieu (elle frôle déjà la limite de
+  // temps), l'heure suivante recommencerait — et toute l'équipe recevrait
+  // le courriel une deuxième fois. En réservant d'abord, le pire cas est
+  // un mois non annoncé, qu'on relance à la main avec « ?forcer=1 ».
+  // Entre deux envois et zéro envoi, zéro est le bon défaut.
   if (!forcer) {
+    let etat;
     try {
-      const { data: etat } = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
-      if (etat?.valeur === moisIso) {
-        res.status(200).json({ ignore: true, raison: `Déjà annoncé pour ${moisIso}.` });
-        return;
-      }
+      const lecture = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
+      etat = lecture.data;
     } catch (err) {
       console.error('Erreur lecture dernier_envoi_fin_mois:', err); // eslint-disable-line no-console
+      res.status(500).json({ error: "Impossible de lire l'état — rien n'a été envoyé, on réessaiera dans une heure." });
+      return;
+    }
+    if (etat?.valeur === moisIso) {
+      res.status(200).json({ ignore: true, raison: `Déjà annoncé pour ${moisIso}.` });
+      return;
+    }
+
+    const { error: erreurReservation } = await supabase.from('defi_state').upsert(
+      { cle: CLE_ETAT, valeur: moisIso, updated_at: new Date().toISOString() },
+      { onConflict: 'cle' }
+    );
+    if (erreurReservation) {
+      console.error('Erreur réservation dernier_envoi_fin_mois:', erreurReservation); // eslint-disable-line no-console
+      res.status(500).json({ error: "Impossible de réserver le mois — rien n'a été envoyé, on réessaiera dans une heure." });
+      return;
     }
   }
 
@@ -205,16 +243,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (!forcer) {
-    try {
-      await supabase.from('defi_state').upsert(
-        { cle: CLE_ETAT, valeur: moisIso, updated_at: new Date().toISOString() },
-        { onConflict: 'cle' }
-      );
-    } catch (err) {
-      console.error('Erreur enregistrement dernier_envoi_fin_mois:', err); // eslint-disable-line no-console
-    }
-  }
+  // (le mois a ete reserve plus haut, avant les envois)
 
   res.status(200).json({
     push: resultatPush,
