@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { Sun, Moon } from 'lucide-react';
 import AuthGate from '../../components/defi-strava/AuthGate';
 import { formatDuree } from '../../lib/defi-strava/format';
+import { entetesAuth } from '../../lib/commun/entetesAuth';
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_DEFI_STRAVA_VAPID_PUBLIC_KEY;
 
@@ -95,6 +96,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
   const [notifState, setNotifState] = useState('inconnu');
   const [erreurNotifTech, setErreurNotifTech] = useState('');
   const [messageConnexionStrava, setMessageConnexionStrava] = useState(null); // { type: 'ok'|'erreur', texte }
+  const [connexionEnCours, setConnexionEnCours] = useState(false);
 
   async function chargerMois(moisIso) {
     setChargement(true);
@@ -178,6 +180,37 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady]);
 
+  // Demarre la connexion Strava. Ce n'est plus un lien : la route exige le
+  // jeton de session (elle ne prend plus le numero de participant depuis le
+  // navigateur, elle le retrouve elle-meme). On demande donc l'adresse
+  // d'autorisation, puis on y va.
+  async function connecterStrava() {
+    setMessageConnexionStrava(null);
+    setConnexionEnCours(true);
+    try {
+      const reponse = await fetch('/api/defi-strava/connect/', {
+        method: 'POST',
+        headers: await entetesAuth(),
+      });
+      const data = await reponse.json().catch(() => ({}));
+      if (!reponse.ok || !data.url) {
+        setConnexionEnCours(false);
+        setMessageConnexionStrava({
+          type: 'erreur',
+          texte: data.error || "Impossible d'ouvrir la connexion Strava pour le moment. Reessaie.",
+        });
+        return;
+      }
+      window.location.href = data.url;
+    } catch (e) {
+      setConnexionEnCours(false);
+      setMessageConnexionStrava({
+        type: 'erreur',
+        texte: "Impossible de joindre le serveur. Verifie ta connexion et reessaie.",
+      });
+    }
+  }
+
   async function activerNotifications() {
     setErreurNotifTech('');
     if (!participantId) {
@@ -217,10 +250,12 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
         return;
       }
 
+      // Le participant n'est plus envoye par le navigateur : le serveur le
+      // retrouve a partir de la session. On joint donc le jeton.
       const reponse = await fetch('/api/defi-strava/push-subscribe/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription, participant_id: participantId }),
+        headers: await entetesAuth(),
+        body: JSON.stringify({ subscription }),
       });
       if (!reponse.ok) {
         const detail = await reponse.json().catch(() => ({}));
@@ -247,7 +282,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
           try {
             await fetch('/api/defi-strava/push-subscribe/', {
               method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await entetesAuth(),
               body: JSON.stringify({ endpoint: subscription.endpoint }),
             });
           } catch (e) {
@@ -633,13 +668,15 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                 <p className="horaire">
                   Connecte ton compte Strava pour que tes activités comptent automatiquement dans le défi.
                 </p>
-                <a
-                  href={`/api/defi-strava/connect?participant_id=${participantId}`}
+                <button
+                  type="button"
                   className="btn-notif"
-                  style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}
+                  onClick={connecterStrava}
+                  disabled={connexionEnCours}
+                  style={{ display: 'inline-block', textAlign: 'center' }}
                 >
-                  🔗 Connecter mon compte Strava
-                </a>
+                  {connexionEnCours ? 'Ouverture de Strava…' : '🔗 Connecter mon compte Strava'}
+                </button>
               </>
             ) : (
               <p style={{ fontSize: 12, color: '#c41230' }}>
