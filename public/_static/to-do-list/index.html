@@ -93,18 +93,10 @@
     overflow-y:visible;
   }
 
-  /* HEADER — PEP2000 brand card */
-  header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    background:var(--navy);
-    border-radius:var(--radius);
-    padding:16px 22px;
-    margin-bottom:18px;
-    flex-wrap:wrap;
-    gap:12px;
-  }
+  /* Revision 46 — le bloc « header{...} » qui etait ici a ete retire.
+     Cette page n'a AUCUN element <header> : son bandeau est #pepBandeau,
+     un div avec des styles en ligne. Ces regles n'ont donc jamais rien
+     stylise. Meme constat que sur le Fichier Cost a la revision 44. */
   .brand-block{
     display:flex;
     align-items:center;
@@ -1173,31 +1165,60 @@
     -webkit-overflow-scrolling:touch;
   }
 
-  /* Header becomes a 2-row grid: logo | title | theme-switch, then ticket-no | meta-right */
-  .brand-block, .header-right{ display:contents; }
-  header{
-    display:grid;
-    grid-template-columns:auto 1fr auto;
-    grid-template-areas:
-      "logo title theme"
-      "ticketno ticketno meta"
-      "retour retour retour";
-    align-items:center;
-    column-gap:10px;
-    row-gap:4px;
-    padding:10px 12px;
-  }
-  .brand-block a{ grid-area:logo; }
-  .titleblock{ grid-area:title; min-width:0; }
-  .theme-switch{ grid-area:theme; margin-bottom:0; align-self:center; }
-  .ticket-no-line{ grid-area:ticketno; text-align:left; }
-  .ticket-meta-right{ grid-area:meta; text-align:right; }
-  .retour-toolbox-btn{ grid-area:retour; justify-self:end; padding:6px 11px !important; font-size:12px !important; }
+  /* --------------------------------------------------------------------
+     Revision 46 — le bandeau sur telephone.
 
-  .brand-logo{ height:45px; }
-  .titleblock h1{ font-size:16px; }
-  .titleblock p{ font-size:9.5px; }
-  .account-line{ font-size:9px; }
+     Ce qu'il y avait ici : une grille de deux rangees appliquee a
+     « header », « .brand-block », « .titleblock », « .theme-switch »,
+     « .brand-logo », « .account-line », « .retour-toolbox-btn ». AUCUN de
+     ces elements n'existe dans cette page. Le <header> a ete remplace il y
+     a longtemps par #pepBandeau, un div avec des styles en ligne, et les
+     regles sont restees derriere sans que rien ne le signale : du CSS mort
+     ne provoque aucune erreur, il ne fait simplement rien.
+
+     Resultat : le bandeau n'avait, en pratique, jamais ete adapte au
+     telephone. Il se repliait sur TROIS rangees et occupait 171 px des
+     844 px d'un iPhone — 20 % de l'ecran, en permanence. Mesure faite dans
+     un vrai navigateur.
+
+     Meme correction que sur le Fichier Cost a la revision 44, en ciblant
+     cette fois les elements qui existent vraiment.
+     -------------------------------------------------------------------- */
+  /* la rangee navy du bandeau : plus serree, et on ne replie plus */
+  #pepBandeau{ margin-bottom:12px !important; }
+  #pepBandeau > div:last-child{
+    padding:9px 13px !important; gap:10px !important; flex-wrap:nowrap !important;
+    align-items:center !important;
+  }
+  /* logo + titre */
+  #pepBandeau > div:last-child > div:first-child{
+    min-height:0 !important; gap:9px !important;
+  }
+  #pepBandeau img{ height:40px !important; width:auto !important; }
+  /* Le titre reste sur UNE ligne et se coupe proprement s'il manque de
+     place, sinon il se replie et vient chevaucher la bascule jour/nuit. */
+  #pepBandeau h1{
+    font-size:15px !important; letter-spacing:.3px !important;
+    white-space:nowrap !important; overflow:hidden !important;
+    text-overflow:ellipsis !important;
+  }
+  #pepBandeau > div:last-child > div:first-child > div{
+    min-width:0 !important; overflow:hidden !important;
+  }
+  /* le sous-titre ne gagne pas sa place sur un ecran de telephone */
+  #pepBandeau p{ display:none !important; }
+  /* Nom et poste masques : ils sont deja dans le Toolbox et dans
+     Administration, et ils prennent toute une rangee ici. */
+  #pepNom, #pepPoste{ display:none !important; }
+  #pepBandeau > div:last-child > div:last-child{
+    flex-direction:row !important; align-items:center !important;
+    justify-content:flex-end !important; min-height:0 !important;
+    gap:7px !important; flex:0 0 auto !important;
+  }
+  /* le bouton de retour devient une simple fleche */
+  #pepBandeau a[href="/"]{ font-size:0 !important; padding:7px 10px !important; }
+  #pepBandeau a[href="/"]::before{ content:"\2190"; font-size:15px; }
+
   .ticket-no-line, .ticket-meta-right{ font-size:10.5px; }
 
   /* Form: Tâche full width, then Catégorie / Priorité / Échéance-icon / Ajouter on one line */
