@@ -37,19 +37,25 @@ const ONGLETS = [
   { id: 'taux', libelle: 'Taux par année' },
 ];
 
-const EMPLOYEUR_DEFAUT = 'PEP Pavage & Les Entreprises PEP (2000) Inc.';
+const EMPLOYEUR_DEFAUT = 'Les Entreprises PEP (2000) Inc.';
 
 function anneeCourante() {
   return new Date().getFullYear();
 }
 
-function calculVide(annee) {
+/**
+ * Un calcul neuf. On y met d'emblee le nom et le courriel de la personne
+ * connectee : dans neuf cas sur dix on calcule son propre avantage, et depuis
+ * que chacun ne voit que ses calculs, c'est devenu la regle plutot que
+ * l'exception. Le champ reste modifiable pour le dixieme cas.
+ */
+function calculVide(annee, moi = {}) {
   const a = annee || anneeCourante();
   return {
     id: null,
     annee: a,
-    employe_nom: '',
-    employe_courriel: '',
+    employe_nom: moi.nom || '',
+    employe_courriel: moi.courriel || '',
     employeur: EMPLOYEUR_DEFAUT,
     vehicule: '',
     mode: 'achat',
@@ -103,7 +109,7 @@ function depuisBase(r) {
 
 // ============================================================================
 
-function GainImposableApp({ userId, nom, poste }) {
+function GainImposableApp({ userId, nom, poste, courriel }) {
   const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
@@ -115,7 +121,7 @@ function GainImposableApp({ userId, nom, poste }) {
   const [tauxRangees, setTauxRangees] = useState([]);
   const [calculs, setCalculs] = useState([]);
 
-  const [calcul, setCalcul] = useState(calculVide());
+  const [calcul, setCalcul] = useState(() => calculVide(null, { nom, courriel }));
   const [modifie, setModifie] = useState(false);
   const [enregistrement, setEnregistrement] = useState(false);
 
@@ -182,7 +188,7 @@ function GainImposableApp({ userId, nom, poste }) {
 
   function nouveau() {
     if (modifie && !window.confirm('Le calcul en cours a des changements non enregistrés. Le laisser tomber ?')) return;
-    setCalcul(calculVide());
+    setCalcul(calculVide(null, { nom, courriel }));
     setModifie(false);
     setOnglet('calcul');
   }
@@ -262,7 +268,7 @@ function GainImposableApp({ userId, nom, poste }) {
     if (!window.confirm(`Supprimer le calcul de ${rangee.employe_nom} pour ${rangee.annee} ? C'est définitif.`)) return;
     const { error } = await supabaseGI.from('calculs').delete().eq('id', rangee.id);
     if (error) { avertir(`Suppression refusée : ${error.message}`, 'err'); return; }
-    if (calcul.id === rangee.id) { setCalcul(calculVide()); setModifie(false); }
+    if (calcul.id === rangee.id) { setCalcul(calculVide(null, { nom, courriel })); setModifie(false); }
     await charger();
     avertir('Supprimé.');
   }
@@ -888,15 +894,23 @@ function Periode({ th, mode, calcul, maj, resultat }) {
 
 function Kilometrage({ th, mode, calcul, maj, resultat }) {
   const auto = analyserNombre(calcul.odo_debut) !== null && analyserNombre(calcul.odo_fin) !== null;
+
+  // Les deux cases a remplir, ce sont les relevés d'odomètre. Le total est un
+  // resultat : il se peint en jaune seulement si on choisit de le taper a la
+  // place des relevés, ce qui n'est pas le chemin normal. Tant qu'on ne connait
+  // pas le total par un moyen ou par l'autre, ce sont les relevés qui sont en
+  // jaune — pas le total.
+  const totalInconnu = resultat.kmTotal === null;
+
   return (
     <Carte th={th} titre="Kilométrage">
       <div style={RANGEE}>
         <Champ th={th} etiquette="Odomètre au début">
-          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_debut}
+          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_debut} requis={totalInconnu}
             onValeur={(v) => maj({ odo_debut: v })} placeholder="31 781" />
         </Champ>
         <Champ th={th} etiquette="Odomètre à la fin">
-          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_fin}
+          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_fin} requis={totalInconnu}
             onValeur={(v) => maj({ odo_fin: v })} placeholder="50 126,9" />
         </Champ>
         <Champ
@@ -908,8 +922,7 @@ function Kilometrage({ th, mode, calcul, maj, resultat }) {
             valeur={auto ? formaterSaisie(resultat.kmTotal ?? '') : calcul.km_total}
             onValeur={(v) => maj({ km_total: v })}
             inactif={auto}
-            requis={!auto}
-            style={{ ...entree(th, mode, { requis: !auto, vide: estVide(calcul.km_total), inactif: auto }), opacity: auto ? 0.65 : 1 }}
+            style={{ ...entree(th, mode, { inactif: auto }), opacity: auto ? 0.65 : 1 }}
           />
         </Champ>
       </div>
@@ -1311,5 +1324,10 @@ export default function GainImposablePage() {
       />
     );
   }
-  return <GainImposableApp userId={session.userId} nom={session.nom} poste={session.poste} />;
+  return (
+    <GainImposableApp
+      userId={session.userId} nom={session.nom}
+      poste={session.poste} courriel={session.email}
+    />
+  );
 }
