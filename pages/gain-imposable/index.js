@@ -84,26 +84,26 @@ function depuisBase(r) {
     mode: r.mode || 'achat',
     date_debut: r.date_debut || '',
     date_fin: r.date_fin || '',
-    odo_debut: r.odo_debut ?? '',
-    odo_fin: r.odo_fin ?? '',
-    km_total: r.km_total ?? '',
-    km_personnel: r.km_personnel ?? '',
-    cout: r.cout_cents === null || r.cout_cents === undefined ? '' : enDollars(r.cout_cents),
-    mensualite: r.mensualite_cents === null || r.mensualite_cents === undefined ? '' : enDollars(r.mensualite_cents),
-    mois_location: r.mois_location ?? '',
-    assurances: r.assurances_cents === null || r.assurances_cents === undefined ? '' : enDollars(r.assurances_cents),
+    odo_debut: formaterSaisie(r.odo_debut ?? ''),
+    odo_fin: formaterSaisie(r.odo_fin ?? ''),
+    km_total: formaterSaisie(r.km_total ?? ''),
+    km_personnel: formaterSaisie(r.km_personnel ?? ''),
+    cout: r.cout_cents === null || r.cout_cents === undefined ? '' : formaterSaisie(enDollars(r.cout_cents)),
+    mensualite: r.mensualite_cents === null || r.mensualite_cents === undefined ? '' : formaterSaisie(enDollars(r.mensualite_cents)),
+    mois_location: formaterSaisie(r.mois_location ?? ''),
+    assurances: r.assurances_cents === null || r.assurances_cents === undefined ? '' : formaterSaisie(enDollars(r.assurances_cents)),
     exige_par_employeur: r.exige_par_employeur ?? true,
     vendeur_automobiles: r.vendeur_automobiles ?? false,
     methode_fonctionnement: r.methode_fonctionnement || 'moindre',
-    rembourse_usage: r.rembourse_usage_cents ? enDollars(r.rembourse_usage_cents) : '',
-    rembourse_fonct: r.rembourse_fonct_cents ? enDollars(r.rembourse_fonct_cents) : '',
+    rembourse_usage: r.rembourse_usage_cents ? formaterSaisie(enDollars(r.rembourse_usage_cents)) : '',
+    rembourse_fonct: r.rembourse_fonct_cents ? formaterSaisie(enDollars(r.rembourse_fonct_cents)) : '',
     note: r.note || '',
   };
 }
 
 // ============================================================================
 
-function GainImposableApp({ nom, poste }) {
+function GainImposableApp({ userId, nom, poste }) {
   const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
@@ -244,7 +244,9 @@ function GainImposableApp({ nom, poste }) {
     if (calcul.id) {
       res = await supabaseGI.from('calculs').update(charge).eq('id', calcul.id).select().maybeSingle();
     } else {
-      res = await supabaseGI.from('calculs').insert({ ...charge, cree_par: nom }).select().maybeSingle();
+      res = await supabaseGI.from('calculs')
+        .insert({ ...charge, cree_par: nom, cree_par_id: userId })
+        .select().maybeSingle();
     }
     setEnregistrement(false);
 
@@ -286,6 +288,25 @@ function GainImposableApp({ nom, poste }) {
   // --- Rendu ---------------------------------------------------------------
   return (
     <div style={{ minHeight: '100vh', background: th.bg, color: th.text }}>
+      {/*
+        Les exemples doivent rester nettement plus pales que ce qu'on tape,
+        sinon on lit « 127 139 » comme une valeur deja saisie. Le navigateur
+        met les siens trop fonces : on impose les notres, et en italique pour
+        que la difference se voie meme en noir et blanc.
+      */}
+      <style>{`
+        .gi-saisie::placeholder {
+          color: ${mode === 'night' ? '#5a6480' : '#aab0bd'};
+          opacity: 1;
+          font-style: italic;
+        }
+        .gi-saisie::-webkit-input-placeholder {
+          color: ${mode === 'night' ? '#5a6480' : '#aab0bd'};
+          opacity: 1;
+          font-style: italic;
+        }
+      `}</style>
+
       <EnTeteApp
         titre="Gain imposable"
         sousTitre="Avantage automobile — droit d'usage, frais de fonctionnement, TPS et TVQ à remettre"
@@ -357,13 +378,13 @@ function GainImposableApp({ nom, poste }) {
           />
         ) : onglet === 'calcul' ? (
           <OngletCalcul
-            th={th} calcul={calcul} maj={maj} resultat={resultat} controle={controle}
+            th={th} mode={mode} calcul={calcul} maj={maj} resultat={resultat} controle={controle}
             personnes={personnes} calculs={calculs}
             onEnregistrer={enregistrer} onExporter={exporter}
             enregistrement={enregistrement} modifie={modifie}
           />
         ) : (
-          <OngletTaux th={th} rangees={tauxRangees} onRecharger={charger} avertir={avertir} nom={nom} />
+          <OngletTaux th={th} mode={mode} rangees={tauxRangees} onRecharger={charger} avertir={avertir} nom={nom} />
         )}
       </div>
     </div>
@@ -420,6 +441,7 @@ function OngletListe({ th, calculs, onOuvrir, onDupliquer, onSupprimer, onNouvea
           <input
             value={recherche} onChange={(e) => setRecherche(e.target.value)}
             placeholder="Employé, véhicule…"
+            className="gi-saisie"
             style={{
               width: '100%', padding: '9px 12px 9px 34px', borderRadius: 8,
               border: `1px solid ${th.line}`, background: th.inputBg, color: th.text, fontSize: 13,
@@ -444,7 +466,7 @@ function OngletListe({ th, calculs, onOuvrir, onDupliquer, onSupprimer, onNouvea
           padding: '10px 14px', background: th.panelAlt, fontSize: 12,
           color: th.textDim, textTransform: 'uppercase', letterSpacing: 0.4, flexWrap: 'wrap',
         }}>
-          <span>{visibles.length} calcul{visibles.length > 1 ? 's' : ''}</span>
+          <span>{visibles.length} calcul{visibles.length > 1 ? 's' : ''} · à toi seul</span>
           <span style={{ textTransform: 'none', letterSpacing: 0 }}>
             Avantage {formaterArgent(sommes.total)} · TPS {formaterArgent(sommes.tps)} · TVQ {formaterArgent(sommes.tvq)}
           </span>
@@ -454,6 +476,10 @@ function OngletListe({ th, calculs, onOuvrir, onDupliquer, onSupprimer, onNouvea
           <div style={{ padding: 40, textAlign: 'center', color: th.textDim, fontSize: 13 }}>
             <Car size={30} style={{ opacity: 0.4, marginBottom: 10 }} />
             <div>Aucun calcul pour l'instant.</div>
+            <div style={{ marginTop: 6, fontSize: 12, maxWidth: 380, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+              Cette liste ne montre que tes propres calculs. Ceux des autres ne te sont pas
+              visibles, et les tiens ne le sont pour personne d'autre.
+            </div>
             <button
               onClick={onNouveau}
               style={{
@@ -526,7 +552,7 @@ function OngletListe({ th, calculs, onOuvrir, onDupliquer, onSupprimer, onNouvea
 // ============================================================================
 
 function OngletCalcul({
-  th, calcul, maj, resultat, controle, personnes, calculs,
+  th, mode, calcul, maj, resultat, controle, personnes, calculs,
   onEnregistrer, onExporter, enregistrement, modifie,
 }) {
   const m = modeDe(calcul.mode);
@@ -535,12 +561,12 @@ function OngletCalcul({
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16 }}>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
         <div style={{ flex: '1 1 460px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Identite th={th} calcul={calcul} maj={maj} personnes={personnes} calculs={calculs} />
+          <Identite th={th} mode={mode} calcul={calcul} maj={maj} personnes={personnes} calculs={calculs} />
           <ChoixMode th={th} calcul={calcul} maj={maj} />
-          <Periode th={th} calcul={calcul} maj={maj} resultat={resultat} />
-          <Kilometrage th={th} calcul={calcul} maj={maj} resultat={resultat} />
-          <Vehicule th={th} calcul={calcul} maj={maj} m={m} />
-          <Conditions th={th} calcul={calcul} maj={maj} resultat={resultat} />
+          <Periode th={th} mode={mode} calcul={calcul} maj={maj} resultat={resultat} />
+          <Kilometrage th={th} mode={mode} calcul={calcul} maj={maj} resultat={resultat} />
+          <Vehicule th={th} mode={mode} calcul={calcul} maj={maj} m={m} />
+          <Conditions th={th} mode={mode} calcul={calcul} maj={maj} resultat={resultat} />
         </div>
 
         <div style={{ flex: '1 1 380px', minWidth: 0, position: 'sticky', top: 12 }}>
@@ -622,16 +648,117 @@ function Champ({ th, etiquette, suffixe, aide, children, largeur }) {
   );
 }
 
-function entree(th) {
+// Jaune « il reste ca a remplir ». Deux tons : un jaune pale disparait sur le
+// fond sombre, et un jaune vif brule les yeux de jour.
+const A_REMPLIR = {
+  day:   { fond: '#fff7d1', ligne: '#d9b32c' },
+  night: { fond: '#3a3110', ligne: '#7a681d' },
+};
+
+/** Ce qui compte comme vide pour une case a remplir. */
+function estVide(v) {
+  return v === null || v === undefined || String(v).trim() === '';
+}
+
+/**
+ * Le style d'une case de saisie. Quand la case est obligatoire et encore vide,
+ * elle passe au jaune : on voit d'un coup d'oeil ce qui bloque le calcul, sans
+ * avoir a lire la liste des manques en bas de page.
+ */
+function entree(th, mode, opts = {}) {
+  const { requis = false, vide = false, inactif = false } = opts;
+  const aRemplir = requis && vide && !inactif;
+  const jaune = A_REMPLIR[mode] || A_REMPLIR.day;
   return {
-    width: '100%', padding: '9px 11px', borderRadius: 7, border: `1px solid ${th.line}`,
-    background: th.inputBg, color: th.text, fontSize: 13, boxSizing: 'border-box',
+    width: '100%', padding: '9px 11px', borderRadius: 7,
+    border: `1px solid ${aRemplir ? jaune.ligne : th.line}`,
+    background: aRemplir ? jaune.fond : th.inputBg,
+    color: th.text, fontSize: 13, boxSizing: 'border-box',
   };
+}
+
+const ESPACE_MILLE = ' '; // espace fine insecable : 30 000, pas 30000
+
+/**
+ * Met les espaces de milliers dans ce que la personne est en train de taper,
+ * sans rien decider d'autre : on ne complete pas les decimales et on ne refuse
+ * pas une virgule laissee seule en cours de frappe.
+ * « 30000 » -> « 30 000 » ; « 30000,5 » -> « 30 000,5 ».
+ */
+function formaterSaisie(brut) {
+  const s = String(brut ?? '');
+  if (!s) return '';
+  const negatif = s.trimStart().startsWith('-');
+  const propre = s.replace(/[^\d.,]/g, '');
+  const coupe = propre.search(/[.,]/);
+  const entiers = coupe === -1 ? propre : propre.slice(0, coupe);
+  const decimales = coupe === -1 ? '' : `,${propre.slice(coupe + 1).replace(/[.,]/g, '')}`;
+  const groupes = entiers.replace(/\B(?=(\d{3})+(?!\d))/g, ESPACE_MILLE);
+  if (!groupes && !decimales) return negatif ? '-' : '';
+  return (negatif ? '-' : '') + groupes + decimales;
+}
+
+/** Combien de caracteres significatifs (chiffres, virgule) avant cette position. */
+function significatifsAvant(s, pos) {
+  let n = 0;
+  for (let i = 0; i < pos && i < s.length; i += 1) if (/[\d.,]/.test(s[i])) n += 1;
+  return n;
+}
+
+/** Ou se placer, dans la chaine formatee, apres n caracteres significatifs. */
+function positionApres(s, n) {
+  if (n <= 0) return 0;
+  let vus = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    if (/[\d.,]/.test(s[i])) { vus += 1; if (vus === n) return i + 1; }
+  }
+  return s.length;
+}
+
+/**
+ * Une case de nombre qui espace les milliers pendant la frappe.
+ *
+ * Le curseur est replace a la main apres chaque changement : si on ne le fait
+ * pas, il saute a la fin des qu'une espace apparait ou disparait. On compte les
+ * chiffres et non les caracteres, justement parce que les espaces bougent.
+ */
+function EntreeNombre({ th, mode, valeur, onValeur, requis, inactif, ...reste }) {
+  const ref = useRef(null);
+  const curseur = useRef(null);
+
+  useEffect(() => {
+    if (curseur.current === null || !ref.current) return;
+    const p = curseur.current;
+    curseur.current = null;
+    try { ref.current.setSelectionRange(p, p); } catch (e) { /* champ sans curseur */ }
+  });
+
+  function changer(e) {
+    const el = e.target;
+    const pos = el.selectionStart === null ? el.value.length : el.selectionStart;
+    const avant = significatifsAvant(el.value, pos);
+    const formate = formaterSaisie(el.value);
+    curseur.current = positionApres(formate, avant);
+    onValeur(formate);
+  }
+
+  return (
+    <input
+      ref={ref}
+      className="gi-saisie"
+      value={valeur ?? ''}
+      onChange={changer}
+      disabled={inactif}
+      inputMode="decimal"
+      style={entree(th, mode, { requis, vide: estVide(valeur), inactif })}
+      {...reste}
+    />
+  );
 }
 
 const RANGEE = { display: 'flex', gap: 12, flexWrap: 'wrap' };
 
-function Identite({ th, calcul, maj, personnes, calculs }) {
+function Identite({ th, mode, calcul, maj, personnes, calculs }) {
   const doublon = useMemo(() => calculs.some(
     (c) => c.id !== calcul.id
       && String(c.annee) === String(calcul.annee)
@@ -657,14 +784,15 @@ function Identite({ th, calcul, maj, personnes, calculs }) {
               });
             }}
             placeholder="Choisir dans le répertoire…"
-            style={entree(th)}
+            className="gi-saisie"
+            style={entree(th, mode, { requis: true, vide: estVide(calcul.employe_nom) })}
           />
           <datalist id="gi-personnes">
             {personnes.map((p) => <option key={p.nom} value={p.nom}>{p.titre || ''}</option>)}
           </datalist>
         </Champ>
         <Champ th={th} etiquette="Année d'imposition" largeur="0 0 150px">
-          <select value={calcul.annee} onChange={(e) => maj({ annee: Number(e.target.value) })} style={entree(th)}>
+          <select value={calcul.annee} onChange={(e) => maj({ annee: Number(e.target.value) })} style={entree(th, mode)}>
             {annees.map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </Champ>
@@ -673,11 +801,12 @@ function Identite({ th, calcul, maj, personnes, calculs }) {
         <Champ th={th} etiquette="Véhicule" aide="Marque, modèle, année — ce qui paraîtra au document.">
           <input
             value={calcul.vehicule} onChange={(e) => maj({ vehicule: e.target.value })}
-            placeholder="Ex. : Ford F-150 2023" style={entree(th)}
+            placeholder="Ex. : Ford F-150 2023" className="gi-saisie" style={entree(th, mode)}
           />
         </Champ>
         <Champ th={th} etiquette="Employeur" largeur="2 1 260px">
-          <input value={calcul.employeur} onChange={(e) => maj({ employeur: e.target.value })} style={entree(th)} />
+          <input value={calcul.employeur} onChange={(e) => maj({ employeur: e.target.value })}
+            className="gi-saisie" style={entree(th, mode)} />
         </Champ>
       </div>
       {doublon && (
@@ -722,7 +851,7 @@ function ChoixMode({ th, calcul, maj }) {
   );
 }
 
-function Periode({ th, calcul, maj, resultat }) {
+function Periode({ th, mode, calcul, maj, resultat }) {
   return (
     <Carte
       th={th}
@@ -732,12 +861,14 @@ function Periode({ th, calcul, maj, resultat }) {
     >
       <div style={RANGEE}>
         <Champ th={th} etiquette="Du">
-          <input type="date" value={calcul.date_debut || ''}
-            onChange={(e) => maj({ date_debut: e.target.value })} style={entree(th)} />
+          <input type="date" value={calcul.date_debut || ''} className="gi-saisie"
+            onChange={(e) => maj({ date_debut: e.target.value })}
+            style={entree(th, mode, { requis: true, vide: estVide(calcul.date_debut) })} />
         </Champ>
         <Champ th={th} etiquette="Au">
-          <input type="date" value={calcul.date_fin || ''}
-            onChange={(e) => maj({ date_fin: e.target.value })} style={entree(th)} />
+          <input type="date" value={calcul.date_fin || ''} className="gi-saisie"
+            onChange={(e) => maj({ date_fin: e.target.value })}
+            style={entree(th, mode, { requis: true, vide: estVide(calcul.date_fin) })} />
         </Champ>
         <div style={{ flex: '1 1 160px', alignSelf: 'flex-end', paddingBottom: 2 }}>
           <div style={{ fontSize: 12, color: th.textDim }}>Ce que ça donne</div>
@@ -755,36 +886,37 @@ function Periode({ th, calcul, maj, resultat }) {
   );
 }
 
-function Kilometrage({ th, calcul, maj, resultat }) {
+function Kilometrage({ th, mode, calcul, maj, resultat }) {
   const auto = analyserNombre(calcul.odo_debut) !== null && analyserNombre(calcul.odo_fin) !== null;
   return (
     <Carte th={th} titre="Kilométrage">
       <div style={RANGEE}>
         <Champ th={th} etiquette="Odomètre au début">
-          <input value={calcul.odo_debut} onChange={(e) => maj({ odo_debut: e.target.value })}
-            placeholder="31 781" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_debut}
+            onValeur={(v) => maj({ odo_debut: v })} placeholder="31 781" />
         </Champ>
         <Champ th={th} etiquette="Odomètre à la fin">
-          <input value={calcul.odo_fin} onChange={(e) => maj({ odo_fin: e.target.value })}
-            placeholder="50 126,9" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.odo_fin}
+            onValeur={(v) => maj({ odo_fin: v })} placeholder="50 126,9" />
         </Champ>
         <Champ
           th={th} etiquette="Total parcouru" suffixe="km"
           aide={auto ? "Calculé à partir des deux relevés." : 'À défaut des relevés, entre le total ici.'}
         >
-          <input
-            value={auto ? (resultat.kmTotal ?? '') : calcul.km_total}
-            onChange={(e) => maj({ km_total: e.target.value })}
-            disabled={auto}
-            style={{ ...entree(th), opacity: auto ? 0.65 : 1 }}
-            inputMode="decimal"
+          <EntreeNombre
+            th={th} mode={mode}
+            valeur={auto ? formaterSaisie(resultat.kmTotal ?? '') : calcul.km_total}
+            onValeur={(v) => maj({ km_total: v })}
+            inactif={auto}
+            requis={!auto}
+            style={{ ...entree(th, mode, { requis: !auto, vide: estVide(calcul.km_total), inactif: auto }), opacity: auto ? 0.65 : 1 }}
           />
         </Champ>
       </div>
       <div style={{ ...RANGEE, marginTop: 12 }}>
         <Champ th={th} etiquette="Kilométrage personnel" suffixe="km">
-          <input value={calcul.km_personnel} onChange={(e) => maj({ km_personnel: e.target.value })}
-            placeholder="3 885,5" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.km_personnel} requis
+            onValeur={(v) => maj({ km_personnel: v })} placeholder="3 885,5" />
         </Champ>
         <div style={{ flex: '2 1 220px', alignSelf: 'flex-end', paddingBottom: 2 }}>
           <div style={{ fontSize: 12, color: th.textDim }}>Répartition</div>
@@ -803,15 +935,15 @@ function Kilometrage({ th, calcul, maj, resultat }) {
   );
 }
 
-function Vehicule({ th, calcul, maj, m }) {
+function Vehicule({ th, mode, calcul, maj, m }) {
   if (m.id === 'achat') {
     return (
       <Carte th={th} titre="Le véhicule acheté">
         <div style={RANGEE}>
           <Champ th={th} etiquette="Coût du véhicule" suffixe="$, taxes incluses"
             aide="TPS et TVQ comprises. Sans l'équipement d'entreprise (radio, gyrophare…).">
-            <input value={calcul.cout} onChange={(e) => maj({ cout: e.target.value })}
-              placeholder="127 139" style={entree(th)} inputMode="decimal" />
+            <EntreeNombre th={th} mode={mode} valeur={calcul.cout} requis
+              onValeur={(v) => maj({ cout: v })} placeholder="127 139" />
           </Champ>
         </div>
       </Carte>
@@ -821,24 +953,24 @@ function Vehicule({ th, calcul, maj, m }) {
     <Carte th={th} titre="Le véhicule loué">
       <div style={RANGEE}>
         <Champ th={th} etiquette="Mensualité" suffixe="$, taxes incluses">
-          <input value={calcul.mensualite} onChange={(e) => maj({ mensualite: e.target.value })}
-            placeholder="850" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.mensualite} requis
+            onValeur={(v) => maj({ mensualite: v })} placeholder="850" />
         </Champ>
         <Champ th={th} etiquette="Nombre de mensualités">
-          <input value={calcul.mois_location} onChange={(e) => maj({ mois_location: e.target.value })}
-            placeholder="12" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.mois_location} requis
+            onValeur={(v) => maj({ mois_location: v })} placeholder="12" />
         </Champ>
         <Champ th={th} etiquette="Assurances par mois" suffixe="$"
           aide="Comprises dans la mensualité. Elles sortent du droit d'usage.">
-          <input value={calcul.assurances} onChange={(e) => maj({ assurances: e.target.value })}
-            placeholder="0" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.assurances}
+            onValeur={(v) => maj({ assurances: v })} placeholder="0" />
         </Champ>
       </div>
     </Carte>
   );
 }
 
-function Conditions({ th, calcul, maj, resultat }) {
+function Conditions({ th, mode, calcul, maj, resultat }) {
   const casePied = { display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, cursor: 'pointer' };
   return (
     <Carte th={th} titre="Conditions et ajustements">
@@ -869,7 +1001,7 @@ function Conditions({ th, calcul, maj, resultat }) {
       <div style={{ marginTop: 16 }}>
         <div style={{ fontSize: 12, color: th.textDim, marginBottom: 6 }}>Méthode des frais de fonctionnement</div>
         <select value={calcul.methode_fonctionnement}
-          onChange={(e) => maj({ methode_fonctionnement: e.target.value })} style={entree(th)}>
+          onChange={(e) => maj({ methode_fonctionnement: e.target.value })} style={entree(th, mode)}>
           <option value="moindre">La moins élevée des deux (comme le chiffrier)</option>
           <option value="kilometrique">Toujours le taux au kilomètre</option>
           <option value="moitie">Toujours la moitié du droit d'usage</option>
@@ -882,19 +1014,19 @@ function Conditions({ th, calcul, maj, resultat }) {
 
       <div style={{ ...RANGEE, marginTop: 16 }}>
         <Champ th={th} etiquette="Remboursé par l'employé" suffixe="droit d'usage, $">
-          <input value={calcul.rembourse_usage} onChange={(e) => maj({ rembourse_usage: e.target.value })}
-            placeholder="0" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.rembourse_usage}
+            onValeur={(v) => maj({ rembourse_usage: v })} placeholder="0" />
         </Champ>
         <Champ th={th} etiquette="Remboursé par l'employé" suffixe="frais de fonctionnement, $">
-          <input value={calcul.rembourse_fonct} onChange={(e) => maj({ rembourse_fonct: e.target.value })}
-            placeholder="0" style={entree(th)} inputMode="decimal" />
+          <EntreeNombre th={th} mode={mode} valeur={calcul.rembourse_fonct}
+            onValeur={(v) => maj({ rembourse_fonct: v })} placeholder="0" />
         </Champ>
       </div>
 
       <div style={{ marginTop: 14 }}>
         <Champ th={th} etiquette="Note interne" aide="Ne paraît pas au document remis.">
-          <textarea value={calcul.note} onChange={(e) => maj({ note: e.target.value })}
-            rows={2} style={{ ...entree(th), resize: 'vertical', fontFamily: 'inherit' }} />
+          <textarea value={calcul.note} onChange={(e) => maj({ note: e.target.value })} className="gi-saisie"
+            rows={2} style={{ ...entree(th, mode), resize: 'vertical', fontFamily: 'inherit' }} />
         </Champ>
       </div>
     </Carte>
@@ -1045,7 +1177,7 @@ function Resultat({ th, calcul, resultat: r, controle }) {
 // ONGLET — LES TAUX
 // ============================================================================
 
-function OngletTaux({ th, rangees, onRecharger, avertir, nom }) {
+function OngletTaux({ th, mode, rangees, onRecharger, avertir, nom }) {
   const [brouillon, setBrouillon] = useState({});
   const [enCours, setEnCours] = useState(false);
 
@@ -1125,17 +1257,17 @@ function OngletTaux({ th, rangees, onRecharger, avertir, nom }) {
                   <td style={{ ...cell, fontWeight: 700, width: 70 }}>{a}</td>
                   <td style={{ ...cell, width: 190 }}>
                     <input value={b.fonctionnement} onChange={(e) => majB({ fonctionnement: e.target.value })}
-                      style={{ ...entree(th), padding: '6px 9px' }} inputMode="decimal" />
+                      className="gi-saisie" style={{ ...entree(th, mode), padding: '6px 9px' }} inputMode="decimal" />
                   </td>
                   <td style={{ ...cell, width: 170 }}>
                     <input value={b.fonctionnement_vendeur}
                       onChange={(e) => majB({ fonctionnement_vendeur: e.target.value })}
-                      style={{ ...entree(th), padding: '6px 9px' }} inputMode="decimal" />
+                      className="gi-saisie" style={{ ...entree(th, mode), padding: '6px 9px' }} inputMode="decimal" />
                   </td>
                   <td style={cell}>
                     <input value={b.note} onChange={(e) => majB({ note: e.target.value })}
                       placeholder={r ? '' : 'Pas encore enregistré'}
-                      style={{ ...entree(th), padding: '6px 9px' }} />
+                      className="gi-saisie" style={{ ...entree(th, mode), padding: '6px 9px' }} />
                   </td>
                   <td style={{ ...cell, width: 110, textAlign: 'right' }}>
                     <button
@@ -1179,5 +1311,5 @@ export default function GainImposablePage() {
       />
     );
   }
-  return <GainImposableApp nom={session.nom} poste={session.poste} />;
+  return <GainImposableApp userId={session.userId} nom={session.nom} poste={session.poste} />;
 }
