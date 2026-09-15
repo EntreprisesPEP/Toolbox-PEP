@@ -90,6 +90,7 @@ export default function AuthGate({ onDone }) {
         accessToken: session.access_token,
         participantId: participant?.id || null,
         nom: participant?.nom || session.user.email,
+        estAdmin,
       });
     };
 
@@ -183,6 +184,7 @@ export default function AuthGate({ onDone }) {
         accessToken: session.access_token,
         participantId: participant?.id || null,
         nom: participant?.nom || session.user.email,
+        estAdmin,
       });
     } else {
       setPhase("login");
