@@ -6,6 +6,7 @@ import { envoyerPushATous, envoyerPushAUnParticipant } from '../../../lib/defi-s
 import { semaineFinieLaPlusRecente, labelSemaine } from '../../../lib/defi-strava/weekUtils';
 import { getCurrentIsoMonth, formatMoisLisible, moisAvecPreposition } from '../../../lib/defi-strava/monthUtils';
 import { texteClassementLignes } from '../../../lib/defi-strava/format';
+import { avecReessais } from '../../../lib/commun/planification';
 import { heureActuelleEst, dateDuJourEst, jourDeSemaineEst, LUNDI } from '../../../lib/defi-strava/timezone';
 
 const CLE_ETAT = 'dernier_envoi_hebdo';
@@ -61,7 +62,10 @@ export default async function handler(req, res) {
   if (!forcer) {
     let etat;
     try {
-      const lecture = await supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle();
+      const lecture = await avecReessais(
+        () => supabase.from('defi_state').select('valeur').eq('cle', CLE_ETAT).maybeSingle(),
+        { nom: `lecture ${CLE_ETAT}` }
+      );
       etat = lecture.data;
     } catch (err) {
       console.error('Erreur lecture dernier_envoi_hebdo:', err); // eslint-disable-line no-console
@@ -73,10 +77,23 @@ export default async function handler(req, res) {
       return;
     }
 
-    const { error: erreurReservation } = await supabase.from('defi_state').upsert(
-      { cle: CLE_ETAT, valeur: aujourdHuiEst, updated_at: new Date().toISOString() },
-      { onConflict: 'cle' }
-    );
+    // Revision 55 : avec reessais. Le 14 septembre, cette ecriture a
+    // repondu « Gateway Timeout » deux heures de suite et le resume est
+    // parti a 10 h au lieu de 8 h. Le filet horaire a bien joue son role,
+    // mais deux heures de retard pour une coupure de quelques secondes,
+    // c'est cher paye.
+    let erreurReservation = null;
+    try {
+      await avecReessais(
+        () => supabase.from('defi_state').upsert(
+          { cle: CLE_ETAT, valeur: aujourdHuiEst, updated_at: new Date().toISOString() },
+          { onConflict: 'cle' }
+        ),
+        { nom: `reservation ${CLE_ETAT}` }
+      );
+    } catch (e) {
+      erreurReservation = e;
+    }
     if (erreurReservation) {
       console.error('Erreur réservation dernier_envoi_hebdo:', erreurReservation); // eslint-disable-line no-console
       res.status(500).json({ error: "Impossible de réserver la journée — rien n'a été envoyé, on réessaiera dans une heure." });
