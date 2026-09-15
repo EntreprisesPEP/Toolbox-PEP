@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
 import { exchangeCodeForTokens } from '../../../lib/defi-strava/stravaClient';
+import { porteeDonneAccesAuxActivites } from '../../../lib/defi-strava/etatBranchement';
 
 export default async function handler(req, res) {
   const { code, state: participantId, error } = req.query;
@@ -44,7 +45,13 @@ export default async function handler(req, res) {
     // Sans « activity:read_all », on ne verra jamais une seule activite.
     // On le dit tout de suite, pendant que la personne est encore devant
     // son ecran, plutot que de la laisser croire que c'est fait.
-    if (!portee.split(',').includes('activity:read_all')) {
+    //
+    // Revision 54 : ce test decoupait sur la virgule seulement. Or Strava
+    // RENVOIE la portee separee par des espaces (« activity:read_all read »)
+    // meme si on la DEMANDE avec des virgules. Tout le monde se faisait donc
+    // dire que ses permissions etaient incompletes alors qu'elles etaient
+    // bonnes -- un faux avertissement qui apprend a ignorer les vrais.
+    if (porteeDonneAccesAuxActivites(portee) === false) {
       res.redirect(`${appUrl}/defi-strava?connexion=permissions-incompletes`);
       return;
     }
