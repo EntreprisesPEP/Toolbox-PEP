@@ -75,7 +75,169 @@ function Callout({ classement, participantId, nom, libellePeriode, libellePeriod
   );
 }
 
-function DefiStravaApp({ nom, participantId, accessToken }) {
+// Les quatre etats possibles d'un branchement Strava, et ce qu'ils veulent
+// dire en francais. « silencieux » est celui qui compte : c'est le cas de
+// Stephane Boisvert (revision 54) — un compte parfaitement branche, avec les
+// bonnes permissions, qui ne rapporte simplement rien parce que ce n'est pas
+// le bon compte. Rien d'autre dans l'app ne le rendait visible.
+const ETATS_BRANCHEMENT = {
+  ok: { pastille: '🟢', libelle: 'Branché', couleur: '#2E9F58' },
+  'pas-connecte': { pastille: '⚪', libelle: 'Pas connecté', couleur: 'var(--text-dim)' },
+  'permissions-incompletes': { pastille: '🔴', libelle: 'Permissions incomplètes', couleur: '#c41230' },
+  silencieux: { pastille: '🟠', libelle: 'Branché, mais silencieux', couleur: '#C87A1E' },
+};
+
+function dateCourte(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function PanneauAdmin({ donnees, chargement, erreur, onRecharger, onRattraper, enCours, journal, moisLisible }) {
+  if (chargement && !donnees) return <div className="etat-vide">Chargement…</div>;
+  if (erreur) return <div className="etat-vide" style={{ color: '#c41230' }}>{erreur}</div>;
+  if (!donnees) return null;
+
+  const aProbleme = donnees.participants.filter((p) => p.etat !== 'ok');
+  const branches = donnees.participants.filter((p) => p.branche);
+
+  return (
+    <div className="vue actif">
+      <p className="stats-intro">
+        L&apos;état réel de chaque branchement Strava. Un compte peut être branché, avoir toutes les
+        permissions, et pointer quand même sur le mauvais compte — c&apos;est arrivé. Le seul signe,
+        c&apos;est le silence : clique sur le numéro pour voir le profil qui est réellement branché.
+      </p>
+
+      {aProbleme.length === 0 ? (
+        <div
+          style={{
+            border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px',
+            fontSize: 13, marginBottom: 14, color: '#2E9F58',
+          }}
+        >
+          ✅ Tout le monde est branché et rapporte des activités.
+        </div>
+      ) : (
+        <div
+          style={{
+            border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px',
+            fontSize: 13, marginBottom: 14,
+          }}
+        >
+          <b>{aProbleme.length}</b> {aProbleme.length > 1 ? 'personnes demandent' : 'personne demande'} une
+          vérification : {aProbleme.map((p) => p.nom).join(', ')}.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        <button
+          className="btn-notif"
+          disabled={!!enCours || branches.length === 0}
+          onClick={() => onRattraper(branches.map((p) => p.email))}
+          style={{ display: 'inline-block', textAlign: 'center' }}
+        >
+          {enCours === 'tous' ? 'Rattrapage en cours…' : `⟳ Rattraper tout le monde depuis le 1er ${moisLisible}`}
+        </button>
+        <button
+          onClick={onRecharger}
+          disabled={!!enCours}
+          style={{
+            background: 'none', border: '1px solid var(--line)', color: 'var(--text-dim)',
+            fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700, padding: '5px 12px',
+            borderRadius: 7, cursor: 'pointer',
+          }}
+        >
+          Rafraîchir
+        </button>
+      </div>
+
+      {journal.length > 0 && (
+        <div
+          style={{
+            border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px',
+            fontSize: 12.5, marginBottom: 16, lineHeight: 1.7,
+          }}
+        >
+          {journal.map((l, i) => (
+            <div key={i} style={{ color: l.erreur ? '#c41230' : 'inherit' }}>{l.texte}</div>
+          ))}
+        </div>
+      )}
+
+      {donnees.participants.map((p) => {
+        const etat = ETATS_BRANCHEMENT[p.etat] || ETATS_BRANCHEMENT.ok;
+        return (
+          <div
+            key={p.id}
+            style={{
+              border: '1px solid var(--line)', borderRadius: 10, padding: '11px 13px',
+              marginBottom: 9, opacity: p.actif ? 1 : 0.55,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>
+                {p.nom}{!p.actif && <span style={{ fontWeight: 400, color: 'var(--text-dim)' }}> (inactif)</span>}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: etat.couleur }}>
+                {etat.pastille} {etat.libelle}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, lineHeight: 1.7 }}>
+              <div>{p.email}</div>
+              <div>
+                Compte Strava branché :{' '}
+                {p.profilStrava ? (
+                  <a href={p.profilStrava} target="_blank" rel="noopener noreferrer" style={{ color: '#fc4c02' }}>
+                    {p.stravaAthleteId} ↗
+                  </a>
+                ) : (
+                  'aucun'
+                )}
+              </div>
+              <div>
+                {moisLisible} : <b>{p.totalMoisFormate}</b> ({p.nbActivitesMois} activité{p.nbActivitesMois > 1 ? 's' : ''})
+                {' · '}dernière activité : {dateCourte(p.derniereActivite)}
+                {p.joursDepuisDerniere !== null && p.joursDepuisDerniere > donnees.joursAvantSoupcon && (
+                  <> (il y a {p.joursDepuisDerniere} jours)</>
+                )}
+              </div>
+              {p.permissionsCompletes === false && (
+                <div style={{ color: '#c41230' }}>
+                  Strava ne nous laisse pas voir ses activités — il doit se rebrancher en laissant les deux
+                  cases cochées.
+                </div>
+              )}
+              {p.etat === 'silencieux' && (
+                <div style={{ color: '#C87A1E' }}>
+                  Rien reçu depuis {p.derniereActivite ? `${p.joursDepuisDerniere} jours` : 'le tout début'}.
+                  Ouvre le profil ci-dessus : si c&apos;est vide, ce n&apos;est pas le bon compte Strava et il
+                  faut le débrancher puis le rebrancher.
+                </div>
+              )}
+            </div>
+
+            {p.branche && (
+              <button
+                onClick={() => onRattraper([p.email])}
+                disabled={!!enCours}
+                style={{
+                  marginTop: 8, background: 'none', border: '1px solid var(--line)',
+                  color: 'var(--text-dim)', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 700,
+                  padding: '5px 10px', borderRadius: 7, cursor: enCours ? 'default' : 'pointer',
+                }}
+              >
+                {enCours === p.email ? 'Rattrapage…' : '⟳ Rattraper ce mois-ci'}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
   const [mode, setMode] = useState('jour');
   const [ongletActif, setOngletActif] = useState('podium');
 
@@ -93,6 +255,12 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
   const [voteData, setVoteData] = useState(null);
   const [voteEnCours, setVoteEnCours] = useState(false);
 
+  const [adminData, setAdminData] = useState(null);
+  const [adminChargement, setAdminChargement] = useState(false);
+  const [adminErreur, setAdminErreur] = useState('');
+  const [rattrapageEnCours, setRattrapageEnCours] = useState(null); // null | 'tous' | courriel
+  const [journalRattrapage, setJournalRattrapage] = useState([]);
+
   const [notifState, setNotifState] = useState('inconnu');
   const [erreurNotifTech, setErreurNotifTech] = useState('');
   const [messageConnexionStrava, setMessageConnexionStrava] = useState(null); // { type: 'ok'|'erreur', texte }
@@ -108,6 +276,10 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       );
       setDonneesMois(data);
       setIndexSemaine(indexSemaineParDefaut(data.semaines));
+      // Le panneau d'administration compte les activites DU MOIS AFFICHE :
+      // s'il est deja ouvert, il doit suivre la navigation, sinon il montre
+      // les chiffres d'un mois pendant qu'on en regarde un autre.
+      if (adminData) chargerAdmin(data.moisIso);
     } catch (e) {
       setErreur(e.message);
     } finally {
@@ -134,6 +306,63 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
       const data = await fetchJson('/api/defi-strava/mes-stats/', accessToken);
       setMesStats(data);
     } catch (e) { /* pas critique, on laisse juste l'onglet vide */ }
+  }
+
+  async function chargerAdmin(moisIso) {
+    if (!estAdmin) return;
+    setAdminChargement(true);
+    setAdminErreur('');
+    try {
+      const data = await fetchJson(
+        `/api/defi-strava/admin-participants/${moisIso ? `?mois=${moisIso}` : ''}`,
+        accessToken
+      );
+      setAdminData(data);
+    } catch (e) {
+      setAdminErreur(e.message);
+    } finally {
+      setAdminChargement(false);
+    }
+  }
+
+  // Rattrapage : on redemande a Strava toutes les activites depuis le 1er du
+  // mois affiche, pour les courriels donnes. Sequentiel et non parallele — on
+  // parle a l'API de Strava, qui limite le nombre d'appels ; neuf appels d'un
+  // coup, c'est la meilleure facon de se faire refuser les neuf.
+  //
+  // Chaque personne a sa ligne dans le journal, y compris quand il n'y avait
+  // rien a rattraper. Un rattrapage muet ne dit pas si c'est parce que tout
+  // etait deja la, ou parce que rien n'est jamais arrive.
+  async function rattraper(courriels) {
+    if (!courriels || courriels.length === 0) return;
+    const moisIso = donneesMois?.moisIso || new Date().toISOString().slice(0, 7);
+    const depuisDate = `${moisIso}-01`;
+
+    setJournalRattrapage([]);
+    setRattrapageEnCours(courriels.length > 1 ? 'tous' : courriels[0]);
+
+    for (const email of courriels) {
+      try {
+        const data = await fetchJson('/api/defi-strava/resync-participant/', accessToken, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, depuisDate }),
+        });
+        const trouvees = data.nb_activites_trouvees || 0;
+        setJournalRattrapage((j) => [...j, {
+          texte: trouvees === 0
+            ? `${data.participant} : rien de nouveau depuis le 1er.`
+            : `${data.participant} : ${data.nb_enregistrees}/${trouvees} activité${trouvees > 1 ? 's' : ''} enregistrée${trouvees > 1 ? 's' : ''}.`,
+          erreur: false,
+        }]);
+      } catch (e) {
+        setJournalRattrapage((j) => [...j, { texte: `${email} : ${e.message}`, erreur: true }]);
+      }
+    }
+
+    setRattrapageEnCours(null);
+    await chargerAdmin(moisIso);
+    await chargerMois(moisIso);
   }
 
   const router = useRouter();
@@ -357,6 +586,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
               { id: 'podium', label: 'Vue Podium' },
               { id: 'palmares', label: '🏆 Hall of Fame / Shame' },
               { id: 'stats', label: '📊 Mes stats' },
+              ...(estAdmin ? [{ id: 'admin', label: '⚙️ Branchements' }] : []),
             ].map((o) => (
               <button
                 key={o.id}
@@ -364,6 +594,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                 onClick={() => {
                   setOngletActif(o.id);
                   if (o.id === 'stats' && !mesStats) chargerMesStats();
+                  if (o.id === 'admin' && !adminData) chargerAdmin(donneesMois?.moisIso);
                 }}
               >
                 {o.label}
@@ -510,7 +741,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                     libellePeriodeCourt=" cette semaine"
                   />
 
-                  {voteData && (
+                  {voteData?.candidats?.length > 0 && (
                     <div className="bloc-vote">
                       <div className="titre-section" style={{ marginBottom: 8 }}>
                         👏 Vote — {voteData.semaineDebut} au {voteData.semaineFin}
@@ -552,7 +783,7 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                     <div className="etat-vide">Pas encore assez de données pour établir le palmarès.</div>
                   ) : (
                     <div className="hf-grille">
-                      {hallOfFame.categories.map((r, i) => (
+                      {(hallOfFame.categories || []).map((r, i) => (
                         <div
                           key={i}
                           className={`hf-carte${r.citron ? ' citron' : ''}${carteOuverte === i ? ' ouvert' : ''}`}
@@ -658,6 +889,19 @@ function DefiStravaApp({ nom, participantId, accessToken }) {
                   )}
                 </div>
               )}
+
+              {ongletActif === 'admin' && estAdmin && (
+                <PanneauAdmin
+                  donnees={adminData}
+                  chargement={adminChargement}
+                  erreur={adminErreur}
+                  onRecharger={() => chargerAdmin(donneesMois.moisIso)}
+                  onRattraper={rattraper}
+                  enCours={rattrapageEnCours}
+                  journal={journalRattrapage}
+                  moisLisible={donneesMois.moisLisible}
+                />
+              )}
             </>
           )}
 
@@ -756,5 +1000,12 @@ export default function DefiStravaPage() {
     return <AuthGate onDone={(s) => setSession(s)} />;
   }
 
-  return <DefiStravaApp nom={session.nom} participantId={session.participantId} accessToken={session.accessToken} />;
+  return (
+    <DefiStravaApp
+      nom={session.nom}
+      participantId={session.participantId}
+      accessToken={session.accessToken}
+      estAdmin={!!session.estAdmin}
+    />
+  );
 }
