@@ -1,7 +1,17 @@
-// Fonction déclenchée automatiquement par Vercel Cron (voir vercel.json) à
-// 12h00 et 16h00, heure de l'Est (été). Envoie une notification push à tous
-// les contremaîtres qui n'ont pas encore soumis (ou marqué "Aucun travaux")
-// leur requête pour le lendemain.
+// Fonction déclenchée automatiquement par Vercel Cron (voir vercel.json).
+// Envoie une notification push à tous les contremaîtres qui n'ont pas encore
+// soumis (ou marqué "Aucun travaux") leur requête pour le lendemain.
+//
+// Revision 55 — L'HEURE NE FLOTTE PLUS. Le cron portait deux entrées UTC
+// fixes, « 0 16 » et « 0 20 ». Un cron Vercel ignore l'heure avancée : les
+// rappels partaient donc à 12 h et 16 h l'été, mais à 11 h et 15 h l'hiver,
+// sans que rien ne le signale. Le cron réveille maintenant la route TOUTES
+// LES HEURES et c'est elle qui choisit son moment, en heure de l'Est.
+//
+// Qui dit réveil horaire dit risque d'envois multiples : chaque créneau est
+// donc réservé dans kv_store AVANT d'envoyer, sous la clé
+// « rappel-envoye:<heure> » = la date du jour. Entre deux rappels et zéro,
+// zéro est le bon défaut.
 //
 // Phase 3 : la liste des contremaîtres n'est plus codée en dur — elle vient
 // de ordre_du_jour.profils (remplie via /administration/ du Toolbox). Les
@@ -14,6 +24,10 @@
 
 import webpush from "web-push";
 import { createClient } from "@supabase/supabase-js";
+import { creneauCourant, dateDuJourEst, avecReessais } from "../../../lib/commun/planification";
+
+// Les deux moments de la journée, en heure de l'Est, été comme hiver.
+const HEURES_RAPPEL_EST = [12, 16];
 
 // ---------------------------------------------------------------------------
 // QUI PEUT DÉCLENCHER CE RAPPEL
@@ -189,6 +203,62 @@ export default async function handler(req, res) {
       });
     } catch (e) {
       return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // EST-CE LE MOMENT? (revision 55)
+  //
+  // Réveillée toutes les heures, la route doit répondre elle-même à deux
+  // questions : quel créneau est dû, et n'a-t-il pas déjà été servi
+  // aujourd'hui.
+  //
+  // « ?forcer=1 » saute les deux, pour relancer un rappel à la main.
+  // -------------------------------------------------------------------------
+  const forcer = req.query?.forcer === "1";
+  const creneau = creneauCourant(HEURES_RAPPEL_EST);
+
+  if (!forcer) {
+    if (creneau === null) {
+      return res.status(200).json({
+        ignore: true,
+        raison: `Il est trop tôt — les rappels partent à ${HEURES_RAPPEL_EST.join(" h et ")} h, heure de l'Est.`,
+      });
+    }
+
+    const cleCreneau = `rappel-envoye:${creneau}`;
+    const aujourdHui = dateDuJourEst();
+
+    // Réserver AVANT d'envoyer. Si l'exécution est coupée au milieu, le pire
+    // cas est un rappel manqué plutôt qu'un rappel en double.
+    //
+    // Les réessais couvrent le « Gateway Timeout » de Supabase qui a déjà
+    // retardé le résumé Strava de deux heures le 14 septembre : une coupure
+    // de quelques secondes ne doit pas coûter une heure entière.
+    let deja;
+    try {
+      const lecture = await avecReessais(
+        () => supabase.from("kv_store").select("value").eq("key", cleCreneau).maybeSingle(),
+        { nom: `lecture ${cleCreneau}` }
+      );
+      deja = lecture.data?.value;
+    } catch (e) {
+      console.error("Rappel — lecture du créneau impossible:", e); // eslint-disable-line no-console
+      return res.status(500).json({ error: `Lecture du créneau impossible — rien n'a été envoyé : ${e.message}` });
+    }
+
+    if (deja === aujourdHui) {
+      return res.status(200).json({ ignore: true, raison: `Le rappel de ${creneau} h est déjà parti aujourd'hui.` });
+    }
+
+    try {
+      await avecReessais(
+        () => supabase.from("kv_store").upsert({ key: cleCreneau, value: aujourdHui }, { onConflict: "key" }),
+        { nom: `réservation ${cleCreneau}` }
+      );
+    } catch (e) {
+      console.error("Rappel — réservation impossible:", e); // eslint-disable-line no-console
+      return res.status(500).json({ error: `Réservation impossible — rien n'a été envoyé : ${e.message}` });
     }
   }
 
