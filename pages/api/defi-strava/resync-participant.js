@@ -1,31 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '../../../lib/defi-strava/supabaseAdmin';
+import { estAdminOuSecret } from '../../../lib/defi-strava/autorisationAdmin';
 import { getValidAccessToken, fetchRecentActivities } from '../../../lib/defi-strava/stravaClient';
 import { getIsoWeek } from '../../../lib/defi-strava/weekUtils';
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Meme principe que webhook-status.js / register-webhook.js : cle
-// secrete OU session admin Toolbox valide.
-async function estAutorise(req) {
-  if (req.body?.secret && req.body.secret === process.env.CRON_SECRET) return true;
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) return false;
-
-  const supabaseAuth = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error } = await supabaseAuth.auth.getUser();
-  if (error || !userData?.user) return false;
-
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data: roleRow } = await admin
-    .from('pep_user_roles').select('role').eq('user_id', userData.user.id).maybeSingle();
-  return roleRow?.role === 'admin';
-}
 
 // Va chercher directement sur Strava les activites recentes d'un
 // participant (par courriel) et les insere dans notre table --
@@ -35,11 +11,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non supportée' });
   }
-  if (!(await estAutorise(req))) {
+  if (!(await estAdminOuSecret(req))) {
     return res.status(401).json({ error: 'Non autorisé' });
   }
 
-  const { email, depuisHeures } = req.body || {};
+  const { email, depuisHeures, depuisDate } = req.body || {};
   if (!email) return res.status(400).json({ error: 'email requis' });
 
   const supabase = getSupabaseAdmin();
@@ -53,8 +29,33 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: `${participant.nom} n'a pas encore connecté son compte Strava.` });
     }
 
-    const heures = Number(depuisHeures) > 0 ? Number(depuisHeures) : 48;
-    const afterUnix = Math.floor(Date.now() / 1000) - heures * 3600;
+    // Deux facons de dire « depuis quand » :
+    //
+    //   depuisDate  — une date precise (AAAA-MM-JJ ou ISO complet). C'est ce
+    //                 qu'utilise le bouton « rattraper depuis le debut du
+    //                 mois » : le mois commence le 1er, pas « il y a 336
+    //                 heures », et cette nuance devient fausse chaque jour
+    //                 qui passe.
+    //   depuisHeures — l'ancienne facon, gardee telle quelle pour le filet de
+    //                 securite quotidien et les appels par cle secrete.
+    //
+    // Une date invalide est refusee plutot que silencieusement ignoree : un
+    // rattrapage qui ne couvre pas la periode demandee et n'en dit rien, c'est
+    // exactement le genre de faux « tout va bien » qu'on cherche a eviter.
+    let afterUnix;
+    let periodeDemandee;
+    if (depuisDate) {
+      const debut = new Date(depuisDate);
+      if (Number.isNaN(debut.getTime())) {
+        return res.status(400).json({ error: `Date invalide : « ${depuisDate} » (attendu AAAA-MM-JJ).` });
+      }
+      afterUnix = Math.floor(debut.getTime() / 1000);
+      periodeDemandee = `depuis le ${debut.toISOString().slice(0, 10)}`;
+    } else {
+      const heures = Number(depuisHeures) > 0 ? Number(depuisHeures) : 48;
+      afterUnix = Math.floor(Date.now() / 1000) - heures * 3600;
+      periodeDemandee = `dernieres ${heures} h`;
+    }
 
     const accessToken = await getValidAccessToken(participant.id);
     const activites = await fetchRecentActivities(accessToken, afterUnix);
@@ -96,7 +97,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       participant: participant.nom,
+      periode: periodeDemandee,
       nb_activites_trouvees: activites.length,
+      nb_enregistrees: resultats.filter((r) => r.ok).length,
       resultats,
     });
   } catch (err) {
