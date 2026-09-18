@@ -4,7 +4,11 @@ import { statusColor } from '../../../lib/planification-hebdomadaire/statusColor
 import { formatDateFr, fmtDateLong } from '../../../lib/planification-hebdomadaire/dates';
 import { PdfHeader, PdfFooter } from './PdfChrome';
 
-const COLS = [16, 12, 40, 6, 6, 10, 10]; // No/Projet, Statut, Commentaire, Sem1, Sem2, Charge, Surintendant
+// Revision 56 : Statut, Charge et Surintendant sur UNE seule ligne, comme a
+// l ecran. « Date - 30 septembre 2026 » ne tenait pas dans 12 % et se coupait
+// avant « 2026 » ; les noms complets ne laissaient que 5 pt de marge dans 10 %.
+// La largeur reprise vient de Commentaire, seule colonne qui s enroule sans nuire.
+const COLS = [16, 16, 35, 5, 5, 11.5, 11.5]; // No/Projet, Statut, Commentaire, Sem1, Sem2, Charge, Surintendant
 
 function statutLabel(p) {
   if (p.statut === 'Date' && p.date_valeur) return `Date - ${formatDateFr(p.date_valeur)}`;

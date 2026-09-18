@@ -4,6 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
 import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
+import {
+  chargerGroupes, GROUPE_CHARGES, GROUPE_SURINTENDANTS,
+} from '../../lib/commun/groupesPersonnel';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -68,7 +71,13 @@ function ListeProjets({ userId, nom, poste }) {
   const [tab, setTab] = useState('projets');
   const [projets, setProjets] = useState([]);
   const [types, setTypes] = useState([]);
+  // Trois listes, une seule source. `personnel` reste la liste locale de
+  // liste_projets.personnel : elle sert encore de repli si le bottin est
+  // injoignable, et la Visite de surintendant la lit toujours.
   const [personnel, setPersonnel] = useState([]);
+  const [chargesBottin, setChargesBottin] = useState([]);
+  const [surintsBottin, setSurintsBottin] = useState([]);
+  const [bottinEnPanne, setBottinEnPanne] = useState(null);
 
   const [recherche, setRecherche] = useState('');
   const [filtreType, setFiltreType] = useState('');
@@ -78,7 +87,6 @@ function ListeProjets({ userId, nom, poste }) {
   const [triDir, setTriDir] = useState('desc');
 
   const [editProjet, setEditProjet] = useState(null);
-  const [editPersonnel, setEditPersonnel] = useState(null);
   const [editType, setEditType] = useState(null);
   const [confirmSuppr, setConfirmSuppr] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -101,10 +109,11 @@ function ListeProjets({ userId, nom, poste }) {
   }, [tab, erreur, peutModifier, loading]);
 
   async function chargerTout() {
-    const [resProjets, resTypes, resPersonnel] = await Promise.all([
+    const [resProjets, resTypes, resPersonnel, roles] = await Promise.all([
       supabaseLP.from('projets').select('*'),
       supabaseLP.from('types_projets').select('*'),
       supabaseLP.from('personnel').select('*').order('nom'),
+      chargerGroupes([GROUPE_CHARGES, GROUPE_SURINTENDANTS]),
     ]);
     const erreurs = [resProjets.error, resTypes.error, resPersonnel.error].filter(Boolean);
     if (erreurs.length > 0) {
@@ -117,6 +126,27 @@ function ListeProjets({ userId, nom, poste }) {
     setProjets(resProjets.data || []);
     setTypes(resTypes.data || []);
     setPersonnel(resPersonnel.data || []);
+
+    // Les deux roles viennent du bottin (app Liste du personnel), pas de la
+    // liste locale : c'est ce qui garantit la meme graphie ici et dans la
+    // Planification hebdo. Repli sur la liste locale si le bottin ne repond
+    // pas — un menu vide empecherait de creer un projet.
+    const cs = roles.groupes[GROUPE_CHARGES] || [];
+    const ss = roles.groupes[GROUPE_SURINTENDANTS] || [];
+    if (roles.erreur || (cs.length === 0 && ss.length === 0)) {
+      const repli = resPersonnel.data || [];
+      setChargesBottin(repli);
+      setSurintsBottin(repli);
+      setBottinEnPanne(roles.erreur
+        ? `Le bottin est injoignable (${roles.erreur}).`
+        : `Les groupes « ${GROUPE_CHARGES} » et « ${GROUPE_SURINTENDANTS} » sont vides ou absents du bottin.`);
+    } else {
+      setChargesBottin(cs);
+      setSurintsBottin(ss);
+      setBottinEnPanne(roles.manquants.length > 0
+        ? `Groupe absent du bottin : ${roles.manquants.join(', ')}.`
+        : null);
+    }
   }
 
   // GardeConnexion a deja verifie la session et l'acces a l'app. Reste le
@@ -138,8 +168,13 @@ function ListeProjets({ userId, nom, poste }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
+  // Le courriel suit le nom, et le nom vient maintenant du bottin. On y
+  // cherche d'abord ; la liste locale ne sert que de repli, pour les cas ou le
+  // bottin n'a pas repondu.
   function emailDe(nomPersonnel) {
-    return personnel.find((p) => p.nom === nomPersonnel)?.courriel || null;
+    if (!nomPersonnel) return null;
+    const auBottin = [...chargesBottin, ...surintsBottin].find((p) => p.nom === nomPersonnel);
+    return auBottin?.courriel || personnel.find((p) => p.nom === nomPersonnel)?.courriel || null;
   }
 
   const projetsActifsAffiches = useMemo(() => {
@@ -437,40 +472,10 @@ function ListeProjets({ userId, nom, poste }) {
     setSaving(false);
   }
 
-  async function sauvegarderPersonnel(form) {
-    setSaving(true); setErreur('');
-    try {
-      const payload = { nom: form.nom.trim(), courriel: form.courriel || null, actif: !!form.actif };
-      if (form._ancienNom && form._ancienNom !== payload.nom) {
-        await supabaseLP.from('personnel').update({ nom: payload.nom }).eq('nom', form._ancienNom);
-        await supabaseLP.from('projets').update({ charge: payload.nom }).eq('charge', form._ancienNom);
-        await supabaseLP.from('projets').update({ surintendant: payload.nom }).eq('surintendant', form._ancienNom);
-        await supabaseLP.from('types_projets').update({ charge: payload.nom }).eq('charge', form._ancienNom);
-        await supabaseLP.from('personnel').update({ courriel: payload.courriel, actif: payload.actif }).eq('nom', payload.nom);
-      } else {
-        const { error } = await supabaseLP.from('personnel').upsert(payload, { onConflict: 'nom' });
-        if (error) throw error;
-      }
-      setEditPersonnel(null);
-      await chargerTout();
-    } catch (e) {
-      setErreur(e.message);
-    }
-    setSaving(false);
-  }
-
-  async function supprimerPersonnel(nom) {
-    setSaving(true);
-    try {
-      const { error } = await supabaseLP.from('personnel').delete().eq('nom', nom);
-      if (error) throw error;
-      setConfirmSuppr(null);
-      await chargerTout();
-    } catch (e) {
-      setErreur(`Impossible de supprimer: ${e.message} (cette personne est peut-être encore assignée à un projet — retire-la d'abord des projets concernés, ou décoche "Actif" plutôt que de la supprimer)`);
-    }
-    setSaving(false);
-  }
+  // Plus de creation ni de modification de personnel ici depuis la revision 56 :
+  // les noms viennent des groupes du bottin, et c'est dans l'app Liste du
+  // personnel qu'on les modifie. La table liste_projets.personnel reste en
+  // place, encore lue comme repli ici et par la Visite de surintendant.
 
   async function sauvegarderType(form) {
     setSaving(true); setErreur('');
@@ -526,7 +531,7 @@ function ListeProjets({ userId, nom, poste }) {
           style={{ position: 'sticky', top: headerH, zIndex: 55, background: pal.bg, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
         >
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${personnel.length})`]].map(([key, label]) => (
+            {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${chargesBottin.length + surintsBottin.length})`]].map(([key, label]) => (
               <button key={key} onClick={() => setTab(key)} style={tab === key ? btn : btnGhost}>{label}</button>
             ))}
             {!peutModifier && (
@@ -704,37 +709,42 @@ function ListeProjets({ userId, nom, poste }) {
 
         {tab === 'personnel' && (
           <div style={{ background: pal.panel, borderRadius: 8, padding: 20, boxShadow: pal.ombre }}>
-            <p style={{ fontSize: 13, color: pal.textDim, marginTop: 0 }}>
-              Liste unique utilisée à la fois pour « Chargé de projet » et « Surintendant » — c&apos;est aussi ici que sont gérés les courriels internes (jamais affichés dans la liste des projets).
+            <p style={{ fontSize: 13, color: pal.textDim, marginTop: 0, lineHeight: 1.6 }}>
+              Ces deux listes sont les groupes «&nbsp;{GROUPE_CHARGES}&nbsp;» et «&nbsp;{GROUPE_SURINTENDANTS}&nbsp;»
+              de la <a href="/liste-personnel" style={{ color: RED, fontWeight: 600 }}>Liste du personnel</a>, onglet
+              Groupes. C&apos;est là qu&apos;on ajoute ou retire quelqu&apos;un, et la Planification hebdo y puise
+              exactement les mêmes noms — c&apos;est ce qui garantit une seule graphie partout.
             </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
-              {peutModifier && (
-                <button style={btn} onClick={() => setEditPersonnel({ nom: '', courriel: '', actif: true, _ancienNom: '' })}>+ Nouvelle personne</button>
-              )}
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={th}>Nom</th><th style={th}>Courriel</th><th style={th}>Statut</th>
-                  {peutModifier && <th style={th} />}
-                </tr>
-              </thead>
-              <tbody>
-                {personnel.map((p, i) => (
-                  <tr key={p.nom} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt }}>
-                    <td style={td}>{p.nom}</td>
-                    <td style={td}>{p.courriel || '—'}</td>
-                    <td style={td}><span style={{ color: p.actif ? pal.okLigne : pal.textDim, fontWeight: 600 }}>&#9679; {p.actif ? 'Actif' : 'Inactif'}</span></td>
-                    {peutModifier && (
-                      <td style={td}>
-                        <button style={{ ...btnGhost, ...btnSmall, marginRight: 6 }} onClick={() => setEditPersonnel({ ...p, _ancienNom: p.nom })}>Modifier</button>
-                        <button style={{ ...btnDanger, ...btnSmall }} onClick={() => setConfirmSuppr({ type: 'personnel', id: p.nom, label: p.nom })}>Suppr.</button>
-                      </td>
+
+            {[[GROUPE_CHARGES, chargesBottin], [GROUPE_SURINTENDANTS, surintsBottin]].map(([titre, liste]) => (
+              <div key={titre} style={{ marginTop: 18 }}>
+                <h3 style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.05em', color: pal.textDim, margin: '0 0 8px' }}>
+                  {titre} <span style={{ color: pal.text }}>({liste.length})</span>
+                </h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr><th style={th}>Nom</th><th style={th}>Titre</th><th style={th}>Courriel</th><th style={th}>Statut</th></tr>
+                  </thead>
+                  <tbody>
+                    {liste.length === 0 && (
+                      <tr><td style={{ ...td, color: pal.textDim }} colSpan={4}>Groupe vide ou bottin injoignable.</td></tr>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    {liste.map((p, i) => (
+                      <tr key={p.nom} style={{ background: i % 2 === 0 ? pal.panel : pal.panelAlt }}>
+                        <td style={td}>{p.nom}</td>
+                        <td style={{ ...td, whiteSpace: 'normal' }}>{p.titre || '—'}</td>
+                        <td style={td}>{p.courriel || '—'}</td>
+                        <td style={td}>
+                          <span style={{ color: p.actif !== false ? pal.okLigne : pal.textDim, fontWeight: 600 }}>
+                            &#9679; {p.actif !== false ? 'Actif' : 'Inactif'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
           </div>
         )}
       </main>
@@ -742,15 +752,12 @@ function ListeProjets({ userId, nom, poste }) {
       {editProjet && (
         <ModalProjet
           pal={pal}
-          projet={editProjet} personnel={personnel} types={types} emailDe={emailDe}
+          projet={editProjet} charges={chargesBottin} surintendants={surintsBottin} types={types} emailDe={emailDe}
           onSave={sauvegarderProjet} onCancel={() => setEditProjet(null)} saving={saving}
         />
       )}
-      {editPersonnel && (
-        <ModalPersonnel pal={pal} personne={editPersonnel} onSave={sauvegarderPersonnel} onCancel={() => setEditPersonnel(null)} saving={saving} />
-      )}
       {editType && (
-        <ModalType pal={pal} type={editType} personnel={personnel} onSave={sauvegarderType} onCancel={() => setEditType(null)} saving={saving} />
+        <ModalType pal={pal} type={editType} charges={chargesBottin} onSave={sauvegarderType} onCancel={() => setEditType(null)} saving={saving} />
       )}
       {confirmSuppr && (
         <ModalConfirm
@@ -760,7 +767,6 @@ function ListeProjets({ userId, nom, poste }) {
           onCancel={() => setConfirmSuppr(null)}
           onConfirm={() => {
             if (confirmSuppr.type === 'projet') supprimerProjet(confirmSuppr.id);
-            else if (confirmSuppr.type === 'personnel') supprimerPersonnel(confirmSuppr.id);
             else supprimerType(confirmSuppr.id);
           }}
         />
@@ -796,7 +802,28 @@ function Champ({ pal, label, children }) {
   );
 }
 
-function ModalProjet({ pal, projet, personnel, types, emailDe, onSave, onCancel, saving }) {
+// Les options d'un menu de noms.
+//
+// La valeur deja enregistree est toujours proposee, meme si la personne n'est
+// plus dans le groupe (depart, changement de role). Sans ca, ouvrir un vieux
+// projet pour corriger son adresse remettrait silencieusement le champ
+// « Charge » a vide au premier enregistrement.
+function OptionsNoms({ liste, selection }) {
+  const noms = (liste || []).map((p) => p.nom);
+  return (
+    <>
+      <option value="">&mdash;</option>
+      {selection && !noms.includes(selection) && (
+        <option value={selection}>{selection} (n&apos;est plus dans la liste)</option>
+      )}
+      {(liste || []).map((p) => (
+        <option key={p.nom} value={p.nom}>{p.nom}{p.actif === false ? ' (inactif)' : ''}</option>
+      ))}
+    </>
+  );
+}
+
+function ModalProjet({ pal, projet, charges, surintendants, types, emailDe, onSave, onCancel, saving }) {
   const { btn, btnGhost, input } = styles(pal);
   const [form, setForm] = useState(projet);
   const estNouveau = !projet.no;
@@ -833,15 +860,13 @@ function ModalProjet({ pal, projet, personnel, types, emailDe, onSave, onCancel,
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
         <Champ pal={pal} label="Chargé de projet">
           <select style={input} value={form.charge || ''} onChange={(e) => setForm({ ...form, charge: e.target.value })}>
-            <option value="">—</option>
-            {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}{!p.actif ? ' (inactif)' : ''}</option>)}
+            <OptionsNoms liste={charges} selection={form.charge} />
           </select>
           {courrielApercu && <div style={{ fontSize: 11, color: pal.textDim, marginTop: 3 }}>Courriel lié : {courrielApercu}</div>}
         </Champ>
         <Champ pal={pal} label="Surintendant">
           <select style={input} value={form.surintendant || ''} onChange={(e) => setForm({ ...form, surintendant: e.target.value })}>
-            <option value="">—</option>
-            {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}{!p.actif ? ' (inactif)' : ''}</option>)}
+            <OptionsNoms liste={surintendants} selection={form.surintendant} />
           </select>
         </Champ>
       </div>
@@ -859,31 +884,7 @@ function ModalProjet({ pal, projet, personnel, types, emailDe, onSave, onCancel,
   );
 }
 
-function ModalPersonnel({ pal, personne, onSave, onCancel, saving }) {
-  const { btn, btnGhost, input } = styles(pal);
-  const [form, setForm] = useState(personne);
-  return (
-    <Overlay pal={pal} width={380}>
-      <h3 style={{ marginTop: 0, color: pal.accent }}>{form._ancienNom ? `Modifier ${form._ancienNom}` : 'Nouvelle personne'}</h3>
-      <Champ pal={pal} label="Nom complet *">
-        <input style={input} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
-      </Champ>
-      <Champ pal={pal} label="Courriel">
-        <input style={input} value={form.courriel || ''} onChange={(e) => setForm({ ...form, courriel: e.target.value })} />
-      </Champ>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 8 }}>
-        <input type="checkbox" checked={!!form.actif} onChange={(e) => setForm({ ...form, actif: e.target.checked })} />
-        Actif (apparaît dans les listes déroulantes)
-      </label>
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-        <button style={btnGhost} onClick={onCancel} disabled={saving}>Annuler</button>
-        <button style={btn} disabled={saving || !form.nom.trim()} onClick={() => onSave(form)}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
-      </div>
-    </Overlay>
-  );
-}
-
-function ModalType({ pal, type, personnel, onSave, onCancel, saving }) {
+function ModalType({ pal, type, charges, onSave, onCancel, saving }) {
   const { btn, btnGhost, input } = styles(pal);
   const [form, setForm] = useState(type);
   const estNouveau = !type.code;
@@ -903,8 +904,7 @@ function ModalType({ pal, type, personnel, onSave, onCancel, saving }) {
       </Champ>
       <Champ pal={pal} label="Chargé de projet (si utilisé comme travail interne sans numéro)">
         <select style={input} value={form.charge || ''} onChange={(e) => setForm({ ...form, charge: e.target.value })}>
-          <option value="">—</option>
-          {personnel.map((p) => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
+          <OptionsNoms liste={charges} selection={form.charge} />
         </select>
       </Champ>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>

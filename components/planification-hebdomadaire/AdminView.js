@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, X, Trash2, Lightbulb, ClipboardList, Users, HardHat } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import { GROUPE_CHARGES, GROUPE_SURINTENDANTS } from '../../lib/commun/groupesPersonnel';
 
 function NameOptions({ list, selected }) {
   return (
@@ -18,7 +19,7 @@ function initiales(nom) {
   return parties.slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('');
 }
 
-function NameCard({ titre, Icone, list, newValue, setNewValue, onAdd, onDelete, placeholder, editable }) {
+function NameCard({ titre, Icone, list, newValue, setNewValue, onAdd, onDelete, placeholder, editable, renvoi }) {
   return (
     <div className="admin-card">
       <div className="admin-card-title">
@@ -30,11 +31,12 @@ function NameCard({ titre, Icone, list, newValue, setNewValue, onAdd, onDelete, 
         {list.map((n) => (
           <span className="name-chip" key={n}>
             {n}
-            {editable && <button className="del-btn" onClick={() => onDelete(n)} aria-label={`Retirer ${n}`}><X size={13} /></button>}
+            {editable && !renvoi && <button className="del-btn" onClick={() => onDelete(n)} aria-label={`Retirer ${n}`}><X size={13} /></button>}
           </span>
         ))}
       </div>
-      {editable && (
+      {renvoi}
+      {editable && !renvoi && (
         <div className="name-add">
           <input type="text" placeholder={placeholder} value={newValue} onChange={(e) => setNewValue(e.target.value)} />
           <button className="btn ghost" onClick={async () => { if (!newValue.trim()) return; await onAdd(newValue.trim()); setNewValue(''); }}>
@@ -46,16 +48,26 @@ function NameCard({ titre, Icone, list, newValue, setNewValue, onAdd, onDelete, 
   );
 }
 
+// Les chargés et les surintendants ne se modifient plus ici : ils viennent des
+// groupes du bottin. Le dire explicitement plutôt que de retirer la carte —
+// sinon la liste semble figée sans qu'on sache où aller la changer.
+function RenvoiBottin({ groupe }) {
+  return (
+    <div style={{ fontSize: 11.5, color: 'var(--ink-dim)', lineHeight: 1.55 }}>
+      Liste tenue dans le groupe «&nbsp;{groupe}&nbsp;» de la{' '}
+      <a href="/liste-personnel" style={{ color: 'var(--navy)', fontWeight: 600 }}>Liste du personnel</a>
+      {' '}— onglet Groupes. Toutes les apps y puisent les mêmes noms complets.
+    </div>
+  );
+}
+
 export default function AdminView({ board, editable }) {
-  const { projects, charges, surintendants, contremaitres,
+  const { projects, charges, surintendants, contremaitres, bottinEnPanne,
     addProject, updateProject, deleteProject,
-    addCharge, deleteCharge, addSurintendant, deleteSurintendant,
     addContremaitre, deleteContremaitre,
     projetsSuggeres, importerSuggestion, ignorerSuggestion } = board;
 
   const [newProj, setNewProj] = useState({ no: '', projet: '', charge: '', surintendant: '' });
-  const [newCharge, setNewCharge] = useState('');
-  const [newSurint, setNewSurint] = useState('');
   const [newCm, setNewCm] = useState('');
   const [confirmDel, setConfirmDel] = useState(null); // {id, label}
   const [enCours, setEnCours] = useState(null); // id de suggestion en cours d'import/ignore
@@ -71,6 +83,14 @@ export default function AdminView({ board, editable }) {
 
   return (
     <div>
+      {bottinEnPanne && (
+        <div className="avis-bottin">
+          <strong>Listes de repli.</strong> {bottinEnPanne} Les chargés et les surintendants
+          affichés proviennent des projets existants, pas de la Liste du personnel : un nom
+          récemment ajouté au bottin peut manquer.
+        </div>
+      )}
+
       {editable && (
         <div className="admin-card">
           <div className="admin-card-title">
@@ -191,16 +211,12 @@ export default function AdminView({ board, editable }) {
 
       <div className="admin-grid-3">
         <NameCard
-          titre="Chargés de projet" Icone={Users} list={charges}
-          newValue={newCharge} setNewValue={setNewCharge}
-          onAdd={addCharge} onDelete={deleteCharge} editable={editable}
-          placeholder="Nom du chargé de projet"
+          titre="Chargés de projet" Icone={Users} list={charges} editable={editable}
+          renvoi={<RenvoiBottin groupe={GROUPE_CHARGES} />}
         />
         <NameCard
-          titre="Surintendants" Icone={HardHat} list={surintendants}
-          newValue={newSurint} setNewValue={setNewSurint}
-          onAdd={addSurintendant} onDelete={deleteSurintendant} editable={editable}
-          placeholder="Nom du surintendant"
+          titre="Surintendants" Icone={HardHat} list={surintendants} editable={editable}
+          renvoi={<RenvoiBottin groupe={GROUPE_SURINTENDANTS} />}
         />
         <NameCard
           titre="Contremaîtres" Icone={HardHat} list={contremaitres.map((c) => c.nom)}

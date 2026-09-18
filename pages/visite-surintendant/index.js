@@ -4,6 +4,7 @@ import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
 import { useModePep } from '../../components/commun/ThemeToolbox';
 import { SURINTENDANTS, TRAVAUX_EN_COURS_OPTIONS, DESTINATAIRES_FIXES } from '../../lib/visite-surintendant/surintendants';
+import { chargerGroupes, GROUPE_VISITE } from '../../lib/commun/groupesPersonnel';
 import { Send, CheckCircle2, Upload, X, Plus, Trash2, Moon, Sun, AlertTriangle, Info, Users } from 'lucide-react';
 
 // Logo PEP — texte blanc pour la nuit (fond navy), texte noir pour le
@@ -14,12 +15,11 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabaseVS = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'visite_surintendant' } });
 const supabaseLP = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'liste_projets' } });
-const supabasePersonnel = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'personnel' } });
 
-// Nom du groupe de l'app Liste de personnel qui alimente le menu
-// "Aviser des personnes additionnelles". Comparé sans tenir compte de la
-// casse, pour qu'un renommage en "Projet" ou "PROJET" ne casse rien.
-const GROUPE_PERSONNES_ADDITIONNELLES = 'projets';
+// Le menu « Aviser des personnes additionnelles » est alimenté par le groupe
+// « projets » du bottin. La résolution du groupe vit dans
+// lib/commun/groupesPersonnel.js depuis la revision 56 : elle en existait deux
+// copies, avec des règles déjà divergentes sur les personnes inactives.
 
 const BUCKET_FICHIERS = 'visite-surintendant-fichiers';
 const TAILLE_MAX_FICHIER = 20 * 1024 * 1024; // 20 Mo
@@ -294,39 +294,18 @@ function VisiteSurintendant({ nom, poste, accessToken }) {
       await chargerGroupe();
       setChargement(false);
     }
-    // Résout le groupe "projet" de l'app Liste de personnel en une liste de
-    // personnes : les membres de ses départements, plus celles ajoutées à
-    // l'unité, dédoublonnées. Si le groupe n'existe pas ou si le schéma n'est
-    // pas accessible, on retombe sur l'ancienne liste plutôt que de laisser un
-    // menu vide — un surintendant sur un chantier ne doit jamais rester bloqué.
+    // Si le groupe n'existe pas ou si le bottin n'est pas joignable, on
+    // retombe sur l'ancienne liste plutôt que de laisser un menu vide — un
+    // surintendant sur un chantier ne doit jamais rester bloqué.
     async function chargerGroupe() {
-      try {
-        const [resG, resGD, resGP, resP] = await Promise.all([
-          supabasePersonnel.from('groupes').select('nom'),
-          supabasePersonnel.from('groupe_departements').select('groupe, departement'),
-          supabasePersonnel.from('groupe_personnes').select('groupe, personne_id'),
-          supabasePersonnel.from('personnes').select('id, nom, courriel, departement, actif'),
-        ]);
-        if (resG.error || resGD.error || resGP.error || resP.error) { setGroupeIntrouvable(true); return; }
-
-        const cible = (resG.data || []).find(
-          (g) => (g.nom || '').trim().toLowerCase() === GROUPE_PERSONNES_ADDITIONNELLES
-        );
-        if (!cible) { setGroupeIntrouvable(true); return; }
-
-        const depts = (resGD.data || []).filter((x) => x.groupe === cible.nom).map((x) => x.departement);
-        const ids = new Set((resGP.data || []).filter((x) => x.groupe === cible.nom).map((x) => x.personne_id));
-
-        const membres = (resP.data || [])
-          .filter((p) => p.actif !== false)
-          .filter((p) => (p.departement && depts.includes(p.departement)) || ids.has(p.id))
-          .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-
-        setPersonnesGroupe(membres);
-        setGroupeIntrouvable(membres.length === 0);
-      } catch (e) {
+      const { groupes, erreur, manquants } = await chargerGroupes(GROUPE_VISITE);
+      const membres = groupes[GROUPE_VISITE] || [];
+      if (erreur || manquants.length > 0 || membres.length === 0) {
         setGroupeIntrouvable(true);
+        return;
       }
+      setPersonnesGroupe(membres);
+      setGroupeIntrouvable(false);
     }
 
     charger();

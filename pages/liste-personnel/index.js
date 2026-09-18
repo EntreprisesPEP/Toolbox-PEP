@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
 import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
+import { resoudreGroupe as resoudreGroupePartage } from '../../lib/commun/groupesPersonnel';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -210,25 +211,17 @@ function ListePersonnel({ userId, nom, poste }) {
   }
 
   // --- Groupes ----------------------------------------------------------
-  // Résout un groupe en liste de personnes : les membres de ses départements,
-  // plus les personnes ajoutées à l'unité. Dédoublonné, car une personne peut
-  // être couverte deux fois — par son département ET nommément.
+  // La règle de résolution vit dans lib/commun/groupesPersonnel.js : c'est la
+  // même que celle utilisée par la Planification hebdo, la Liste de projets et
+  // la Visite de surintendant, qui en avaient chacune leur copie.
+  //
+  // Une seule différence, volontaire : ICI on montre aussi les personnes
+  // inactives. Cet écran sert à composer les groupes ; si un membre inactif
+  // disparaissait de la liste, on ne pourrait plus l'en retirer. Les apps qui
+  // consomment les groupes, elles, ne veulent que les gens en poste.
   function resoudreGroupe(nomGroupe) {
-    const depts = groupeDepts.filter((x) => x.groupe === nomGroupe).map((x) => x.departement);
-    const idsDirects = new Set(
-      groupePersonnes.filter((x) => x.groupe === nomGroupe).map((x) => x.personne_id)
-    );
-    const vus = new Set();
-    const resultat = [];
-    for (const p of personnes) {
-      const parDept = p.departement && depts.includes(p.departement);
-      const direct = idsDirects.has(p.id);
-      if (!parDept && !direct) continue;
-      if (vus.has(p.id)) continue;
-      vus.add(p.id);
-      resultat.push({ ...p, viaDepartement: parDept, nomme: direct });
-    }
-    return resultat;
+    const tables = { groupes, groupeDepartements: groupeDepts, groupePersonnes, personnes };
+    return resoudreGroupePartage(nomGroupe, tables, { inclureInactifs: true }) || [];
   }
 
   async function creerGroupe(nom) {

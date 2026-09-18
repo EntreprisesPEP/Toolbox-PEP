@@ -32,15 +32,19 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
   const [filterCharge, setFilterCharge] = useState(null);
   const [filterSurint, setFilterSurint] = useState(null);
 
-  const chargeOptions = useMemo(() => [...new Set(rows.map((r) => r.charge).filter(Boolean))].sort(), [rows]);
-  const surintOptions = useMemo(() => [...new Set(rows.map((r) => r.surintendant).filter(Boolean))].sort(), [rows]);
+  // Tri francais explicite : un .sort() nu compare des codes de caracteres, ce
+  // qui rejette « Francois Ouellet » apres « Fred Belec » des qu'il y a une
+  // cedille. Depuis que les noms sont complets, ils sont presque tous accentues.
+  const parNomFr = (a, b) => a.localeCompare(b, 'fr');
+  const chargeOptions = useMemo(() => [...new Set(rows.map((r) => r.charge).filter(Boolean))].sort(parNomFr), [rows]);
+  const surintOptions = useMemo(() => [...new Set(rows.map((r) => r.surintendant).filter(Boolean))].sort(parNomFr), [rows]);
 
   const visible = useMemo(() => {
     let list = rows.filter(
       (r) => (!filterCharge || filterCharge.includes(r.charge)) && (!filterSurint || filterSurint.includes(r.surintendant))
     );
     if (sortField) {
-      list = [...list].sort((a, b) => (a[sortField] || '').localeCompare(b[sortField] || ''));
+      list = [...list].sort((a, b) => (a[sortField] || '').localeCompare(b[sortField] || '', 'fr'));
       if (sortDir === 'desc') list.reverse();
     }
     return list;
@@ -54,10 +58,15 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
   return (
     <div className="scrollx">
       <table className="projtable">
+        {/* Statut, Chargé et Surintendant tiennent sur une seule ligne (voir la
+            règle .nowrap-col dans planification-hebdomadaire.css). Il leur faut
+            donc la largeur d'un nom complet et d'une date écrite au long ;
+            c'est Commentaire, la seule colonne qui s'enroule sans nuire, qui
+            cède la place. */}
         <colgroup>
-          <col style={{ width: '15%' }} /><col style={{ width: '14%' }} /><col style={{ width: '35%' }} />
-          <col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '9%' }} />
-          <col style={{ width: '10%' }} /><col style={{ width: '5%' }} />
+          <col style={{ width: '15%' }} /><col style={{ width: '17%' }} /><col style={{ width: '28%' }} />
+          <col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '12%' }} />
+          <col style={{ width: '13%' }} /><col style={{ width: '5%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -107,7 +116,7 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                     <span className="no">{p.no}</span>{p.projet}
                   </span>
                 </td>
-                <td>
+                <td className="nowrap-col">
                   <StatusCell project={p} editable={editable} onChange={(patch) => onUpdate(p.id, patch)} />
                 </td>
                 <td>
@@ -125,8 +134,8 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                     onClick={() => editable && onUpdate(p.id, { s2: !p.s2 })}
                   >{p.s2 ? 'OUI' : 'NON'}</span>
                 </td>
-                <td>{p.charge}</td>
-                <td>{p.surintendant}</td>
+                <td className="nowrap-col">{p.charge}</td>
+                <td className="nowrap-col">{p.surintendant}</td>
                 <td style={{ textAlign: 'center' }}>
                   <CommentBadge
                     project={p}

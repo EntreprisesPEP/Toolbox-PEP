@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../../lib/planification-hebdomadaire/supabaseClient';
 import { dateKey, mondayOf, today, weekDates } from '../../lib/planification-hebdomadaire/dates';
+import {
+  chargerGroupes, nomsDe, GROUPE_CHARGES, GROUPE_SURINTENDANTS,
+} from '../../lib/commun/groupesPersonnel';
 
 const MAX_HISTORY = 50;
+
+// Repli si le bottin est injoignable : les noms deja presents dans les projets.
+// Un menu deroulant vide empecherait d'attribuer un projet pendant la reunion
+// du jeudi ; mieux vaut une liste incomplete qu'une liste absente.
+function nomsDejaUtilises(projets, champ) {
+  return [...new Set((projets || []).map((p) => p[champ]).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+}
 
 export function useBoard() {
   const [projects, setProjects] = useState([]);
@@ -11,6 +22,9 @@ export function useBoard() {
   const [nameOverrides, setNameOverrides] = useState([]);
   const [charges, setCharges] = useState([]);
   const [surintendants, setSurintendants] = useState([]);
+  // Non nul quand les listes ne viennent pas du bottin : l'ecran Admin
+  // l'affiche, pour qu'un nom manquant ne passe pas pour une erreur de saisie.
+  const [bottinEnPanne, setBottinEnPanne] = useState(null);
   const [comments, setComments] = useState([]); // project_comments rows
   const [projetsSuggeres, setProjetsSuggeres] = useState([]);
   const [settings, setSettings] = useState({ range_start: null, notes_week_start: null });
@@ -31,12 +45,11 @@ export function useBoard() {
   nameOverridesRef.current = nameOverrides;
 
   const loadAll = useCallback(async () => {
-    const [p, cm, asg, ch, su, st, cmts, no, sugg] = await Promise.all([
+    const [p, cm, asg, roles, st, cmts, no, sugg] = await Promise.all([
       supabase.from('projects').select('*').order('sort_order', { ascending: true }),
       supabase.from('contremaitres').select('*').order('sort_order', { ascending: true }),
       supabase.from('assignments').select('*'),
-      supabase.from('charges').select('*').order('nom', { ascending: true }),
-      supabase.from('surintendants').select('*').order('nom', { ascending: true }),
+      chargerGroupes([GROUPE_CHARGES, GROUPE_SURINTENDANTS]),
       supabase.from('app_settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('project_comments').select('*').order('created_at', { ascending: false }),
       supabase.from('contremaitre_name_overrides').select('*'),
@@ -46,8 +59,26 @@ export function useBoard() {
     if (p.data) setProjects(p.data);
     if (cm.data) setContremaitres(cm.data);
     if (asg.data) setAssignments(asg.data);
-    if (ch.data) setCharges(ch.data.map((c) => c.nom));
-    if (su.data) setSurintendants(su.data.map((s) => s.nom));
+
+    // Les chargés et les surintendants viennent du bottin (app Liste du
+    // personnel), pas d'une liste tenue ici. Voir lib/commun/groupesPersonnel.js.
+    const listeCharges = nomsDe(roles.groupes[GROUPE_CHARGES]);
+    const listeSurints = nomsDe(roles.groupes[GROUPE_SURINTENDANTS]);
+    const groupesVides = listeCharges.length === 0 && listeSurints.length === 0;
+    if (roles.erreur || groupesVides) {
+      setCharges(nomsDejaUtilises(p.data, 'charge'));
+      setSurintendants(nomsDejaUtilises(p.data, 'surintendant'));
+      setBottinEnPanne(roles.erreur
+        ? `Le bottin est injoignable (${roles.erreur}).`
+        : `Les groupes « ${GROUPE_CHARGES} » et « ${GROUPE_SURINTENDANTS} » sont vides ou absents du bottin.`);
+    } else {
+      setCharges(listeCharges);
+      setSurintendants(listeSurints);
+      setBottinEnPanne(roles.manquants.length > 0
+        ? `Groupe absent du bottin : ${roles.manquants.join(', ')}.`
+        : null);
+    }
+
     if (cmts.data) setComments(cmts.data);
     if (no.data) setNameOverrides(no.data);
     if (sugg.data) setProjetsSuggeres(sugg.data);
@@ -69,8 +100,6 @@ export function useBoard() {
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'projects' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'contremaitres' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'assignments' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'charges' }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'surintendants' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'app_settings' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'project_comments' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'contremaitre_name_overrides' }, loadAll)
@@ -172,50 +201,10 @@ export function useBoard() {
   }
 
   // ---------- Charges / Surintendants ----------
-  async function addCharge(nom) {
-    pushHistory({
-      undo: () => supabase.from('charges').delete().eq('nom', nom),
-      redo: () => supabase.from('charges').insert({ nom }),
-    });
-    await withSync(async () => {
-      const { error } = await supabase.from('charges').insert({ nom });
-      if (error && error.code !== '23505') throw error;
-      await loadAll();
-    });
-  }
-  async function deleteCharge(nom) {
-    pushHistory({
-      undo: () => supabase.from('charges').insert({ nom }),
-      redo: () => supabase.from('charges').delete().eq('nom', nom),
-    });
-    await withSync(async () => {
-      const { error } = await supabase.from('charges').delete().eq('nom', nom);
-      if (error) throw error;
-      await loadAll();
-    });
-  }
-  async function addSurintendant(nom) {
-    pushHistory({
-      undo: () => supabase.from('surintendants').delete().eq('nom', nom),
-      redo: () => supabase.from('surintendants').insert({ nom }),
-    });
-    await withSync(async () => {
-      const { error } = await supabase.from('surintendants').insert({ nom });
-      if (error && error.code !== '23505') throw error;
-      await loadAll();
-    });
-  }
-  async function deleteSurintendant(nom) {
-    pushHistory({
-      undo: () => supabase.from('surintendants').insert({ nom }),
-      redo: () => supabase.from('surintendants').delete().eq('nom', nom),
-    });
-    await withSync(async () => {
-      const { error } = await supabase.from('surintendants').delete().eq('nom', nom);
-      if (error) throw error;
-      await loadAll();
-    });
-  }
+  // Rien a ecrire ici : depuis la revision 56, ces deux listes sont les groupes
+  // « Charges de projet » et « Surintendants » du bottin, et elles se
+  // modifient dans l'app Liste du personnel. Les tables planif_hebdo.charges
+  // et planif_hebdo.surintendants ne sont plus lues.
 
   // ---------- Contremaitres ----------
   async function rawDeleteContremaitre(id) {
@@ -452,8 +441,8 @@ export function useBoard() {
 
   return {
     projects, contremaitres, assignments, charges, surintendants, settings, loading, syncState,
+    bottinEnPanne,
     addProject, updateProject, deleteProject,
-    addCharge, deleteCharge, addSurintendant, deleteSurintendant,
     addContremaitre, updateContremaitre, deleteContremaitre,
     getContremaitreName, setContremaitreNameForWeek,
     getAssignment, setAssignment,

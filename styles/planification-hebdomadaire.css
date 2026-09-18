@@ -103,6 +103,20 @@ body {
 .ph-scope .jobline { font-weight: 700; white-space: nowrap; display: block; }
 .ph-scope .jobline .no { font-weight: 700; color: var(--ink-dim); font-size: 11.5px; margin-right: 6px; }
 
+/* ---------- Une seule ligne : statut, charge, surintendant ----------
+   Demande de William (revision 56) : un nom doit toujours s'afficher au
+   complet, et jamais sur deux lignes. « Stephane Lalande » coupe en deux se
+   lisait comme deux personnes, et une ligne de tableau haute de deux etages
+   casse le balayage vertical pendant la reunion.
+
+   nowrap seul ne suffit pas : il faut aussi que la colonne soit assez large,
+   sinon le texte deborde. D'ou les largeurs revues dans le colgroup de
+   ProjectsTable.js. Si la fenetre devient trop etroite pour tout loger, c'est
+   .scrollx qui prend le relais avec un defilement horizontal — un nom complet
+   derriere un petit glissement vaut mieux qu'un nom coupe en deux. */
+.ph-scope .projtable td.nowrap-col { white-space: nowrap; }
+.ph-scope .projtable td.nowrap-col select { width: auto; max-width: none; }
+
 .ph-scope select, .ph-scope textarea, .ph-scope input[type=text], .ph-scope input[type=date] {
   background: var(--input-bg); border: 1px solid var(--line); color: var(--ink); border-radius: 6px;
   font-size: 12.5px; padding: 6px 7px; font-family: inherit;
@@ -152,7 +166,7 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
 .ph-scope .hidden-date-input::-webkit-calendar-picker-indicator { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
 .ph-scope .date-display-visual {
   background: var(--input-bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font-size: 12.5px;
-  color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  color: var(--ink); white-space: nowrap; pointer-events: none;
 }
 .ph-scope .x-sq {
   width: 26px; height: 26px; flex: 0 0 auto; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2);
@@ -308,11 +322,20 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
 
   /* Largeurs plafonnees par colonne (No/Projet, Statut, Commentaire, Sem1, Sem2, Charge, Surintendant, pastille) */
   .ph-scope .projtable td:nth-child(1), .ph-scope .projtable th:nth-child(1) { max-width: 160px; }
-  .ph-scope .projtable td:nth-child(2), .ph-scope .projtable th:nth-child(2) { max-width: 55px; }
-  .ph-scope .projtable td:nth-child(2) select { max-width: 55px; }
-  .ph-scope .projtable td:nth-child(3), .ph-scope .projtable th:nth-child(3) { max-width: 75px; }
+  /* Statut, Charge et Surintendant ne sont plus plafonnes : ils doivent tenir
+     un nom complet sur une ligne. Le budget de largeur est repris sur
+     Commentaire, qui lui peut s'enrouler. */
+  .ph-scope .projtable td:nth-child(2), .ph-scope .projtable th:nth-child(2) { max-width: none; }
+  .ph-scope .projtable td:nth-child(3), .ph-scope .projtable th:nth-child(3) { max-width: 60px; }
   .ph-scope .projtable td:nth-child(4), .ph-scope .projtable th:nth-child(4), .ph-scope .projtable td:nth-child(5), .ph-scope .projtable th:nth-child(5) { max-width: 24px; }
-  .ph-scope .projtable td:nth-child(6), .ph-scope .projtable th:nth-child(6) { max-width: 45px; }
-  .ph-scope .projtable td:nth-child(7), .ph-scope .projtable th:nth-child(7) { max-width: 50px; }
+  .ph-scope .projtable td:nth-child(6), .ph-scope .projtable th:nth-child(6) { max-width: none; }
+  .ph-scope .projtable td:nth-child(7), .ph-scope .projtable th:nth-child(7) { max-width: none; }
   .ph-scope .projtable td:nth-child(8), .ph-scope .projtable th:nth-child(8) { max-width: 18px; }
 }
+
+/* Avis affiche sur l'ecran Admin quand les listes ne viennent pas du bottin. */
+.ph-scope .avis-bottin {
+  border: 1px solid #D6B414; background: rgba(214, 180, 20, .12); color: var(--ink);
+  border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; margin-bottom: 14px;
+}
+.ph-scope .avis-bottin strong { color: #8A6D12; }

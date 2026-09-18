@@ -3,7 +3,8 @@ import { pdfStyles } from '../../../lib/planification-hebdomadaire/pdfStyles';
 import { formatDateFr } from '../../../lib/planification-hebdomadaire/dates';
 import { PdfHeader, PdfFooter } from './PdfChrome';
 
-const COLS = [16, 12, 40, 6, 6, 10, 10];
+// Memes largeurs que Meeting1Pdf : voir la note la-bas (revision 56).
+const COLS = [16, 16, 35, 5, 5, 11.5, 11.5];
 
 function statutLabel(p) {
   if (p.statut === 'Date' && p.date_valeur) return `Date - ${formatDateFr(p.date_valeur)}`;
