@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
@@ -92,21 +92,11 @@ function ListeProjets({ userId, nom, poste }) {
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState('');
 
-  // --- Frozen (sticky) header + barre de contrôle -----------------------
-  const headerRef = useRef(null);
-  const barreRef = useRef(null);
-  const [headerH, setHeaderH] = useState(0);
-  const [barreH, setBarreH] = useState(0);
-
-  useEffect(() => {
-    function mesurer() {
-      if (headerRef.current) setHeaderH(headerRef.current.offsetHeight);
-      if (barreRef.current) setBarreH(barreRef.current.offsetHeight);
-    }
-    mesurer();
-    window.addEventListener('resize', mesurer);
-    return () => window.removeEventListener('resize', mesurer);
-  }, [tab, erreur, peutModifier, loading]);
+  // Revision 60 — la mesure des hauteurs de bandeau et de barre a disparu
+  // avec le gel : elle ne servait qu'à décaler les éléments collés et à
+  // calculer la hauteur du cadre défilant du tableau. Plus rien n'est collé
+  // à une hauteur variable, donc plus rien à mesurer ni à réécouter au
+  // redimensionnement.
 
   async function chargerTout() {
     const [resProjets, resTypes, resPersonnel, roles] = await Promise.all([
@@ -509,9 +499,24 @@ function ListeProjets({ userId, nom, poste }) {
     <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: pal.bg, minHeight: '100vh', color: pal.text }}>
       <Head><title>Liste des projets - Toolbox PEP</title></Head>
 
-      {/* Le bandeau commun reste figé en haut : le tableau est long, et la
-          barre d'outils se colle juste en dessous. */}
-      <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 60 }}>
+      {/* Revision 60 — LE BANDEAU NE RESTE PLUS FIGÉ.
+          Demande de William : c'était la seule app du Toolbox dont le bandeau
+          restait collé en haut, et ça se voyait en comparant deux pages côte
+          à côte.
+
+          Ce gel n'était pas décoratif : il faisait partie d'un montage où la
+          PAGE ne défilait pas du tout — bandeau figé, barre d'outils figée
+          dessous, et le tableau confiné dans son propre cadre défilant haut
+          comme « l'écran moins les deux ». Retirer le gel seul aurait cassé
+          l'arrangement : la page se serait mise à défiler de 97 px, et les
+          en-têtes de colonnes, collés au haut de leur cadre, auraient glissé
+          se cacher derrière la barre d'outils.
+
+          La page revient donc au modèle de toutes les autres apps : un seul
+          défilement, celui de la page. Les en-têtes de colonnes se collent
+          maintenant au haut de la fenêtre, ce qui les garde visibles sur les
+          200 projets — c'est le seul morceau qui gagne à rester fixe. */}
+      <div>
         <EnTeteApp
           titre="Liste des projets"
           sousTitre="Projets, types de projet et personnel"
@@ -524,11 +529,11 @@ function ListeProjets({ userId, nom, poste }) {
       </div>
 
       <main style={{ maxWidth: 1300, margin: '0 auto', padding: '0 16px 60px' }}>
-        {/* Barre de contrôle (onglets + erreur + recherche/filtre) — figée juste sous l'en-tête */}
+        {/* Barre de contrôle (onglets + erreur + recherche/filtre). Elle était
+            figée sous le bandeau; elle défile maintenant avec la page, comme
+            la barre d'outils de la Planification hebdo. */}
         <div
-          ref={barreRef}
-         
-          style={{ position: 'sticky', top: headerH, zIndex: 55, background: pal.bg, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
+          style={{ background: pal.bg, paddingTop: 16, paddingBottom: tab === 'projets' ? 0 : 12 }}
         >
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             {[['projets', `Projets (${projets.length})`], ['types', `Types de projet (${types.length})`], ['personnel', `Personnel (${chargesBottin.length + surintsBottin.length})`]].map(([key, label]) => (
@@ -576,8 +581,18 @@ function ListeProjets({ userId, nom, poste }) {
 
         {tab === 'projets' && (
           <>
-            <div style={{ background: pal.panel, borderRadius: '0 0 8px 8px', overflow: 'hidden', boxShadow: pal.ombre }}>
-            <div style={{ overflow: 'auto', maxHeight: `calc(100vh - ${headerH + barreH + 20}px)` }}>
+            {/* `overflow: hidden` retiré (revision 60). Il servait à arrondir
+                les coins du tableau, mais un ancêtre qui coupe le débordement
+                annule `position: sticky` chez ses descendants : c'est lui qui
+                empêchait les en-têtes de colonnes de tenir en haut une fois
+                le cadre défilant interne supprimé. Entre des coins arrondis et
+                des titres de colonnes visibles sur 208 projets, le choix est
+                vite fait. */}
+            <div style={{ background: pal.panel, borderRadius: '0 0 8px 8px', boxShadow: pal.ombre }}>
+            {/* Plus de cadre défilant interne : la page défile, point. Deux
+                barres de défilement imbriquées étaient la vraie cause du
+                sentiment d'écrasement. */}
+            <div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
