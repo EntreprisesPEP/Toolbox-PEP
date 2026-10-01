@@ -47,7 +47,12 @@ export default function Meeting1View({ board, editable, theme, nomUtilisateur })
         </div>
       </div>
 
-      <FullscreenView open={fullscreen} onClose={() => setFullscreen(false)} activeProjects={active} />
+      <FullscreenView
+        open={fullscreen}
+        onClose={() => setFullscreen(false)}
+        activeProjects={active}
+        highlightedId={settings.highlighted_project_id}
+      />
 
       <ProjectsTable
         rows={active}

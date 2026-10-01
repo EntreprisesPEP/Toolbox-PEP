@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import StatusCell from './StatusCell';
 
-export default function FullscreenView({ open, onClose, activeProjects }) {
+export default function FullscreenView({ open, onClose, activeProjects, highlightedId }) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e) {
@@ -66,8 +66,11 @@ export default function FullscreenView({ open, onClose, activeProjects }) {
           </thead>
           <tbody>
             {activeProjects.length === 0 && <tr><td colSpan={5} className="empty">Aucun projet actif.</td></tr>}
+            {/* Le projet surligne pour tout le monde doit ressortir en jaune
+                ici aussi : c'est justement en plein ecran, pendant la reunion,
+                qu'on s'en sert pour dire « on parle de celui-la ». */}
             {activeProjects.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} className={highlightedId && p.id === highlightedId ? 'surligne' : undefined}>
                 <td>
                   <span className="jobline" title={`${p.no} ${p.projet}`}>
                     <span className="no">{p.no}</span>{p.projet}

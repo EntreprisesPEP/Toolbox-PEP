@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, Settings } from 'lucide-react';
 import AuthGate from '../../components/defi-strava/AuthGate';
 import { formatDuree } from '../../lib/defi-strava/format';
 import { entetesAuth } from '../../lib/commun/entetesAuth';
@@ -237,7 +237,24 @@ function PanneauAdmin({ donnees, chargement, erreur, onRecharger, onRattraper, e
   );
 }
 
-function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
+// ---------------------------------------------------------------------------
+// QUI VOIT LE PANNEAU DES BRANCHEMENTS
+//
+// Revision 59. Demande de William : « le branchements devrait seulement être
+// visible pour William ». Ce n'était pas le cas — la condition était
+// `estAdmin`, et il y a DEUX administrateurs dans pep_user_roles : William
+// Dubreuil et Bryan Wong. Bryan voyait donc l'onglet lui aussi.
+//
+// Le courriel est écrit ici plutôt qu'enfoui dans le JSX pour que ça se
+// change en une ligne, et surtout pour que ça se VOIE. Un nom en dur dans du
+// code est une dette : le jour où quelqu'un d'autre doit gérer les
+// branchements, il faut un déploiement. Si ça se reproduit ailleurs, la
+// vraie réponse est un droit nommé dans pep_user_apps.
+const COURRIEL_BRANCHEMENTS = 'wdubreuil@pep2000.com';
+
+function DefiStravaApp({ nom, participantId, accessToken, estAdmin, courriel }) {
+  const peutVoirBranchements =
+    estAdmin && (courriel || '').trim().toLowerCase() === COURRIEL_BRANCHEMENTS;
   const [mode, setMode] = useState('jour');
   const [ongletActif, setOngletActif] = useState('podium');
 
@@ -309,7 +326,7 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
   }
 
   async function chargerAdmin(moisIso) {
-    if (!estAdmin) return;
+    if (!peutVoirBranchements) return;
     setAdminChargement(true);
     setAdminErreur('');
     try {
@@ -568,15 +585,33 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
       </Head>
 
       <div className="page">
+        {/* Revision 59 — jour/nuit et Guide passent à GAUCHE, le retour au
+            Toolbox reste à DROITE, et les Branchements quittent la rangée
+            d'onglets pour devenir une roue d'engrenage sous le retour. */}
         <div className="barre-haut">
-          <div />
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-            <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
+          <div className="barre-haut-gauche">
             <div className="toggle-theme">
               <button className={mode === 'jour' ? 'actif' : ''} onClick={() => setMode('jour')} title="Jour" aria-label="Jour"><Sun size={13} /></button>
               <button className={mode === 'nuit' ? 'actif' : ''} onClick={() => setMode('nuit')} title="Nuit" aria-label="Nuit"><Moon size={13} /></button>
             </div>
             <a href="/guide-defi-strava.html" target="_blank" rel="noopener" className="bouton-guide">📖 Guide</a>
+          </div>
+          <div className="barre-haut-droite">
+            <a href="/" className="retour-toolbox">← Retour au Toolbox PEP</a>
+            {peutVoirBranchements && (
+              <button
+                type="button"
+                className={`bouton-engrenage${ongletActif === 'admin' ? ' actif' : ''}`}
+                title="Branchements Strava"
+                aria-label="Branchements Strava"
+                onClick={() => {
+                  setOngletActif('admin');
+                  if (!adminData) chargerAdmin(donneesMois?.moisIso);
+                }}
+              >
+                <Settings size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -586,7 +621,8 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
               { id: 'podium', label: 'Vue Podium' },
               { id: 'palmares', label: '🏆 Hall of Fame / Shame' },
               { id: 'stats', label: '📊 Mes stats' },
-              ...(estAdmin ? [{ id: 'admin', label: '⚙️ Branchements' }] : []),
+              // Branchements n'est plus un onglet : c'est la roue d'engrenage
+              // de la barre du haut (revision 59).
             ].map((o) => (
               <button
                 key={o.id}
@@ -890,7 +926,7 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin }) {
                 </div>
               )}
 
-              {ongletActif === 'admin' && estAdmin && (
+              {ongletActif === 'admin' && peutVoirBranchements && (
                 <PanneauAdmin
                   donnees={adminData}
                   chargement={adminChargement}
@@ -1006,6 +1042,7 @@ export default function DefiStravaPage() {
       participantId={session.participantId}
       accessToken={session.accessToken}
       estAdmin={!!session.estAdmin}
+      courriel={session.email}
     />
   );
 }

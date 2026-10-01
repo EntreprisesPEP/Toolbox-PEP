@@ -490,19 +490,72 @@
      telephone, de l'iPhone SE au Pro Max.
 
      Les formats Tuiles et Liste ne sont pas touches.
+
+     Revision 59 — DEUX CORRECTIFS.
+
+     a) La page defilait aussi de gauche a droite sur un vrai iPhone, alors
+        qu'aucun navigateur d'essai ne reproduisait le probleme. Plutot que
+        de continuer a chercher la cause exacte dans Safari, la mise en page
+        passe de flex a GRILLE : une colonne `1fr` ne peut pas, par
+        definition, depasser son conteneur, alors qu'un element flex le peut
+        (son `min-width:auto` l'empeche de retrecir sous la largeur de son
+        plus long mot). Plus `min-width:0` et la cesure autorisee sur le nom.
+        Une page qui ne peut plus deborder vaut mieux qu'une page dont on
+        croit avoir trouve pourquoi elle debordait.
+
+     b) Icone et texte etaient trop petits : 56 px d'icone perdue au milieu
+        d'un rond de 156 px, et un nom a 11 px. L'icone occupe maintenant la
+        place laissee vide, et le nom redevient lisible.
      =================================================================== */
   @media (max-width: 560px){
-    .tile-grid.format-sticker{ padding:16px 12px; gap:12px; }
-    .tile-grid.format-sticker .tile{
-      width:calc(50% - 6px);
-      height:auto;
-      padding:12px;
-      border-width:3px;
+    /* Rien ne doit pouvoir pousser la page sur le cote. */
+    html, body{ max-width:100%; overflow-x:hidden; }
+
+    .tile-grid.format-sticker{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      justify-content:stretch;
+      padding:14px 10px;
+      gap:10px;
     }
+    .tile-grid.format-sticker .tile{
+      width:auto;
+      height:auto;
+      min-width:0;          /* sans ca, un long mot elargit la pastille */
+      padding:10px;
+      border-width:3px;
+      gap:5px;
+    }
+    .tile-grid.format-sticker .tile-icon{ font-size:30px; line-height:1; }
+    .tile-grid.format-sticker .tile-icon .app-icon-img,
+    .tile-grid.format-sticker .tile-icon .cone-icon{ width:72px; height:72px; }
+    .tile-grid.format-sticker .tile-name{
+      font-size:12.5px;
+      min-height:0;
+      line-height:1.2;
+      overflow-wrap:anywhere;   /* « fournisseurs » plutot que la pastille qui grossit */
+      max-width:100%;
+      /* Un rond a une hauteur fixe : un nom de quatre lignes en sortait par
+         le bas (« Validation des factures (Fournisseurs/Sous-traitants) »).
+         On le borne a trois lignes. */
+      display:-webkit-box;
+      -webkit-line-clamp:3;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+    /* La pastille « EN LIGNE / À VENIR » est ce qui coute le plus de hauteur
+       pour ce qu'elle apprend : les apps a venir sont deja grises, avec un
+       cone et leur propre mention. On la retire du telephone pour rendre
+       cette place a l'icone et au nom. */
+    .tile-grid.format-sticker .tile-status{ display:none; }
+  }
+
+  /* Un iPhone SE n'a pas la place pour une icone de 72 px avec trois lignes
+     de nom : on redescend plutot que de laisser le nom sortir du rond. */
+  @media (max-width: 360px){
     .tile-grid.format-sticker .tile-icon .app-icon-img,
     .tile-grid.format-sticker .tile-icon .cone-icon{ width:56px; height:56px; }
-    .tile-grid.format-sticker .tile-name{ font-size:11px; min-height:2.4em; }
-    .tile-grid.format-sticker .tile-status{ font-size:8px; padding:2px 6px; }
+    .tile-grid.format-sticker .tile-name{ font-size:11.5px; }
   }
 </style>
 </head>

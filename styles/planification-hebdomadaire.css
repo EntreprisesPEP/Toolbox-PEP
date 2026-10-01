@@ -384,3 +384,10 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
   border-radius: 6px;
 }
 .ph-scope .ph-plein-ecran .empty { font-size: var(--pe-texte); padding: 40px; }
+
+/* Le projet surligné pour tout le monde — même jaune que dans le tableau
+   normal (#FFF3B0). L'encre est forcée en foncé : en mode nuit, var(--ink)
+   est pâle, et du texte pâle sur du jaune ne se lit pas du tout, encore
+   moins projeté au mur. */
+.ph-scope .ph-plein-ecran tbody tr.surligne > td { background: #FFF3B0; color: #15181B; }
+.ph-scope .ph-plein-ecran tbody tr.surligne .jobline .no { color: #5A4A00; }

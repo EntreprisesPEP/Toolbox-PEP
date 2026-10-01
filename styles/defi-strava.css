@@ -32,8 +32,41 @@
 }
 .defi-scope .page { max-width: 680px; margin: 0 auto; }
 
-.defi-scope .barre-haut { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
-.defi-scope .barre-onglets { display: flex; margin-bottom: 20px; }
+/* ---------- Barre du haut (revision 59) ----------
+   Jour/nuit et Guide à gauche, retour au Toolbox à droite avec la roue
+   d'engrenage dessous. `align-items: flex-start` et non `center` : les deux
+   colonnes n'ont plus la même hauteur depuis que l'engrenage s'ajoute sous
+   le retour, et centrer ferait flotter le groupe de gauche. */
+.defi-scope .barre-haut { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 10px; flex-wrap: wrap; }
+/* Guide SOUS le jour/nuit, comme l'engrenage est sous le retour : les deux
+   colonnes se répondent au lieu d'avoir une rangée d'un côté et une pile de
+   l'autre. */
+.defi-scope .barre-haut-gauche { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.defi-scope .barre-haut-droite { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+.defi-scope .bouton-engrenage {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text-dim); cursor: pointer; font-family: inherit;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.defi-scope .bouton-engrenage:hover { color: var(--text); border-color: var(--text-dim); }
+.defi-scope .bouton-engrenage.actif { background: var(--strava); border-color: var(--strava); color: #fff; }
+
+/* La rangée d'onglets occupe toute la largeur et les onglets s'y partagent
+   la place à parts égales (revision 59). Deux raisons : c'est plus propre
+   qu'une pilule courte collée à gauche, et ça règle du même coup le
+   débordement — chaque onglet est en `nowrap` et « 🏆 Hall of Fame / Shame »
+   à lui seul dépasse la largeur d'un téléphone. Avec `flex: 1 1 0` et
+   `min-width: 0`, aucun onglet ne peut plus imposer sa largeur. */
+.defi-scope .barre-onglets { display: flex; margin-bottom: 20px; max-width: 100%; }
+.defi-scope .onglets { width: 100%; }
+/* `1 1 auto` et non `1 1 0` : chaque onglet part de la largeur de son texte,
+   puis les trois se partagent ce qui reste. La barre est pleine d'un bout a
+   l'autre, mais « 🏆 Hall of Fame / Shame » garde la place qu'il lui faut et
+   ne passe jamais sur deux lignes. Avec des tiers exacts il s'enroulait. */
+.defi-scope .onglet { flex: 1 1 auto; min-width: 0; text-align: center; }
 .defi-scope .onglets { display: flex; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
 .defi-scope .onglet { background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
 .defi-scope .onglet.actif { background: var(--strava); color: #fff; }
@@ -163,6 +196,20 @@
 @media (max-width: 480px) { .defi-scope .hf-grille { grid-template-columns: 1fr; } }
 
 @media (max-width: 600px) {
+  /* Revision 59 — la page ne défile plus que de haut en bas.
+     Trois coupables se cumulaient sur un téléphone : la rangée d'onglets
+     (chaque onglet en `nowrap`, « 🏆 Hall of Fame / Shame » à lui seul plus
+     large que l'écran), le titre h1 lui aussi en `nowrap` à côté des logos,
+     et les tableaux. Les deux premiers sont réglés ici ; le reste est borné
+     par sécurité, pour qu'aucun élément futur ne puisse repousser la page. */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  .defi-scope, .defi-scope .page { max-width: 100%; overflow-x: hidden; }
+  .defi-scope h1 { white-space: normal; overflow-wrap: anywhere; }
+  .defi-scope .carte-entete { flex-wrap: wrap; }
+  /* Les trois libellés doivent tenir sur UNE ligne dans 370 px : on reprend
+     la place sur les marges internes plutôt que sur le texte. */
+  .defi-scope .onglets { gap: 3px; padding: 3px; }
+
   .defi-scope { padding: 14px 10px 40px; }
   .defi-scope .carte { padding: 18px 14px 18px; border-radius: 12px; }
   .defi-scope h1 { font-size: 16px; margin: 0; white-space: nowrap; }
