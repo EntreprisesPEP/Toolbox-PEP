@@ -339,3 +339,48 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
   border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; margin-bottom: 14px;
 }
 .ph-scope .avis-bottin strong { color: #8A6D12; }
+
+/* ---------- PLEIN ÉCRAN : lisible depuis le fond de la salle ----------
+   Revision 58. Demande de William : en mode plein écran, pendant la réunion
+   du jeudi, le tableau était affiché avec la même taille de texte que dans la
+   page normale — 13 px pour une cellule, 10 px pour un en-tête. Sur un écran
+   de salle regardé à quelques mètres, ça ne se lit pas.
+
+   Le texte suit maintenant la largeur de l'écran plutôt qu'une valeur fixe :
+   `clamp` donne 16 px au minimum (petit portable), monte avec l'écran, et
+   plafonne à 30 px pour qu'un très grand téléviseur ne fasse pas déborder une
+   seule ligne de commentaire sur trois rangées.
+
+   Les cinq colonnes restent toutes visibles quoi qu'il arrive : leurs largeurs
+   sont en pourcentage (voir le colgroup de FullscreenView), donc agrandir le
+   texte n'en pousse jamais une hors de l'écran — ça ne fait qu'enrouler le
+   commentaire, la seule colonne qui s'y prête. */
+.ph-scope .ph-plein-ecran {
+  --pe-texte: clamp(16px, 1.28vw, 30px);
+}
+.ph-scope .ph-plein-ecran tbody td {
+  font-size: var(--pe-texte);
+  padding: calc(var(--pe-texte) * 0.5) calc(var(--pe-texte) * 0.55);
+  line-height: 1.35;
+}
+.ph-scope .ph-plein-ecran thead th {
+  font-size: calc(var(--pe-texte) * 0.66);
+  padding: calc(var(--pe-texte) * 0.5) calc(var(--pe-texte) * 0.55);
+}
+/* Le nom du projet a le droit de passer sur deux lignes ICI, et seulement
+   ici. Ailleurs il est en nowrap avec une infobulle; en plein écran, à 25 px,
+   « Terrebonne — Stationnement Carrefour » déborderait sur la colonne Statut
+   au lieu d'être tronqué. Entre un nom sur deux lignes et un nom qui écrase
+   la colonne voisine, deux lignes est le moindre mal — et c'est le statut,
+   pas le nom du projet, que la révision 56 voulait garder sur une ligne. */
+.ph-scope .ph-plein-ecran .jobline { font-size: var(--pe-texte); white-space: normal; }
+.ph-scope .ph-plein-ecran .jobline .no { font-size: calc(var(--pe-texte) * 0.82); margin-right: 8px; }
+/* Sem 1 / Sem 2 : les seules pastilles du plein écran. Le statut, lui, est
+   rendu en texte simple par StatusCell quand editable vaut false — il suit
+   donc déjà la taille de la cellule. */
+.ph-scope .ph-plein-ecran .need-chip {
+  font-size: calc(var(--pe-texte) * 0.78);
+  padding: calc(var(--pe-texte) * 0.14) calc(var(--pe-texte) * 0.42);
+  border-radius: 6px;
+}
+.ph-scope .ph-plein-ecran .empty { font-size: var(--pe-texte); padding: 40px; }

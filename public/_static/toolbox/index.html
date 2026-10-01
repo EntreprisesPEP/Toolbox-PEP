@@ -472,6 +472,38 @@
   .note-btn.save:hover{ background:#e0304f; }
   .note-btn.close{ background:transparent; border:1px solid var(--line); color:var(--text-primary); }
   .note-btn.close:hover{ border-color:var(--text-dim); }
+
+  /* ===================================================================
+     TELEPHONE — DEUX PASTILLES PAR RANGEE
+
+     Revision 58. Demande de William : sur un iPhone, le format Pastilles
+     n'affichait qu'une application par rangee, et il fallait defiler
+     longtemps pour arriver en bas.
+
+     Pourquoi ca arrivait : les pastilles ont une largeur FIXE de 170 px et
+     vivent dans un conteneur qui s'offre 40 px de marge de chaque cote. Sur
+     un iPhone il restait donc 270 px utiles pour deux ronds qui en reclament
+     364 — le flex-wrap faisait ce qu'on lui demandait et passait a la ligne.
+
+     La largeur devient relative (la moitie moins l'ecart) plutot que fixe,
+     et les marges se resserrent. Deux par rangee a toutes les largeurs de
+     telephone, de l'iPhone SE au Pro Max.
+
+     Les formats Tuiles et Liste ne sont pas touches.
+     =================================================================== */
+  @media (max-width: 560px){
+    .tile-grid.format-sticker{ padding:16px 12px; gap:12px; }
+    .tile-grid.format-sticker .tile{
+      width:calc(50% - 6px);
+      height:auto;
+      padding:12px;
+      border-width:3px;
+    }
+    .tile-grid.format-sticker .tile-icon .app-icon-img,
+    .tile-grid.format-sticker .tile-icon .cone-icon{ width:56px; height:56px; }
+    .tile-grid.format-sticker .tile-name{ font-size:11px; min-height:2.4em; }
+    .tile-grid.format-sticker .tile-status{ font-size:8px; padding:2px 6px; }
+  }
 </style>
 </head>
 <body>

@@ -24,7 +24,10 @@ export default function FullscreenView({ open, onClose, activeProjects }) {
         style={{
           position: 'sticky', top: 0, background: 'var(--navy)', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', fontFamily: "'Oswald',sans-serif", fontSize: 18,
+          padding: '14px 20px', fontFamily: "'Oswald',sans-serif",
+          // Suit la même échelle que le tableau : à 25 px de texte, un titre
+          // figé à 18 px avait l'air plus petit que les données.
+          fontSize: 'clamp(18px, 1.3vw, 30px)',
           fontWeight: 700, zIndex: 1,
         }}
       >
@@ -39,11 +42,18 @@ export default function FullscreenView({ open, onClose, activeProjects }) {
         >&times;</button>
       </div>
 
-      <div style={{ padding: 16 }} className="scrollx">
+      {/* ph-plein-ecran : le texte du tableau suit la largeur de l'écran au
+          lieu de rester à 13 px (voir planification-hebdomadaire.css). */}
+      <div style={{ padding: 16 }} className="scrollx ph-plein-ecran">
         <table className="projtable">
+          {/* Largeurs revues avec l'agrandissement du texte : à 25 px, « Date ·
+              14 oct. 2026 » ne tenait plus dans 12 % et le statut repassait sur
+              deux lignes — précisément ce que la révision 56 avait corrigé.
+              C'est Commentaire, la seule colonne qui s'enroule sans nuire, qui
+              cède la place. */}
           <colgroup>
-            <col style={{ width: '18%' }} /><col style={{ width: '12%' }} /><col style={{ width: '55%' }} />
-            <col style={{ width: '7.5%' }} /><col style={{ width: '7.5%' }} />
+            <col style={{ width: '25%' }} /><col style={{ width: '15%' }} /><col style={{ width: '44%' }} />
+            <col style={{ width: '8%' }} /><col style={{ width: '8%' }} />
           </colgroup>
           <thead>
             <tr>
@@ -63,7 +73,7 @@ export default function FullscreenView({ open, onClose, activeProjects }) {
                     <span className="no">{p.no}</span>{p.projet}
                   </span>
                 </td>
-                <td><StatusCell project={p} editable={false} onChange={() => {}} /></td>
+                <td className="nowrap-col"><StatusCell project={p} editable={false} onChange={() => {}} /></td>
                 <td>{p.commentaire || ''}</td>
                 <td style={{ textAlign: 'right' }}>
                   <span className={`need-chip readonly ${p.s1 ? 'need-yes' : 'need-no'}`}>{p.s1 ? 'OUI' : 'NON'}</span>
