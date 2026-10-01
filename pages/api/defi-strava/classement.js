@@ -41,8 +41,11 @@ export default async function handler(req, res) {
     if (premiereActivite) {
       const debut = new Date(premiereActivite.date_debut);
       const curseur = new Date(debut.getFullYear(), debut.getMonth(), 1);
-      const maintenant = new Date();
-      const limite = new Date(maintenant.getFullYear(), maintenant.getMonth(), 1);
+      // Revision 57 — la borne vient de getCurrentIsoMonth(), donc de l'heure
+      // de l'Est. Avec `new Date()` nu, le serveur (UTC) ajoutait le mois
+      // suivant au menu déroulant dès 20 h le dernier jour du mois.
+      const [anneeLim, moisLim] = getCurrentIsoMonth().split('-').map(Number);
+      const limite = new Date(anneeLim, moisLim - 1, 1);
       while (curseur <= limite) {
         moisDisponibles.push(`${curseur.getFullYear()}-${String(curseur.getMonth() + 1).padStart(2, '0')}`);
         curseur.setMonth(curseur.getMonth() + 1);
