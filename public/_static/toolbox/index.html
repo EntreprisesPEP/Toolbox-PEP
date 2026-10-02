@@ -274,6 +274,74 @@
     justify-content:center;
   }
 
+  /* ---- FAVORIS (revision 62) ----
+     Le marquage se fait dans un mode qu'on ouvre et qu'on referme, plutot
+     qu'avec une etoile permanente sur chaque tuile : au quotidien les tuiles
+     restent propres, et dans le mode, toucher la tuile au complet suffit —
+     une cible bien plus facile a atteindre au pouce qu'une petite etoile. */
+  .bouton-favoris{
+    border:1px solid var(--line);
+    border-radius:20px;
+    background:transparent;
+  }
+  .bouton-favoris.actif{ background:var(--brand-red); color:#fff; border-color:var(--brand-red); }
+  .aide-favoris{
+    display:none;
+    margin:0 0 14px;
+    font-size:12px;
+    color:var(--text-dim);
+  }
+  .aide-favoris.visible{ display:block; }
+  .titre-section{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.7px;
+    color:var(--text-dim);
+    margin:0 0 10px;
+    font-weight:700;
+  }
+  .bloc-favoris{ display:none; margin-bottom:26px; }
+  .bloc-favoris.visible{ display:block; }
+  #titreToutes{ display:none; }
+  #titreToutes.visible{ display:block; }
+  /* L'etoile n'apparait que dans le mode : c'est l'indicateur d'etat, pas le
+     bouton. Elle est en position absolue pour ne pas decaler la tuile quand
+     le mode s'ouvre et se referme. */
+  .tile{ position:relative; }
+  /* La tuile est un rond marine en pastilles et un panneau clair en liste, en
+     jour comme en nuit. Une etoile posee directement dessus donnait 2,6:1 de
+     contraste dans deux des quatre cas (mesure). On la pose donc sur une
+     pastille blanche : l'etoile est alors toujours sur du blanc, donc toujours
+     au meme contraste, et la pastille elle-meme reste visible sur un fond
+     clair grace a son liseré. */
+  .etoile-favori{
+    position:absolute;
+    top:8px;
+    right:10px;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    background:#fff;
+    border:1px solid rgba(20,33,61,0.22);
+    box-shadow:0 1px 2px rgba(0,0,0,0.18);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:13px;
+    line-height:1;
+    color:#78839a;
+    pointer-events:none;
+  }
+  .etoile-favori.est-favori{ color:var(--brand-red); }
+  .tile-grid.mode-favoris .tile{ cursor:pointer; }
+  .tile-grid.mode-favoris .tile.disabled{ cursor:default; }
+  .grille-vide{
+    font-size:12.5px;
+    color:var(--text-dim);
+    margin:0;
+    padding:14px 2px;
+  }
+
   /* LIST FORMAT */
   .tile-grid.format-list{
     display:flex;
@@ -516,9 +584,22 @@
         d'un rond de 156 px, et un nom a 11 px. L'icone occupe maintenant la
         place laissee vide, et le nom redevient lisible.
      =================================================================== */
+  /* La pastille est un rond : le coin superieur droit de sa boite est hors du
+     cercle. L'etoile rentre a l'interieur. */
+  .tile-grid.format-sticker .etoile-favori{ top:13%; right:15%; }
+
   @media (max-width: 560px){
     /* Rien ne doit pouvoir pousser la page sur le cote. */
     html, body{ max-width:100%; overflow-x:hidden; }
+
+    /* Le bandeau passe sur deux rangees au telephone. Sur la deuxieme, le nom
+       est colle a gauche et Deconnexion a droite, au lieu que le bloc complet
+       flotte au centre (revision 62). */
+    header.hub-header{ padding:16px 16px; gap:12px; }
+    .hub-user{ width:100%; justify-content:space-between; align-items:center; gap:12px; }
+    .hub-user-infos{ align-items:flex-start; text-align:left; min-width:0; }
+    .hub-user-infos .courriel{ overflow-wrap:anywhere; }
+    .logout-btn{ flex:0 0 auto; }
 
     .tile-grid.format-sticker{
       display:grid;
@@ -682,8 +763,17 @@
       <button type="button" class="toggle-btn" data-format-btn="list">Liste</button>
       <button type="button" class="toggle-btn" data-format-btn="sticker">Pastilles</button>
     </div>
+    <button type="button" class="toggle-btn bouton-favoris" id="boutonModeFavoris">&#9734; Modifier mes favoris</button>
   </div>
 
+  <p class="aide-favoris" id="aideFavoris">Touche une application pour l&rsquo;ajouter ou la retirer de tes favoris.</p>
+
+  <div class="bloc-favoris" id="blocFavoris">
+    <h2 class="titre-section">Mes favoris</h2>
+    <div class="tile-grid" id="grilleFavoris"></div>
+  </div>
+
+  <h2 class="titre-section" id="titreToutes">Toutes les applications</h2>
   <div class="tile-grid" id="tileGrid"></div>
 </div>
 
@@ -882,6 +972,39 @@ const APPS = [
 
 const OWNER_EMAIL = 'wdubreuil@pep2000.com';
 let currentUserEmail = null;
+let currentUserId = null;
+
+// FAVORIS (revision 62) — stockes dans Supabase (table pep_user_favorites) et
+// non dans le navigateur, pour qu'ils suivent la personne entre son cellulaire
+// et son ordinateur. La cle est le meme slug que pep_user_apps.
+let mesFavoris = new Set();
+let modeFavoris = false;
+
+function slugApp(app){
+  return app.url ? app.url.replace(/^\/|\/$/g, '') : '';
+}
+
+async function basculerFavori(slug){
+  if (!slug || !currentUserId) return;
+  const etait = mesFavoris.has(slug);
+  // Affichage optimiste : la tuile reagit tout de suite, on corrige si la
+  // base refuse. Sur un telephone au chantier, attendre le reseau avant de
+  // bouger donnerait l'impression que le tap n'a pas pris.
+  if (etait) mesFavoris.delete(slug); else mesFavoris.add(slug);
+  renderTiles();
+  try {
+    const { error } = etait
+      ? await sb.from('pep_user_favorites').delete().eq('user_id', currentUserId).eq('app_slug', slug)
+      : await sb.from('pep_user_favorites').upsert({ user_id: currentUserId, app_slug: slug }, { onConflict: 'user_id,app_slug' });
+    if (error) throw error;
+  } catch (e) {
+    if (etait) mesFavoris.add(slug); else mesFavoris.delete(slug);
+    renderTiles();
+    const aide = document.getElementById('aideFavoris');
+    aide.textContent = "Le favori n\u2019a pas pu \u00eatre enregistr\u00e9. V\u00e9rifie ta connexion et r\u00e9essaie.";
+    aide.classList.add('visible');
+  }
+}
 
 function noteStorageKey(app, index){
   return 'toolbox-note-' + (app.id || app.name || ('idx' + index));
@@ -906,7 +1029,12 @@ let currentTheme = localStorage.getItem('toolbox-theme') === 'night' ? 'night' :
 
 function renderTiles(){
   const grid = document.getElementById('tileGrid');
-  grid.className = 'tile-grid format-' + currentFormat;
+  const grilleFav = document.getElementById('grilleFavoris');
+  const blocFav = document.getElementById('blocFavoris');
+  const titreToutes = document.getElementById('titreToutes');
+  const classeGrille = 'tile-grid format-' + currentFormat + (modeFavoris ? ' mode-favoris' : '');
+  grid.className = classeGrille;
+  grilleFav.className = classeGrille;
   const appsVisibles = APPS
     .map((app, index) => ({ app, index }))
     .filter(({ app }) => {
@@ -916,7 +1044,16 @@ function renderTiles(){
       const slug = app.url.replace(/^\/|\/$/g, '');
       return mesAppsAutorisees.has(slug);
     });
-  grid.innerHTML = appsVisibles.map(({ app, index }) => {
+
+  // Une app favorite monte dans son bloc et quitte la liste du bas : elle
+  // n'apparait jamais deux fois.
+  const favorites = appsVisibles.filter(({ app }) => mesFavoris.has(slugApp(app)));
+  const autres = appsVisibles.filter(({ app }) => !mesFavoris.has(slugApp(app)));
+  const afficherBloc = favorites.length > 0 || modeFavoris;
+  blocFav.classList.toggle('visible', afficherBloc);
+  titreToutes.classList.toggle('visible', afficherBloc);
+
+  function tuile({ app, index }){
     const isLive = app.status === 'live' && app.url;
     const useAltIcon = app.dayStickerIcon && (
       (currentFormat === 'sticker' && currentTheme === 'day') ||
@@ -929,8 +1066,17 @@ function renderTiles(){
     const statusHtml = isLive
       ? ''
       : `<span class="tile-status soon">${app.statusLabel || 'Bientôt'}</span>`;
-    const tag = isLive ? 'a' : 'div';
-    const hrefAttr = isLive ? `href="${app.url}"` : '';
+    // Dans le mode favoris, une tuile vivante devient un <div> : elle ne
+    // navigue plus, elle bascule le favori. Sinon un tap sur une pastille
+    // ouvrirait l'app au lieu de la marquer.
+    const slug = slugApp(app);
+    const basculable = modeFavoris && isLive && slug;
+    const tag = (isLive && !modeFavoris) ? 'a' : 'div';
+    const hrefAttr = (isLive && !modeFavoris) ? `href="${app.url}"` : '';
+    const favAttr = basculable ? ` data-fav-slug="${slug}"` : '';
+    const etoileHtml = (modeFavoris && isLive && slug)
+      ? `<span class="etoile-favori${mesFavoris.has(slug) ? ' est-favori' : ''}">${mesFavoris.has(slug) ? '&#9733;' : '&#9734;'}</span>`
+      : '';
     const canOwnerEdit = currentUserEmail === OWNER_EMAIL;
     const noteAttr = (!isLive && app.isPlaceholder && canOwnerEdit) ? `data-note-index="${index}"` : '';
     const hasNote = (!isLive && app.isPlaceholder) ? getNoteItems(app, index).length > 0 : false;
@@ -938,7 +1084,7 @@ function renderTiles(){
     const tileClass = (isLive ? 'available' : 'disabled') + (isImgIcon ? ' has-img-icon' : '');
     if(currentFormat === 'list'){
       return `
-        <${tag} class="tile ${tileClass}" ${hrefAttr} ${noteAttr}>
+        <${tag} class="tile ${tileClass}" ${hrefAttr} ${noteAttr}${favAttr}>
           <div class="tile-icon-badge${isImgIcon ? ' has-image' : ''}">${displayIcon}</div>
           <div class="tile-body">
             <p class="tile-name">${app.name}</p>
@@ -946,20 +1092,32 @@ function renderTiles(){
           </div>
           ${statusHtml}
           ${noteDotHtml}
+          ${etoileHtml}
         </${tag}>`;
     }
     return `
-      <${tag} class="tile ${tileClass}" ${hrefAttr} ${noteAttr}>
+      <${tag} class="tile ${tileClass}" ${hrefAttr} ${noteAttr}${favAttr}>
         ${statusHtml}
         <div class="tile-icon">${displayIcon}</div>
         <p class="tile-name">${app.name}</p>
         <p class="tile-desc">${app.desc}</p>
         ${noteDotHtml}
+        ${etoileHtml}
       </${tag}>`;
-  }).join('');
+  }
 
-  grid.querySelectorAll('[data-note-index]').forEach(el => {
-    el.addEventListener('click', () => openNoteModal(parseInt(el.getAttribute('data-note-index'), 10)));
+  grilleFav.innerHTML = favorites.map(tuile).join('')
+    || (modeFavoris ? '<p class="grille-vide">Aucun favori pour l\u2019instant.</p>' : '');
+  grid.innerHTML = autres.map(tuile).join('')
+    || '<p class="grille-vide">Toutes tes applications sont dans tes favoris.</p>';
+
+  [grid, grilleFav].forEach(g => {
+    g.querySelectorAll('[data-note-index]').forEach(el => {
+      el.addEventListener('click', () => openNoteModal(parseInt(el.getAttribute('data-note-index'), 10)));
+    });
+    g.querySelectorAll('[data-fav-slug]').forEach(el => {
+      el.addEventListener('click', () => basculerFavori(el.getAttribute('data-fav-slug')));
+    });
   });
 }
 
@@ -1068,6 +1226,16 @@ document.querySelectorAll('[data-format-btn]').forEach(btn=>{
     renderTiles();
   });
 });
+document.getElementById('boutonModeFavoris').addEventListener('click', ()=>{
+  modeFavoris = !modeFavoris;
+  const btn = document.getElementById('boutonModeFavoris');
+  btn.classList.toggle('actif', modeFavoris);
+  btn.innerHTML = modeFavoris ? '&#9733; Terminé' : '&#9734; Modifier mes favoris';
+  const aide = document.getElementById('aideFavoris');
+  aide.textContent = "Touche une application pour l’ajouter ou la retirer de tes favoris.";
+  aide.classList.toggle('visible', modeFavoris);
+  renderTiles();
+});
 applyTheme();
 applyFormat();
 
@@ -1087,6 +1255,7 @@ function showHub(user){
   document.getElementById('hubWrap').classList.add('show');
   document.getElementById('userEmailLabel').textContent = user.email;
   currentUserEmail = (user.email || '').toLowerCase();
+  currentUserId = user.id;
   chargerAppsAutoriseesEtAfficher(user);
 }
 
@@ -1104,12 +1273,19 @@ function escapeHtml(str){
 
 async function chargerAppsAutoriseesEtAfficher(user){
   try {
-    const [{ data: appAccessRows }, { data: roleRow }, { data: profilRow }] = await Promise.all([
+    const [{ data: appAccessRows }, { data: roleRow }, { data: profilRow }, favorisRes] = await Promise.all([
       sb.from('pep_user_apps').select('app_slug').eq('user_id', user.id),
       sb.from('pep_user_roles').select('role').eq('user_id', user.id).maybeSingle(),
       sb.from('pep_user_profile').select('nom_complet, poste').eq('user_id', user.id).maybeSingle(),
+      // Les favoris sont la SEULE requete dont l'echec ne doit rien casser.
+      // Sans ce catch, deployer cette page avant d'avoir cree la table viderait
+      // l'ecran d'accueil de tout le monde : l'erreur ferait tomber le bloc
+      // complet dans le catch du bas, qui remet mesAppsAutorisees a vide.
+      sb.from('pep_user_favorites').select('app_slug').eq('user_id', user.id)
+        .then(r => r, () => ({ data: [] })),
     ]);
     mesAppsAutorisees = new Set((appAccessRows || []).map(r => r.app_slug));
+    mesFavoris = new Set(((favorisRes && favorisRes.data) || []).map(r => r.app_slug));
     jeSuisAdmin = roleRow?.role === 'admin';
     const infos = document.getElementById('userInfos');
     const lignes = [];
@@ -1120,6 +1296,7 @@ async function chargerAppsAutoriseesEtAfficher(user){
   } catch (e) {
     // En cas d'erreur reseau, on n'affiche rien plutot que tout par erreur.
     mesAppsAutorisees = new Set();
+    mesFavoris = new Set();
     jeSuisAdmin = false;
   }
   renderTiles();
