@@ -24,7 +24,7 @@ export default function FullscreenView({ open, onClose, activeProjects, highligh
         style={{
           position: 'sticky', top: 0, background: 'var(--navy)', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', fontFamily: "'Oswald',sans-serif",
+          padding: '14px 20px',
           // Suit la même échelle que le tableau : à 25 px de texte, un titre
           // figé à 18 px avait l'air plus petit que les données.
           fontSize: 'clamp(18px, 1.3vw, 30px)',

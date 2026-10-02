@@ -475,7 +475,10 @@ function useGoogleFonts() {
   useEffect(() => {
     const l = document.createElement("link");
     l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap";
+    // Revision 61 : Oswald et Inter sont retires — tout le site est sur une
+    // seule ecriture (styles/commun.css). Il ne reste qu'IBM Plex Mono, qui
+    // sert aux colonnes de chiffres alignes, pas au texte.
+    l.href = "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap";
     document.head.appendChild(l);
     return () => { try { document.head.removeChild(l); } catch (e) {} };
   }, []);
@@ -491,7 +494,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "sans-serif" }}>
+        <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ maxWidth: 480, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 20 }}>
             <div style={{ fontWeight: 700, marginBottom: 8, color: "var(--odj-err)" }}>Une erreur est survenue</div>
             <div style={{ fontSize: 13, color: "var(--odj-texte2)", whiteSpace: "pre-wrap" }}>{String(this.state.error?.message || this.state.error)}</div>
@@ -513,7 +516,6 @@ function Plate({ children, tone = "steel", size = "sm" }) {
       style={{
         background: bg,
         color: "#fff",
-        fontFamily: "'Oswald',sans-serif",
         fontWeight: 600,
         letterSpacing: "0.06em",
         textTransform: "uppercase",
@@ -607,11 +609,11 @@ function NotificationCenter({ profil, onNaviguer }) {
                 : { position: "absolute", top: "calc(100% + 6px)", right: 0, width: 320, maxWidth: "90vw", maxHeight: 420, overflowY: "auto", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", zIndex: 999, boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }
             }
           >
-            <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--odj-lineFaible)", fontWeight: 700, fontSize: 13, fontFamily: "'Oswald',sans-serif", color: "var(--odj-accent)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--odj-lineFaible)", fontWeight: 700, fontSize: 13, color: "var(--odj-accent)", textTransform: "uppercase", letterSpacing: "0.03em" }}>
               Notifications
             </div>
             {notifs.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--odj-dim)", fontSize: 13, fontFamily: "'Inter',sans-serif" }}>Aucune notification</div>
+              <div style={{ padding: 24, textAlign: "center", color: "var(--odj-dim)", fontSize: 13 }}>Aucune notification</div>
             ) : (
               notifs.map((n) => (
                 <button
@@ -619,10 +621,10 @@ function NotificationCenter({ profil, onNaviguer }) {
                   onClick={() => cliquer(n)}
                   style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", borderBottom: "1px solid var(--odj-lineFaible)", background: n.lu ? "var(--odj-panel)" : "var(--odj-surligne)", cursor: "pointer" }}
                 >
-                  <div style={{ fontSize: 13, fontWeight: n.lu ? 500 : 700, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>
+                  <div style={{ fontSize: 13, fontWeight: n.lu ? 500 : 700, color: "var(--odj-texte)" }}>
                     {icone[n.type] || ""} {n.titre}
                   </div>
-                  {n.corps && <div style={{ fontSize: 12, color: "var(--odj-dim)", marginTop: 2, fontFamily: "'Inter',sans-serif" }}>{n.corps}</div>}
+                  {n.corps && <div style={{ fontSize: 12, color: "var(--odj-dim)", marginTop: 2 }}>{n.corps}</div>}
                 </button>
               ))
             )}
@@ -649,12 +651,12 @@ function BarreOutils({ profil, date, setDate, masquerDate, onMenuSelect, onNavig
   const boutonStyle = {
     background: "var(--odj-panel)", border: "1px solid var(--odj-line)", color: "var(--odj-texte2)",
     padding: isPhone ? "5px 8px" : "7px 10px", cursor: "pointer", display: "flex",
-    alignItems: "center", gap: 5, fontSize: 12, fontFamily: "'Inter',sans-serif",
+    alignItems: "center", gap: 5, fontSize: 12,
   };
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", padding: isPhone ? "0 14px 10px" : "0 20px 12px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-      <div style={{ fontSize: 12.5, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>
+      <div style={{ fontSize: 12.5, color: "var(--odj-dim)" }}>
         {ROLES.find((r) => r.value === profil.role)?.label}
       </div>
 
@@ -675,14 +677,14 @@ function BarreOutils({ profil, date, setDate, masquerDate, onMenuSelect, onNavig
               <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", boxShadow: "0 4px 16px rgba(0,0,0,0.25)", minWidth: 200, zIndex: 999 }}>
                 {MENU_ITEMS.map((item, i) =>
                   item.type === "titre" ? (
-                    <div key={i} style={{ padding: "10px 16px 6px", fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", borderBottom: "1px solid var(--odj-lineFaible)", userSelect: "none" }}>
+                    <div key={i} style={{ padding: "10px 16px 6px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", borderBottom: "1px solid var(--odj-lineFaible)", userSelect: "none" }}>
                       {item.label}
                     </div>
                   ) : (
                     <button
                       key={i}
                       onClick={() => { onMenuSelect(item.id); setMenuOuvert(false); }}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px", background: "transparent", border: "none", fontFamily: "'Inter',sans-serif", fontSize: 14, color: "var(--odj-texte)", cursor: "pointer", borderBottom: i < MENU_ITEMS.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 16px", background: "transparent", border: "none", fontSize: 14, color: "var(--odj-texte)", cursor: "pointer", borderBottom: i < MENU_ITEMS.length - 1 ? "1px solid var(--odj-lineFaible)" : "none" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--odj-panelAlt)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
@@ -713,7 +715,7 @@ function Section({ icon: Icon, title, children }) {
     <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: "1px solid var(--odj-line)", background: "var(--odj-panelAlt)" }}>
         <Icon size={16} color="#0F2138" />
-        <span style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--odj-texte)" }}>{title}</span>
+        <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--odj-texte)" }}>{title}</span>
       </div>
       <div style={{ padding: 16 }}>{children}</div>
     </div>
@@ -729,7 +731,7 @@ function StatutChoix({ groupe, valeur, onChange }) {
           <button
             key={opt.value} type="button" onClick={() => onChange(opt.value)}
             style={{
-              padding: "8px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13,
+              padding: "8px 14px", fontWeight: 600, fontSize: 13,
               border: `1.5px solid ${active ? TONE_HEX[opt.tone] : "var(--odj-line)"}`,
               background: active ? TONE_HEX[opt.tone] : "var(--odj-panel)",
               color: active ? "#fff" : "var(--odj-texte)", cursor: "pointer",
@@ -754,7 +756,7 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
           : { display: "grid", gridTemplateColumns: "minmax(120px,160px) 70px 1fr", gap: 8, alignItems: "center" }
         }>
           <div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>{item.label}</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--odj-texte)" }}>{item.label}</div>
             {showStock && item.stock != null && (
               <div style={{ fontSize: 11, color: "var(--odj-dim)", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", marginTop: 1 }}>Flotte: {item.stock}</div>
             )}
@@ -763,7 +765,7 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
                 placeholder="Commentaire (optionnel)"
                 value={valeurs[item.key]?.commentaire ?? ""}
                 onChange={(e) => onChangeCommentaire(item.key, e.target.value)}
-                style={{ padding: "5px 8px", border: "1px solid var(--odj-line)", fontSize: 12, fontFamily: "'Inter',sans-serif", marginTop: 4, width: "100%", boxSizing: "border-box" }}
+                style={{ padding: "5px 8px", border: "1px solid var(--odj-line)", fontSize: 12, marginTop: 4, width: "100%", boxSizing: "border-box" }}
               />
             )}
           </div>
@@ -779,7 +781,7 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
               placeholder="Commentaire (optionnel)"
               value={valeurs[item.key]?.commentaire ?? ""}
               onChange={(e) => onChangeCommentaire(item.key, e.target.value)}
-              style={{ padding: "7px 10px", border: "1px solid var(--odj-line)", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}
+              style={{ padding: "7px 10px", border: "1px solid var(--odj-line)", fontSize: 13.5 }}
             />
           )}
         </div>
@@ -788,7 +790,7 @@ function LignesTable({ items, valeurs, onChangeQte, onChangeCommentaire, showSto
   );
 }
 
-const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box" };
+const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid var(--odj-line)", fontSize: 14, boxSizing: "border-box" };
 const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--odj-texte2)", marginBottom: 6 };
 const selectStyle = { ...inputStyle, appearance: "none", background: "var(--odj-panel)" };
 
@@ -824,7 +826,7 @@ function HistoriquePersonnel({ fiches }) {
   }, [joursTravailles]);
 
   const hasMoyennes = POSTES.some((p) => moyennes[p.key] > 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
@@ -841,7 +843,7 @@ function HistoriquePersonnel({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
@@ -892,7 +894,7 @@ function HistoriqueCamions({ fiches }) {
     return { douze: Math.round((t.douze / n) * 10) / 10, deux: Math.round((t.deux / n) * 10) / 10, trois: Math.round((t.trois / n) * 10) / 10 };
   }, [joursTravailles]);
 
-  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thLeft = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const thCenter = { ...thLeft, textAlign: "center" };
 
   return (
@@ -912,7 +914,7 @@ function HistoriqueCamions({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thLeft}>Date</th>
@@ -961,7 +963,7 @@ function HistoriqueMachinerie({ fiches }) {
     return { date: f.date, seq: f.seq, chantier: f.data.chantier, ajout, retrait, aucunTravaux: f.data.aucunTravaux };
   }), [fiches]);
 
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
@@ -971,7 +973,7 @@ function HistoriqueMachinerie({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
@@ -1005,7 +1007,7 @@ function HistoriqueMachinerie({ fiches }) {
 
 function HistoriqueDiesel({ fiches }) {
   const lignes = fiches.map((f) => ({ date: f.date, seq: f.seq, chantier: f.data.chantier, diesel: f.data.diesel || {}, aucunTravaux: f.data.aucunTravaux }));
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
@@ -1015,7 +1017,7 @@ function HistoriqueDiesel({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Date</th>
@@ -1173,7 +1175,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
       {!cacherBouton && estVendredi && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", cursor: "pointer" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, fontSize: 13.5, color: "var(--odj-texte2)", cursor: "pointer" }}>
           <input type="checkbox" checked={ciblerSamedi} onChange={(e) => setCiblerSamedi(e.target.checked)} style={{ width: 16, height: 16 }} />
           Cette requête est pour samedi (au lieu de lundi)
         </label>
@@ -1185,7 +1187,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
             width: "100%", background: "var(--odj-rouge)", color: "#fff", border: "none",
             padding: "22px 20px", marginBottom: 12, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
-            fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: "0.03em", textTransform: "uppercase",
+            fontWeight: 700, fontSize: 22, letterSpacing: "0.03em", textTransform: "uppercase",
             boxShadow: "0 3px 0 #a80121",
           }}
         >
@@ -1201,41 +1203,41 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
             style={{
               width: "100%", background: "var(--odj-panel)", color: "var(--odj-texte2)", border: "1.5px solid var(--odj-line)",
               padding: "12px 20px", cursor: "pointer",
-              fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 14,
+              fontWeight: 600, fontSize: 14,
               opacity: envoiAucunTravaux ? 0.6 : 1,
             }}
           >
             {envoiAucunTravaux ? "…" : `Aucun travaux ${nomJourCible}`}
           </button>
-          <div style={{ fontSize: 11.5, color: "var(--odj-dim)", textAlign: "center", marginTop: 6, fontFamily: "'Inter',sans-serif" }}>
+          <div style={{ fontSize: 11.5, color: "var(--odj-dim)", textAlign: "center", marginTop: 6 }}>
             Prochaine journée ouvrable — saute automatiquement la fin de semaine
           </div>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginBottom: 10 }}>
-        <button onClick={() => setVueType(null)} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueType ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueType ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueType ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType(null)} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, border: `1.5px solid ${!vueType ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueType ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueType ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Vue générale
         </button>
-        <button onClick={() => setVueType("personnel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("personnel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, border: `1.5px solid ${vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Main d'oeuvre
         </button>
-        <button onClick={() => setVueType("camions")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("camions")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, border: `1.5px solid ${vueType === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Camions
         </button>
-        <button onClick={() => setVueType("machinerie")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("machinerie")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, border: `1.5px solid ${vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Machinerie
         </button>
-        <button onClick={() => setVueType("diesel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+        <button onClick={() => setVueType("diesel")} style={{ padding: "8px 4px", fontSize: 12, fontWeight: 600, border: `1.5px solid ${vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueType === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueType === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
           Diesel (Fuel)
         </button>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 15, fontWeight: 600, color: "var(--odj-texte2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--odj-texte2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Vos requêtes — 2 dernières semaines
         </div>
-        <button onClick={charger} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={charger} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 11px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
           <RefreshCw size={13} /> Actualiser
         </button>
       </div>
@@ -1263,7 +1265,7 @@ function ContremaitreAccueil({ profil, onNouvelle, onOuvrirDate, cacherBouton })
               style={{ textAlign: "left", background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderLeft: "4px solid var(--odj-accent)", padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
             >
               <div>
-                <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 14.5, color: "var(--odj-texte)" }}>
+                <div style={{ fontWeight: 700, fontSize: 14.5, color: "var(--odj-texte)" }}>
                   {labelDate(f.date)}
                   {f.seq > 1 && (
                     <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--odj-accent)", background: "var(--odj-bg)", padding: "2px 7px", borderRadius: 3, textTransform: "uppercase", letterSpacing: "0.03em" }}>
@@ -1402,7 +1404,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)" }}>Chargement…</div>;
   if (!fiche) {
     return (
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
@@ -1421,25 +1423,25 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "20px 16px 60px" }}>
-      <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+      <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0 }}>
         ← Retour à l'accueil
       </button>
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Requête envoyée</div>
-        <div style={{ color: "var(--odj-dim)", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Requête envoyée</div>
+        <div style={{ color: "var(--odj-dim)", fontSize: 14 }}>{labelDate(date)}</div>
         {fiche.maj && <div style={{ color: "var(--odj-dim)", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Envoyée le {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
       </div>
 
       {fiche.aucunTravaux && (
-        <div style={{ background: "var(--odj-panelAlt)", border: "1px solid var(--odj-line)", padding: "16px 18px", marginBottom: 16, fontStyle: "italic", color: "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
+        <div style={{ background: "var(--odj-panelAlt)", border: "1px solid var(--odj-line)", padding: "16px 18px", marginBottom: 16, fontStyle: "italic", color: "var(--odj-texte2)", fontSize: 14 }}>
           Aucun travaux prévu — pas de main d'œuvre requise pour cette journée.
         </div>
       )}
 
       {commentaires.length > 0 && (
         <div style={{ background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "4px solid var(--odj-ambre)", padding: "12px 16px", marginBottom: 12, display: "grid", gap: 10 }}>
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-avisTexte)" }}>
+          <div style={{ fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-avisTexte)" }}>
             Commentaires
           </div>
           {commentaires.map((c, i) => (
@@ -1447,7 +1449,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
               <div style={{ fontSize: 11.5, fontWeight: 700, color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-avisTexte)", marginBottom: 2 }}>
                 {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
               </div>
-              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)" }}>{c.texte}</div>
             </div>
           ))}
         </div>
@@ -1456,7 +1458,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       <div style={{ marginBottom: 16 }}>
         <button
           onClick={() => setModalEcartOuvert(true)}
-          style={{ background: "transparent", border: "1px solid var(--odj-err)", color: "var(--odj-err)", padding: "9px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+          style={{ background: "transparent", border: "1px solid var(--odj-err)", color: "var(--odj-err)", padding: "9px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
         >
           ⚠️ Signaler un écart (dispatch n'a pas livré ce qui était demandé)
         </button>
@@ -1465,24 +1467,24 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       {modalEcartOuvert && (
         <div onClick={() => setModalEcartOuvert(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-err)", padding: "24px 20px 20px" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 16 }}>
               Signaler un écart
             </div>
             <textarea
               value={texteEcart}
               onChange={(e) => setTexteEcart(e.target.value)}
               placeholder="Ex. Reçu 3 camions au lieu des 7 demandés."
-              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
+              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, boxSizing: "border-box", marginBottom: 16 }}
             />
             <div style={{ display: "grid", gap: 8 }}>
               <button
                 onClick={envoyerEcart}
                 disabled={envoiEcartEnCours || !texteEcart.trim()}
-                style={{ width: "100%", background: "var(--odj-err)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEcartEnCours || !texteEcart.trim()) ? 0.6 : 1 }}
+                style={{ width: "100%", background: "var(--odj-err)", color: "#fff", border: "none", padding: "12px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEcartEnCours || !texteEcart.trim()) ? 0.6 : 1 }}
               >
                 {envoiEcartEnCours ? "Envoi…" : "Envoyer le signalement"}
               </button>
-              <button onClick={() => setModalEcartOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <button onClick={() => setModalEcartOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                 Annuler
               </button>
             </div>
@@ -1496,12 +1498,12 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
             value={texteReponse}
             onChange={(e) => setTexteReponse(e.target.value)}
             placeholder="Répondre…"
-            style={{ width: "100%", minHeight: 70, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 8 }}
+            style={{ width: "100%", minHeight: 70, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, boxSizing: "border-box", marginBottom: 8 }}
           />
           <button
             onClick={envoyerReponse}
             disabled={envoiEnCours || !texteReponse.trim()}
-            style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "9px 16px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteReponse.trim()) ? 0.6 : 1 }}
+            style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "9px 16px", fontWeight: 600, fontSize: 13, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteReponse.trim()) ? 0.6 : 1 }}
           >
             {envoiEnCours ? "Envoi…" : "Répondre"}
           </button>
@@ -1599,7 +1601,7 @@ function FicheDetail({ profil, date, seq = 1, onRetour, onModifier }) {
       {modifiable ? (
         <button
           onClick={onModifier}
-          style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+          style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
         >
           Modifier cette requête
         </button>
@@ -1793,17 +1795,17 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
     setDiag(out.join("  ·  "));
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Chargement…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)" }}>Chargement…</div>;
 
   if (confirme) {
     const heure = new Date().getHours() * 60 + new Date().getMinutes();
     const avant12h = heure < 12 * 60;
     return (
-      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "'Inter',sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 440, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", textAlign: "center" }}>
           <div style={{ background: "var(--odj-okBg)", padding: "40px 24px 28px", borderTop: "4px solid var(--odj-ok)" }}>
             <CheckCircle2 size={56} color="#3C8C5D" style={{ marginBottom: 14 }} />
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 24, color: "var(--odj-ok)" }}>Merci de votre envoi !</div>
+            <div style={{ fontWeight: 700, fontSize: 24, color: "var(--odj-ok)" }}>Merci de votre envoi !</div>
             <div style={{ fontSize: 15, color: avant12h ? "var(--odj-ok)" : "var(--odj-err)", marginTop: 6 }}>
               {avant12h
                 ? "Demande avant 12h00, super ça, merci !"
@@ -1814,13 +1816,13 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
           <div style={{ padding: 24, display: "grid", gap: 10 }}>
             <button
               onClick={onRetourAccueil}
-              style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+              style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
             >
               Confirmer, retour à l'accueil
             </button>
             <button
               onClick={() => setConfirme(false)}
-              style={{ width: "100%", background: "var(--odj-panel)", color: "var(--odj-accent)", border: "1.5px solid var(--odj-accent)", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+              style={{ width: "100%", background: "var(--odj-panel)", color: "var(--odj-accent)", border: "1.5px solid var(--odj-accent)", padding: "13px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
             >
               Modifier ma requête
             </button>
@@ -1832,12 +1834,12 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: isPhone ? "12px 12px 60px" : "20px 16px 60px" }}>
-      <button onClick={onRetourAccueil} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+      <button onClick={onRetourAccueil} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 12, padding: 0 }}>
         ← Retour à l'accueil
       </button>
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Fiche du lendemain</div>
-        <div style={{ color: "var(--odj-dim)", fontSize: 14, fontFamily: "'Inter',sans-serif" }}>{labelDate(date)}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--odj-texte)" }}>Fiche du lendemain</div>
+        <div style={{ color: "var(--odj-dim)", fontSize: 14 }}>{labelDate(date)}</div>
         {fiche.maj && <div style={{ color: "var(--odj-dim)", fontSize: 12, marginTop: 4, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>Dernière mise à jour {new Date(fiche.maj).toLocaleString("fr-CA")}</div>}
       </div>
 
@@ -1927,7 +1929,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
                 type="button"
                 onClick={() => update(["diesel", "requis"], val)}
                 style={{
-                  flex: 1, padding: "9px 12px", fontSize: 13.5, fontWeight: 600, fontFamily: "'Inter',sans-serif",
+                  flex: 1, padding: "9px 12px", fontSize: 13.5, fontWeight: 600,
                   border: `1.5px solid ${actif ? "var(--odj-accent)" : "var(--odj-line)"}`,
                   background: actif ? "var(--odj-accent)" : "var(--odj-panel)",
                   color: actif ? "#fff" : "var(--odj-texte2)",
@@ -1998,7 +2000,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
                       type="button"
                       onClick={() => update(["camions", champ], !actif)}
                       style={{
-                        flex: 1, padding: "5px 4px", fontSize: 11, fontWeight: 600, fontFamily: "'Inter',sans-serif",
+                        flex: 1, padding: "5px 4px", fontSize: 11, fontWeight: 600,
                         border: `1.5px solid ${actif ? "var(--odj-accent)" : "var(--odj-line)"}`,
                         background: actif ? "var(--odj-accent)" : "var(--odj-panel)",
                         color: actif ? "#fff" : "var(--odj-texte2)",
@@ -2034,7 +2036,7 @@ function FicheForm({ profil, date, onRetourAccueil, seq = 1 }) {
 
       <button
         onClick={save}
-        style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+        style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "13px", fontWeight: 600, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
       >
         {status === "saving" ? "Envoi en cours…" : status === "local" ? <><CheckCircle2 size={17} /> Brouillon local sauvegardé</> : <><SendHorizontal size={17} /> Envoyer ma requête</>}
       </button>
@@ -2072,9 +2074,9 @@ function ligneResume(items, valeurs) {
 
 function FicheCard({ f, precedent, profil, onCommentaire }) {
   const separateur = { borderTop: "1px solid var(--odj-lineFaible)", paddingTop: 10, marginTop: 2 };
-  const titreStyle = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 4 };
-  const contenuStyle = { fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)" };
-  const commentaireStyle = { fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", marginTop: 4 };
+  const titreStyle = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 4 };
+  const contenuStyle = { fontSize: 13.5, color: "var(--odj-texte)" };
+  const commentaireStyle = { fontSize: 13, color: "var(--odj-texte2)", marginTop: 4 };
   const [modalOuvert, setModalOuvert] = useState(false);
   const [texteCommentaire, setTexteCommentaire] = useState("");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -2083,8 +2085,8 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
   if (f.data.aucunTravaux) {
     return (
       <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderLeft: "3px solid var(--odj-dim)", marginBottom: 14, padding: "16px 18px" }}>
-        <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 15.5, color: "var(--odj-texte)", marginBottom: 4 }}>{f.nom}</div>
-        <div style={{ fontSize: 13.5, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", fontStyle: "italic" }}>Aucun travaux prévu — pas de main d'œuvre requise</div>
+        <div style={{ fontWeight: 700, fontSize: 15.5, color: "var(--odj-texte)", marginBottom: 4 }}>{f.nom}</div>
+        <div style={{ fontSize: 13.5, color: "var(--odj-dim)", fontStyle: "italic" }}>Aucun travaux prévu — pas de main d'œuvre requise</div>
       </div>
     );
   }
@@ -2161,8 +2163,8 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
       <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--odj-lineFaible)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16 }}>{f.nom}</div>
-            {f.data.chantier && <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{f.data.chantier}</div>}
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{f.nom}</div>
+            {f.data.chantier && <div style={{ fontSize: 14, color: "var(--odj-dim)" }}>{f.data.chantier}</div>}
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -2249,10 +2251,10 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
         <div style={{ margin: "0 16px 14px", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "4px solid var(--odj-ambre)", padding: "10px 14px", display: "grid", gap: 8 }}>
           {commentaires.map((c, i) => (
             <div key={i}>
-              <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em", color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-avisTexte)", marginBottom: 2 }}>
+              <div style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.03em", color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-avisTexte)", marginBottom: 2 }}>
                 {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
               </div>
-              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+              <div style={{ fontSize: 13.5, color: "var(--odj-avisTexte)" }}>{c.texte}</div>
             </div>
           ))}
         </div>
@@ -2262,7 +2264,7 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
         <div style={{ padding: "0 16px 14px" }}>
           <button
             onClick={() => setModalOuvert(true)}
-            style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 12px", fontSize: 12.5, fontFamily: "'Inter',sans-serif", cursor: "pointer", color: "var(--odj-texte2)" }}
+            style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "7px 12px", fontSize: 12.5, cursor: "pointer", color: "var(--odj-texte2)" }}
           >
             💬 {commentaires.length > 0 ? "Ajouter un commentaire" : "Commenter"}
           </button>
@@ -2272,10 +2274,10 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
       {modalOuvert && (
         <div onClick={() => setModalOuvert(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-ambre)", padding: "24px 20px 20px", maxHeight: "85vh", overflowY: "auto" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
               Commentaires — {f.nom}
             </div>
-            {f.data.chantier && <div style={{ fontSize: 13, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{f.data.chantier}</div>}
+            {f.data.chantier && <div style={{ fontSize: 13, color: "var(--odj-dim)", marginBottom: 16 }}>{f.data.chantier}</div>}
 
             {commentaires.length > 0 && (
               <div style={{ display: "grid", gap: 10, marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid var(--odj-lineFaible)" }}>
@@ -2284,7 +2286,7 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
                     <div style={{ fontSize: 11, fontWeight: 700, color: c.type === "ecart" ? "var(--odj-err)" : "var(--odj-texte2)", marginBottom: 2 }}>
                       {c.type === "ecart" ? `⚠️ Écart signalé par ${c.auteur}` : c.auteur}
                     </div>
-                    <div style={{ fontSize: 13.5, color: "var(--odj-texte)", fontFamily: "'Inter',sans-serif" }}>{c.texte}</div>
+                    <div style={{ fontSize: 13.5, color: "var(--odj-texte)" }}>{c.texte}</div>
                   </div>
                 ))}
               </div>
@@ -2294,17 +2296,17 @@ function FicheCard({ f, precedent, profil, onCommentaire }) {
               value={texteCommentaire}
               onChange={(e) => setTexteCommentaire(e.target.value)}
               placeholder="Ex. On pourrait faire ça à 3 gars, pas besoin de 4."
-              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 16 }}
+              style={{ width: "100%", minHeight: 90, padding: "10px 12px", border: "1px solid var(--odj-line)", fontSize: 14, boxSizing: "border-box", marginBottom: 16 }}
             />
             <div style={{ display: "grid", gap: 8 }}>
               <button
                 onClick={envoyerCommentaire}
                 disabled={envoiEnCours || !texteCommentaire.trim()}
-                style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteCommentaire.trim()) ? 0.6 : 1 }}
+                style={{ width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", opacity: (envoiEnCours || !texteCommentaire.trim()) ? 0.6 : 1 }}
               >
                 {envoiEnCours ? "Envoi…" : "Ajouter ce commentaire"}
               </button>
-              <button onClick={() => setModalOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+              <button onClick={() => setModalOuvert(false)} style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
                 Annuler
               </button>
             </div>
@@ -2336,7 +2338,7 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
   }, [lignes]);
 
   const hasTotaux = POSTES.some((p) => totaux[p.key] > 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   const cellule = (qte, comm, delta) => {
     if (qte === 0 && !comm) return "—";
@@ -2350,7 +2352,7 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
             </span>
           )}
         </div>
-        {comm && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{comm}</div>}
+        {comm && <div style={{ fontSize: 11, color: "var(--odj-dim)" }}>{comm}</div>}
       </div>
     );
   };
@@ -2370,7 +2372,7 @@ function VuePersonnelDetail({ fiches, date, precedents }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
@@ -2416,7 +2418,7 @@ function VueCamionsDetail({ fiches }) {
     return t;
   }, [fiches]);
 
-  const thLeft = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thLeft = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const thCenter = { ...thLeft, textAlign: "center" };
 
   return (
@@ -2433,7 +2435,7 @@ function VueCamionsDetail({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thLeft}>Contremaître</th>
@@ -2459,15 +2461,15 @@ function VueCamionsDetail({ fiches }) {
                     <td style={{ padding: "9px 12px", color: "var(--odj-dim)" }}>{l.chantier || "—"}</td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {d > 0 ? <b>{d}</b> : "—"}
-                      {drapeaux("douze") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("douze")}</div>}
+                      {drapeaux("douze") && <div style={{ fontSize: 10, color: "var(--odj-dim)" }}>{drapeaux("douze")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {e2 > 0 ? <b>{e2}</b> : "—"}
-                      {drapeaux("deux") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("deux")}</div>}
+                      {drapeaux("deux") && <div style={{ fontSize: 10, color: "var(--odj-dim)" }}>{drapeaux("deux")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                       {e3 > 0 ? <b>{e3}</b> : "—"}
-                      {drapeaux("trois") && <div style={{ fontSize: 10, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{drapeaux("trois")}</div>}
+                      {drapeaux("trois") && <div style={{ fontSize: 10, color: "var(--odj-dim)" }}>{drapeaux("trois")}</div>}
                     </td>
                     <td style={{ padding: "9px 12px", textAlign: "center", fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", fontWeight: 700 }}>{d + e2 + e3}</td>
                     <td style={{ padding: "9px 12px", color: "var(--odj-texte2)", maxWidth: 260 }}>{l.camions.notes || "—"}</td>
@@ -2518,7 +2520,7 @@ function VueMachinerieDetail({ fiches }) {
 
   const colEquip  = EQUIPEMENTS.filter((e) => lignes.some((l) => l.ajout.equipements[e.key].qte > 0 || l.retrait.equipements[e.key].qte > 0));
   const colAccess = ACCESSOIRES.filter((a) => lignes.some((l) => l.ajout.accessoires[a.key].qte > 0 || l.retrait.accessoires[a.key].qte > 0));
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
   const hasAjouts  = EQUIPEMENTS.some((e) => totauxAjout[e.key] > 0)  || ACCESSOIRES.some((a) => totauxAjout[a.key] > 0);
   const hasRetraits = EQUIPEMENTS.some((e) => totauxRetrait[e.key] > 0) || ACCESSOIRES.some((a) => totauxRetrait[a.key] > 0);
 
@@ -2527,8 +2529,8 @@ function VueMachinerieDetail({ fiches }) {
     if (qteA === 0 && qteR === 0) return "—";
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 2, alignItems: "center" }}>
-        {qteA > 0 && <div><b style={{ color: isAccess ? "var(--odj-violet)" : TONE_HEX.green }}>+{qteA}</b>{commA && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{commA}</div>}</div>}
-        {qteR > 0 && <div><b style={{ color: TONE_HEX.red }}>-{qteR}</b>{commR && <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "var(--odj-dim)" }}>{commR}</div>}</div>}
+        {qteA > 0 && <div><b style={{ color: isAccess ? "var(--odj-violet)" : TONE_HEX.green }}>+{qteA}</b>{commA && <div style={{ fontSize: 11, color: "var(--odj-dim)" }}>{commA}</div>}</div>}
+        {qteR > 0 && <div><b style={{ color: TONE_HEX.red }}>-{qteR}</b>{commR && <div style={{ fontSize: 11, color: "var(--odj-dim)" }}>{commR}</div>}</div>}
       </div>
     );
   };
@@ -2548,7 +2550,7 @@ function VueMachinerieDetail({ fiches }) {
         <div style={{ padding: 40, textAlign: "center", color: "var(--odj-dim)", border: "1px dashed var(--odj-line)", background: "var(--odj-panel)" }}>Aucune fiche soumise pour cette date pour l'instant.</div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
@@ -2610,7 +2612,7 @@ function VueDieselDetail({ fiches }) {
 
   const nbChantiersRequis = lignes.filter((l) => l.requis === "oui").length;
   const totalMachines = lignes.filter((l) => l.requis === "oui").reduce((s, l) => s + l.grosses + l.petites, 0);
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap" };
 
   return (
     <div>
@@ -2624,7 +2626,7 @@ function VueDieselDetail({ fiches }) {
         </div>
       ) : (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, fontFamily: "'Inter',sans-serif" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
             <thead>
               <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
                 <th style={thStyle}>Contremaître</th>
@@ -2806,15 +2808,15 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
     <div style={{ maxWidth: 900, margin: "0 auto", padding: isPhone ? "12px 10px 60px" : "20px 16px 60px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         <div>
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: isPhone ? 16 : 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>Ordre du jour — Planification journalière</div>
+          <div style={{ fontSize: isPhone ? 16 : 20, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>Ordre du jour — Planification journalière</div>
           <div style={{ color: "var(--odj-dim)", fontSize: 13 }}>{labelDate(date)} · {fiches.length} fiche{fiches.length !== 1 ? "s" : ""} soumise{fiches.length !== 1 ? "s" : ""}</div>
         </div>
         <div style={{ display: "flex", gap: 8, width: isPhone ? "100%" : "auto", justifyContent: isPhone ? "space-between" : "flex-start" }}>
-          <button onClick={load} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "'Inter',sans-serif" }}>
+          <button onClick={load} style={{ background: "transparent", border: "1px solid var(--odj-line)", padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
             <RefreshCw size={14} /> Actualiser
           </button>
           {boutonRequete && (
-            <button onClick={() => boutonRequete()} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: "1.5px solid var(--odj-rouge)", background: "var(--odj-rouge)", color: "#fff", cursor: "pointer" }}>
+            <button onClick={() => boutonRequete()} style={{ padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "1.5px solid var(--odj-rouge)", background: "var(--odj-rouge)", color: "#fff", cursor: "pointer" }}>
               + Nouvelle requête
             </button>
           )}
@@ -2828,32 +2830,32 @@ function Dashboard({ date, profil, boutonRequete, onOuvrirDate, scrollCible, onS
         }>
           <button
             onClick={() => setVueSpeciale(null)}
-            style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${!vueSpeciale ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueSpeciale ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueSpeciale ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}
+            style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${!vueSpeciale ? "var(--odj-accent)" : "var(--odj-line)"}`, background: !vueSpeciale ? "var(--odj-accent)" : "var(--odj-panel)", color: !vueSpeciale ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}
           >
             Vue générale
           </button>
           {(profil.accesSpecial === "personnel" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("personnel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("personnel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "personnel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "personnel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Main d'oeuvre
             </button>
           )}
           {(profil.accesSpecial === "camions" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("camions")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("camions")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "camions" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "camions" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Camions
             </button>
           )}
           {(profil.accesSpecial === "machinerie" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("machinerie")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("machinerie")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "machinerie" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "machinerie" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Machinerie
             </button>
           )}
           {(profil.accesSpecial === "machinerie" || profil.accesSpecial === "tout") && (
-            <button onClick={() => setVueSpeciale("diesel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("diesel")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "diesel" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "diesel" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Diesel (Fuel)
             </button>
           )}
           {boutonRequete && (
-            <button onClick={() => setVueSpeciale("mesrequetes")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, fontFamily: "'Inter',sans-serif", border: `1.5px solid ${vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "mesrequetes" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
+            <button onClick={() => setVueSpeciale("mesrequetes")} style={{ padding: isPhone ? "8px 4px" : "8px 14px", fontSize: isPhone ? 12 : 13, fontWeight: 600, border: `1.5px solid ${vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-line)"}`, background: vueSpeciale === "mesrequetes" ? "var(--odj-accent)" : "var(--odj-panel)", color: vueSpeciale === "mesrequetes" ? "#fff" : "var(--odj-texte)", cursor: "pointer", textAlign: "center" }}>
               Mes requêtes
             </button>
           )}
@@ -2997,35 +2999,35 @@ function NotificationsPushPage({ profil, onRetour }) {
   return (
     <div style={{ background: "var(--odj-bg)", minHeight: "100vh" }}>
       <div style={{ maxWidth: 560, margin: "0 auto", padding: "20px 16px 60px" }}>
-        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0 }}>
           ← Retour
         </button>
 
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: "32px 24px", textAlign: "center" }}>
           <Bell size={40} color="#0F2138" style={{ marginBottom: 16 }} />
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
             Notification PUSH
           </div>
 
           {etat === "non-supporte" && (
-            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)" }}>
               Les notifications push ne sont pas disponibles sur cet appareil ou ce navigateur.
               {" "}Sur iPhone, assure-toi d'avoir ajouté l'app à l'écran d'accueil.
             </div>
           )}
 
           {etat === "verification" && (
-            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)" }}>Vérification…</div>
           )}
 
           {etat === "actif" && (
             <>
-              <div style={{ fontSize: 14, color: "var(--odj-ok)", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: 600 }}>
+              <div style={{ fontSize: 14, color: "var(--odj-ok)", marginBottom: 20, fontWeight: 600 }}>
                 ✓ Les notifications push sont activées sur cet appareil.
               </div>
               <button
                 onClick={desactiver}
-                style={{ background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer" }}
+                style={{ background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer" }}
               >
                 Désactiver
               </button>
@@ -3034,13 +3036,13 @@ function NotificationsPushPage({ profil, onRetour }) {
 
           {(etat === "inactif" || etat === "en-cours") && (
             <>
-              <div style={{ fontSize: 14, color: "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", marginBottom: 20 }}>
+              <div style={{ fontSize: 14, color: "var(--odj-texte2)", marginBottom: 20 }}>
                 Voulez-vous recevoir des notifications push sur cet appareil pour les nouvelles requêtes et les commentaires?
               </div>
               <button
                 onClick={activer}
                 disabled={etat === "en-cours"}
-                style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etat === "en-cours" ? 0.6 : 1 }}
+                style={{ background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etat === "en-cours" ? 0.6 : 1 }}
               >
                 {etat === "en-cours" ? "…" : "Oui"}
               </button>
@@ -3050,17 +3052,17 @@ function NotificationsPushPage({ profil, onRetour }) {
 
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: "32px 24px", textAlign: "center", marginTop: 16 }}>
           <Mail size={40} color="#0F2138" style={{ marginBottom: 16 }} />
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 20, color: "var(--odj-texte)", marginBottom: 8 }}>
             Notification par courriel
           </div>
 
           {etatCourriel === "verification" && (
-            <div style={{ fontSize: 14, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>Vérification…</div>
+            <div style={{ fontSize: 14, color: "var(--odj-dim)" }}>Vérification…</div>
           )}
 
           {etatCourriel !== "verification" && (
             <>
-              <div style={{ fontSize: 14, color: etatCourriel === "actif" ? "var(--odj-ok)" : "var(--odj-texte2)", fontFamily: "'Inter',sans-serif", marginBottom: 20, fontWeight: etatCourriel === "actif" ? 600 : 400 }}>
+              <div style={{ fontSize: 14, color: etatCourriel === "actif" ? "var(--odj-ok)" : "var(--odj-texte2)", marginBottom: 20, fontWeight: etatCourriel === "actif" ? 600 : 400 }}>
                 {etatCourriel === "actif"
                   ? "✓ Les notifications par courriel sont activées pour toi."
                   : "Les notifications par courriel sont désactivées pour toi."}
@@ -3070,8 +3072,8 @@ function NotificationsPushPage({ profil, onRetour }) {
                 disabled={etatCourriel === "en-cours"}
                 style={
                   etatCourriel === "actif"
-                    ? { background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
-                    : { background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
+                    ? { background: "var(--odj-panel)", color: "var(--odj-err)", border: "1.5px solid var(--odj-err)", padding: "12px 20px", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
+                    : { background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px 28px", fontWeight: 600, fontSize: 14, letterSpacing: "0.03em", textTransform: "uppercase", cursor: "pointer", opacity: etatCourriel === "en-cours" ? 0.6 : 1 }
                 }
               >
                 {etatCourriel === "en-cours" ? "…" : etatCourriel === "actif" ? "Désactiver" : "Activer"}
@@ -3095,8 +3097,8 @@ function InfoGenerale({ section, onRetour }) {
     )
   );
 
-  const thStyle = { textAlign: "left", padding: "9px 12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap", background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" };
-  const tdStyle = { padding: "9px 12px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)", verticalAlign: "top", borderBottom: "1px solid var(--odj-lineFaible)" };
+  const thStyle = { textAlign: "left", padding: "9px 12px", fontWeight: 600, fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.03em", color: "var(--odj-texte2)", whiteSpace: "nowrap", background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" };
+  const tdStyle = { padding: "9px 12px", fontSize: 13, color: "var(--odj-texte)", verticalAlign: "top", borderBottom: "1px solid var(--odj-lineFaible)" };
 
   return (
     <div style={{ background: "var(--odj-bg)", minHeight: "100vh" }}>
@@ -3105,21 +3107,21 @@ function InfoGenerale({ section, onRetour }) {
       {contactOuvert && (
         <div onClick={() => setContactOuvert(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--odj-panel)", width: "100%", maxWidth: 480, borderTop: "3px solid var(--odj-accent)", padding: "24px 20px 36px" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
+            <div style={{ fontWeight: 700, fontSize: 17, color: "var(--odj-accent)", marginBottom: 2 }}>
               {contactOuvert.numero ? `${contactOuvert.numero} — ${contactOuvert.nom}` : contactOuvert.nom}
             </div>
-            {contactOuvert.titre && <div style={{ fontSize: 13, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 16 }}>{contactOuvert.titre}</div>}
+            {contactOuvert.titre && <div style={{ fontSize: 13, color: "var(--odj-dim)", marginBottom: 16 }}>{contactOuvert.titre}</div>}
             {contactOuvert.numero ? (
               <>
-                <div style={{ fontSize: 11, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 12 }}>{contactOuvert.adresse}</div>
+                <div style={{ fontSize: 11, color: "var(--odj-dim)", marginBottom: 12 }}>{contactOuvert.adresse}</div>
                 <div style={{ display: "grid", gap: 12, marginBottom: 4 }}>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Chargé de projet</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.charge ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.charge || "—"}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 2 }}>Chargé de projet</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: contactOuvert.charge ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.charge || "—"}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Surintendant</div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "'Inter',sans-serif", color: contactOuvert.surintendant ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.surintendant || "—"}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 2 }}>Surintendant</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: contactOuvert.surintendant ? "var(--odj-texte)" : "var(--odj-dim)" }}>{contactOuvert.surintendant || "—"}</div>
                   </div>
                 </div>
               </>
@@ -3127,44 +3129,44 @@ function InfoGenerale({ section, onRetour }) {
               <div style={{ display: "grid", gap: 12, marginBottom: 4 }}>
                 {contactOuvert.cell && contactOuvert.cell !== "N/A" && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Cellulaire</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 2 }}>Cellulaire</div>
                     <a href={`tel:${contactOuvert.cell}`} style={{ fontSize: 16, fontWeight: 600, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "var(--odj-accent)", textDecoration: "none" }}>{contactOuvert.cell}</a>
                   </div>
                 )}
                 {contactOuvert.poste && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Poste</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 2 }}>Poste</div>
                     <div style={{ fontSize: 15, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", color: "var(--odj-texte2)" }}>450-661-5050 p.{contactOuvert.poste}</div>
                   </div>
                 )}
                 {contactOuvert.courriel && (
                   <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", marginBottom: 2 }}>Courriel</div>
-                    <a href={`mailto:${contactOuvert.courriel}`} style={{ fontSize: 14, fontFamily: "'Inter',sans-serif", color: "var(--odj-lien)", textDecoration: "none" }}>{contactOuvert.courriel}</a>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-dim)", marginBottom: 2 }}>Courriel</div>
+                    <a href={`mailto:${contactOuvert.courriel}`} style={{ fontSize: 14, color: "var(--odj-lien)", textDecoration: "none" }}>{contactOuvert.courriel}</a>
                   </div>
                 )}
               </div>
             )}
-            <button onClick={() => setContactOuvert(null)} style={{ marginTop: 20, width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
+            <button onClick={() => setContactOuvert(null)} style={{ marginTop: 20, width: "100%", background: "var(--odj-navy)", color: "#fff", border: "none", padding: "12px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
               Fermer
             </button>
           </div>
         </div>
       )}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: isPhone ? "12px 12px 60px" : "20px 16px 60px" }}>
-        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0, fontFamily: "'Inter',sans-serif" }}>
+        <button onClick={onRetour} style={{ background: "transparent", border: "none", color: "var(--odj-accent)", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: 0 }}>
           ← Retour
         </button>
 
         {section === "projets" && (
           <>
             <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-              <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, textTransform: "uppercase" }}>Projets en cours</div>
+              <div style={{ fontWeight: 700, fontSize: 20, textTransform: "uppercase" }}>Projets en cours</div>
               <input
                 placeholder="Rechercher…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "var(--odj-panel)" }}
+                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, minWidth: 200, background: "var(--odj-panel)" }}
               />
             </div>
 
@@ -3211,23 +3213,23 @@ function InfoGenerale({ section, onRetour }) {
                 </tbody>
               </table>
             </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif" }}>{projetsFiltres.length} projet{projetsFiltres.length !== 1 ? "s" : ""}</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "var(--odj-dim)" }}>{projetsFiltres.length} projet{projetsFiltres.length !== 1 ? "s" : ""}</div>
           </>
         )}
 
         {section === "contacts" && (
           <>
             <div style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-              <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 20, textTransform: "uppercase" }}>Liste contacts</div>
+              <div style={{ fontWeight: 700, fontSize: 20, textTransform: "uppercase" }}>Liste contacts</div>
               <input
                 placeholder="Rechercher…"
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
-                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, fontFamily: "'Inter',sans-serif", minWidth: 200, background: "var(--odj-panel)" }}
+                style={{ padding: "7px 12px", border: "1px solid var(--odj-line)", fontSize: 13, minWidth: 200, background: "var(--odj-panel)" }}
               />
             </div>
 
-            <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "3px solid var(--odj-ambre)", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-avisTexte)" }}>
+            <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--odj-avisBg)", border: "1px solid var(--odj-ambre)", borderLeft: "3px solid var(--odj-ambre)", fontSize: 13, color: "var(--odj-avisTexte)" }}>
               📞 Tout numéro indiqué avec un poste est accessible via le numéro principal : <b>450-661-5050</b> + le numéro de poste
             </div>
             {[
@@ -3312,7 +3314,7 @@ function InfoGenerale({ section, onRetour }) {
               if (membres.length === 0) return null;
               return (
                 <div key={groupe.dept} style={{ marginBottom: 20 }}>
-                  <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-accent)", background: "var(--odj-surligne)", padding: "8px 14px", marginBottom: 0, borderLeft: "3px solid var(--odj-rouge)" }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--odj-accent)", background: "var(--odj-surligne)", padding: "8px 14px", marginBottom: 0, borderLeft: "3px solid var(--odj-rouge)" }}>
                     {groupe.dept}
                   </div>
                   <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", borderTop: "none", overflowX: isPhone ? "visible" : "auto" }}>
@@ -3326,18 +3328,18 @@ function InfoGenerale({ section, onRetour }) {
                       </colgroup>
                       <thead>
                         <tr style={{ background: "var(--odj-panelAlt)", borderBottom: "1px solid var(--odj-line)" }}>
-                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Nom</th>
-                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Titre</th>}
-                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Cellulaire</th>
-                          {isPhone && <th style={{ padding: "7px 14px", textAlign: "center", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Info</th>}
-                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontFamily: "'Oswald',sans-serif", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Courriel</th>}
+                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Nom</th>
+                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Titre</th>}
+                          <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Cellulaire</th>
+                          {isPhone && <th style={{ padding: "7px 14px", textAlign: "center", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Info</th>}
+                          {!isPhone && <th style={{ padding: "7px 14px", textAlign: "left", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--odj-dim)" }}>Courriel</th>}
                         </tr>
                       </thead>
                       <tbody>
                         {membres.map((m, i) => (
                           <tr key={m.nom} style={{ borderBottom: i < membres.length - 1 ? "1px solid var(--odj-lineFaible)" : "none", background: i % 2 === 0 ? "var(--odj-panel)" : "var(--odj-panelAlt)" }}>
-                            <td style={{ padding: "9px 14px", fontWeight: 600, fontSize: 13.5, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.nom}</td>
-                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 13, fontFamily: "'Inter',sans-serif", color: "var(--odj-texte2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.titre}</td>}
+                            <td style={{ padding: "9px 14px", fontWeight: 600, fontSize: 13.5, color: "var(--odj-texte)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.nom}</td>
+                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 13, color: "var(--odj-texte2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.titre}</td>}
                             <td style={{ padding: "9px 14px", fontSize: 13, fontFamily: "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace" }}>
                               {m.cell && m.cell !== "N/A" ? (
                                 <a href={`tel:${m.cell}`} style={{ color: "var(--odj-accent)", textDecoration: "none", fontWeight: 600 }}>{m.cell}</a>
@@ -3355,7 +3357,7 @@ function InfoGenerale({ section, onRetour }) {
                                 </button>
                               </td>
                             )}
-                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 12.5, fontFamily: "'Inter',sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {!isPhone && <td style={{ padding: "9px 14px", fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {m.courriel ? <a href={`mailto:${m.courriel}`} style={{ color: "var(--odj-lien)", textDecoration: "none" }}>{m.courriel}</a> : "—"}
                             </td>}
                           </tr>
@@ -3383,7 +3385,7 @@ function SelecteurApercu({ apercu, onChange }) {
   const optionActuelle = OPTIONS_APERCU.find((o) => o.role === apercu?.role && o.accesSpecial === apercu?.accesSpecial);
 
   return (
-    <div style={{ position: "fixed", bottom: 14, right: 14, zIndex: 2000, fontFamily: "'Inter',sans-serif" }}>
+    <div style={{ position: "fixed", bottom: 14, right: 14, zIndex: 2000 }}>
       {ouvert && (
         <div style={{ background: "var(--odj-panel)", border: "1px solid var(--odj-line)", boxShadow: "0 2px 10px rgba(0,0,0,0.15)", marginBottom: 8, width: 240 }}>
           <div style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--odj-dim)", borderBottom: "1px solid var(--odj-lineFaible)" }}>
@@ -3467,8 +3469,8 @@ function AppInner({ session, mode, onChangerMode }) {
   if (profilManquant) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div style={{ maxWidth: 460, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24, fontFamily: "'Inter',sans-serif" }}>
-          <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
+        <div style={{ maxWidth: 460, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
             Fiche manquante
           </div>
           <div style={{ fontSize: 14.5, color: "var(--odj-texte2)", lineHeight: 1.6, marginBottom: 18 }}>
@@ -3486,7 +3488,7 @@ function AppInner({ session, mode, onChangerMode }) {
 
   if (!profil) {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--odj-dim)", fontFamily: "'Inter',sans-serif", fontSize: 14 }}>
+      <div style={{ minHeight: "100vh", background: "var(--odj-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--odj-dim)", fontSize: 14 }}>
         Chargement du profil\u2026
       </div>
     );
@@ -3572,8 +3574,8 @@ function AppInner({ session, mode, onChangerMode }) {
       {profil.peutPrevisualiser && <SelecteurApercu apercu={apercu} onChange={setApercu} />}
       {confirmNouvelle && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,33,56,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
-          <div style={{ width: "100%", maxWidth: 420, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24, fontFamily: "'Inter',sans-serif" }}>
-            <div style={{ fontFamily: "'Oswald',sans-serif", fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
+          <div style={{ width: "100%", maxWidth: 420, background: "var(--odj-panel)", border: "1px solid var(--odj-line)", padding: 24 }}>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "var(--odj-texte)", marginBottom: 10 }}>
               Demande déjà soumise
             </div>
             <div style={{ fontSize: 14.5, color: "var(--odj-texte2)", marginBottom: 20, lineHeight: 1.5 }}>
@@ -3582,13 +3584,13 @@ function AppInner({ session, mode, onChangerMode }) {
             <div style={{ display: "grid", gap: 10 }}>
               <button
                 onClick={soumettreDeuxiemeDemande}
-                style={{ width: "100%", background: "var(--odj-rouge)", color: "#fff", border: "none", padding: "13px", fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
+                style={{ width: "100%", background: "var(--odj-rouge)", color: "#fff", border: "none", padding: "13px", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}
               >
                 Soumettre une deuxième demande
               </button>
               <button
                 onClick={() => setConfirmNouvelle(null)}
-                style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
+                style={{ width: "100%", background: "transparent", color: "var(--odj-dim)", border: "none", padding: "8px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}
               >
                 Annuler
               </button>

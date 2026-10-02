@@ -21,10 +21,14 @@ const BLAGUES_3 = [
   'Deuxième, mais premier dans nos cœurs',
   "La bronze, c'est presque de l'or vu de loin",
 ];
-const BLAGUES_RESTE = [
-  'Solide. La Terre a tremblé (un peu).',
-  'Encore un petit effort et le podium te tend les bras.',
-];
+// Rang 4 et plus bas : une seule phrase, la meme pour tout le monde.
+const BLAGUE_RESTE = "L'important c'est de participer!";
+// Et, peu importe le rang, la phrase de ceux qui affichent encore 0 min.
+const BLAGUE_ZERO = 'Un mot, décevant.';
+// Vrai quand la personne affiche « 0 min ». On se fie au texte affiche
+// plutot que de redupliquer l'arrondi de formatDuree() : ce que la phrase
+// commente, c'est le temps que l'utilisateur voit a l'ecran.
+const estAZero = (r) => r.totalFormate === '0 min';
 
 async function fetchJson(url, accessToken, options = {}) {
   const res = await fetch(url, {
@@ -703,7 +707,7 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin, courriel }) 
                           <span className="medaille">{MEDAILLES[r.rang]}</span>
                           <div className="nom-p">{r.nom}</div>
                           <div className="temps-p">{r.totalFormate}</div>
-                          <div className="blague">{BLAGUES_3[i]}</div>
+                          <div className="blague">{estAZero(r) ? BLAGUE_ZERO : BLAGUES_3[i]}</div>
                         </div>
                         <div className={`marche-bloc bloc-${r.rang}`} />
                       </div>
@@ -714,11 +718,11 @@ function DefiStravaApp({ nom, participantId, accessToken, estAdmin, courriel }) 
                       <p style={{ padding: '10px 0', color: 'var(--text-dim)', fontSize: 12.5 }}>
                         Pas assez de participants pour le reste du classement.
                       </p>
-                    ) : classementMois.slice(3).map((r, i) => (
+                    ) : classementMois.slice(3).map((r) => (
                       <div key={r.nom} className="reste-ligne">
                         <div className="reste-rang">#{r.rang}</div>
                         <div className="reste-nom">
-                          {r.nom} <span className="reste-blague">— {BLAGUES_RESTE[i] || "On t'aime pareil."}</span>
+                          {r.nom} <span className="reste-blague">— {estAZero(r) ? BLAGUE_ZERO : BLAGUE_RESTE}</span>
                         </div>
                         <div className="reste-temps">{r.totalFormate}</div>
                       </div>

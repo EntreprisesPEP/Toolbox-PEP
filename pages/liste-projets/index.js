@@ -26,7 +26,7 @@ const LOGO_PEP = '/_static/planification-hebdomadaire/logo-pep.png';
 
 function Center({ pal, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: pal.bg, color: pal.text }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, background: pal.bg, color: pal.text }}>
       {children}
     </div>
   );
@@ -496,7 +496,7 @@ function ListeProjets({ userId, nom, poste }) {
   if (loading) return <Center pal={pal}><Spinner pal={pal} /><p>Chargement...</p></Center>;
 
   return (
-    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: pal.bg, minHeight: '100vh', color: pal.text }}>
+    <div style={{ background: pal.bg, minHeight: '100vh', color: pal.text }}>
       <Head><title>Liste des projets - Toolbox PEP</title></Head>
 
       {/* Revision 60 — LE BANDEAU NE RESTE PLUS FIGÉ.
@@ -802,7 +802,7 @@ export default function Page() {
 function Overlay({ pal, children, width = 460 }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,33,56,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: width, background: pal.panel, color: pal.text, borderRadius: 8, padding: 24, fontFamily: 'Calibri, sans-serif', maxHeight: '90vh', overflowY: 'auto', boxShadow: pal.ombre }}>
+      <div style={{ width: '100%', maxWidth: width, background: pal.panel, color: pal.text, borderRadius: 8, padding: 24, maxHeight: '90vh', overflowY: 'auto', boxShadow: pal.ombre }}>
         {children}
       </div>
     </div>

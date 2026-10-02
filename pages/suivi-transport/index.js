@@ -290,7 +290,6 @@ function Metrique({ th, label, valeur, surligne }) {
       <div style={{
         fontSize: 21, fontWeight: 700,
         color: surligne ? '#fff' : th.text,
-        fontFamily: "Oswald, 'Arial Narrow', sans-serif",
       }}>
         {valeur}
       </div>
@@ -479,7 +478,7 @@ function GrilleJour({
       }}>
         <h2 style={{
           fontSize: 15, margin: '0 0 6px', textTransform: 'uppercase',
-          letterSpacing: 0.5, fontFamily: "Oswald, 'Arial Narrow', sans-serif",
+          letterSpacing: 0.5,
         }}>
           Voyages par camion
         </h2>
@@ -600,7 +599,6 @@ function GrilleJour({
           background: enregistrement ? th.textDim : BRAND_RED, color: '#fff', border: 'none',
           padding: '13px 26px', borderRadius: 4, cursor: enregistrement ? 'default' : 'pointer',
           fontSize: 14, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-          fontFamily: "Oswald, 'Arial Narrow', sans-serif",
           display: 'inline-flex', alignItems: 'center', gap: 9,
         }}>
           <CheckCircle2 size={17} />
@@ -631,7 +629,7 @@ function ResumeJour({ th, resume, params, dateEffet }) {
     }}>
       <h2 style={{
         fontSize: 15, margin: '0 0 14px', textTransform: 'uppercase',
-        letterSpacing: 0.5, fontFamily: "Oswald, 'Arial Narrow', sans-serif",
+        letterSpacing: 0.5,
       }}>
         Résumé de fin de journée
       </h2>
@@ -714,7 +712,6 @@ function VueSemaine({ th, mode, journees, lignesTaux, onOuvrir, onInfo }) {
       }}>
         <h2 style={{
           fontSize: 15, margin: 0, textTransform: 'uppercase', letterSpacing: 0.5,
-          fontFamily: "Oswald, 'Arial Narrow', sans-serif",
         }}>
           Vue hebdomadaire
         </h2>
@@ -879,7 +876,7 @@ function VueAnalyse({ th, mode, journees, lignesTaux, projets, objectifs, onMajO
       }}>
         <h2 style={{
           fontSize: 15, margin: '0 0 14px', textTransform: 'uppercase',
-          letterSpacing: 0.5, fontFamily: "Oswald, 'Arial Narrow', sans-serif",
+          letterSpacing: 0.5,
         }}>
           Analyse de données
         </h2>
@@ -939,7 +936,7 @@ function VueAnalyse({ th, mode, journees, lignesTaux, projets, objectifs, onMajO
         }}>
           <h2 style={{
             fontSize: 15, margin: '0 0 4px', textTransform: 'uppercase',
-            letterSpacing: 0.5, fontFamily: "Oswald, 'Arial Narrow', sans-serif",
+            letterSpacing: 0.5,
           }}>
             Objectifs — {projetFiltre}{infoProjet ? ` · ${infoProjet.nom}` : ''}
           </h2>
@@ -1164,7 +1161,7 @@ function VueAdmin({ th, mode, lignesTaux, onAjouterVersion, onMajTaux, onSupprim
     }}>
       <h2 style={{
         fontSize: 15, margin: '0 0 6px', textTransform: 'uppercase',
-        letterSpacing: 0.5, fontFamily: "Oswald, 'Arial Narrow', sans-serif",
+        letterSpacing: 0.5,
       }}>
         Taux par date d'entrée en vigueur
       </h2>
@@ -1482,7 +1479,6 @@ function SuiviTransportApp({ userId, nom, poste, estAdmin }) {
       <div style={{
         minHeight: '100vh', background: th.bg, color: th.text,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
       }}>
         <div style={{ color: th.textDim, fontSize: 13 }}>Chargement…</div>
       </div>
@@ -1494,7 +1490,6 @@ function SuiviTransportApp({ userId, nom, poste, estAdmin }) {
       <div style={{
         minHeight: '100vh', background: th.bg, color: th.text,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
       }}>
         <div style={{ color: BRAND_RED, fontSize: 13, textAlign: 'center' }}>{erreurChargement}</div>
       </div>
@@ -1505,7 +1500,6 @@ function SuiviTransportApp({ userId, nom, poste, estAdmin }) {
     <div style={{
       minHeight: '100vh',
       background: th.bg,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
       color: th.text,
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>

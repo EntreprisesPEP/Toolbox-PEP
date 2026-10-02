@@ -7,7 +7,6 @@ export default function Custom404() {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100vh',
-        fontFamily: 'Calibri, sans-serif',
         color: '#14213D',
         background: '#f2f2f2',
         textAlign: 'center',

@@ -431,8 +431,7 @@ function CreationExtraApp({ nom, poste }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: th.bg, color: th.text,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: th.bg, color: th.text }}>
       <EnTeteApp
         titre="Création d'un extra"
         sousTitre="Frais additionnels — main-d'œuvre, matériaux, sous-traitants"

@@ -8,6 +8,11 @@
 // Pour ajouter une nouvelle app Next.js ici plus tard: creer son propre
 // prefixe de scope (.xxx-scope), scoper son CSS avec ce prefixe, puis
 // ajouter l'import ci-dessous.
+//
+// commun.css vient EN PREMIER : il porte la police unique de tout le site
+// (revision 61). Les feuilles d'app chargees apres peuvent donc encore
+// surcharger un cas particulier, mais aucune ne doit redeclarer de police.
+import '../styles/commun.css';
 import '../styles/planification-hebdomadaire.css';
 import '../styles/defi-strava.css';
 

@@ -16,7 +16,7 @@ const APP_SLUG = "defi-strava";
 
 const CHAMP_STYLE = {
   width: "100%", padding: "11px 12px", border: "1px solid #D7DBE0", fontSize: 15,
-  fontFamily: "'Inter',sans-serif", boxSizing: "border-box", marginBottom: 14,
+  boxSizing: "border-box", marginBottom: 14,
 };
 const LABEL_STYLE = {
   display: "block", fontSize: 12, fontWeight: 600, color: "#15181B", marginBottom: 6,
@@ -24,7 +24,7 @@ const LABEL_STYLE = {
 };
 const BOUTON_PRINCIPAL = {
   width: "100%", background: "#fc4c02", color: "#fff", border: "none", padding: "13px",
-  fontFamily: "'Oswald',sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em",
+  fontWeight: 600, fontSize: 14, letterSpacing: "0.04em",
   textTransform: "uppercase", cursor: "pointer",
 };
 const LIEN_DISCRET = {
@@ -34,12 +34,12 @@ const LIEN_DISCRET = {
 
 function Cadre({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: "#EDEFF1", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 420, background: "#fff", border: "1px solid #D7DBE0", boxShadow: "0 1px 0 #D7DBE0" }}>
         <div style={{ background: "#0F2138", padding: "22px 24px", borderTop: "4px solid #fc4c02", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <div style={{ color: "#AEC0F5", fontFamily: "'Oswald',sans-serif", fontSize: 12, letterSpacing: "0.14em", fontWeight: 600 }}>LES ENTREPRISES</div>
-            <div style={{ color: "#fff", fontFamily: "'Oswald',sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: "0.02em" }}>PEP2000 INC.</div>
+            <div style={{ color: "#AEC0F5", fontSize: 12, letterSpacing: "0.14em", fontWeight: 600 }}>LES ENTREPRISES</div>
+            <div style={{ color: "#fff", fontSize: 26, fontWeight: 700, letterSpacing: "0.02em" }}>PEP2000 INC.</div>
             <div style={{ color: "#B9C2CC", fontSize: 13, marginTop: 2 }}>Défi Strava</div>
             <a href="/" style={{ color: "#AEC0F5", fontSize: 12, textDecoration: "underline", marginTop: 6, display: "inline-block" }}>→ Retour au Toolbox PEP</a>
           </div>

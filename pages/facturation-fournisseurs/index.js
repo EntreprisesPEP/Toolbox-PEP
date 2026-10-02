@@ -34,7 +34,7 @@ const ETAPES = [
 function Center({ children }) {
   const pal = usePalette();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12 }}>
       {children}
     </div>
   );
@@ -230,7 +230,7 @@ function FacturationFournisseurs({ userId, nom, poste, mode, onChangerMode }) {
   if (loading) return <Center><Spinner /><div>Chargement…</div></Center>;
 
   return (
-    <div style={{ minHeight: '100vh', background: pal.bg, fontFamily: 'Calibri, sans-serif', color: pal.text }}>
+    <div style={{ minHeight: '100vh', background: pal.bg, color: pal.text }}>
       <Head><title>Validation factures de fournisseurs — Toolbox PEP</title></Head>
 
       <EnTeteApp

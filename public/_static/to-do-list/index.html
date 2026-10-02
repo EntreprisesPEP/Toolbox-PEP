@@ -10,7 +10,16 @@
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js"></script>
 <style>
+  /* Les champs de formulaire et les boutons n'heritent pas de la police de
+     la page : le navigateur leur impose la sienne (Arial). Sans cette regle,
+     le bouton « Se connecter » de l'accueil restait dans une autre ecriture
+     que tout le reste. Trouve en verifiant la revision 61. */
+  input, textarea, select, button { font-family: var(--police-toolbox); }
   :root{
+    /* Police unique de tout le site (revision 61). Cette page est
+       statique : elle ne recoit pas styles/commun.css, donc elle porte
+       sa propre copie de la declaration. */
+    --police-toolbox: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
     --bg: #10192e;
     --bg-panel: #182238;
     --line: #2c3752;
@@ -68,7 +77,7 @@
     margin:0;padding:0;
     background:var(--bg);
     color:var(--text-primary);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     min-height:100vh;
     transition:background 0.2s ease, color 0.2s ease;
   }
@@ -113,7 +122,7 @@
     flex-shrink:0;
   }
   .titleblock h1{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-weight:700;
     letter-spacing:0.5px;
     font-size:23px;
@@ -128,7 +137,7 @@
   }
   .ticket-no-line, .ticket-meta-right{
     text-align:right;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:12px;
     color:#9aa5c0;
     line-height:1.5;
@@ -141,7 +150,7 @@
     background:none;
     border:none;
     color:#4a7cf6;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     text-decoration:underline;
     cursor:pointer;
@@ -160,7 +169,7 @@
     margin-bottom:16px;
   }
   .form-panel .label{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:10px;
     letter-spacing:1px;
     text-transform:uppercase;
@@ -184,7 +193,7 @@
     color:var(--text-primary);
     padding:8px 10px;
     border-radius:var(--radius);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:13.5px;
     height:36px;
   }
@@ -267,7 +276,7 @@
     background:transparent;
     border:none;
     color:#9aa5c0;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:10.5px;
     letter-spacing:0.5px;
     text-transform:uppercase;
@@ -290,7 +299,7 @@
     background:var(--urgent);
     color:#ffffff;
     border:none;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-weight:600;
     text-transform:uppercase;
     letter-spacing:0.5px;
@@ -314,7 +323,7 @@
     align-items:center;
   }
   .chip{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     padding:5px 12px;
     border-radius:20px;
@@ -341,7 +350,7 @@
   .chip[data-pf="low"].active{ background:var(--low); color:#14213d; border-color:var(--low); }
   .filters-spacer{flex:1;}
   .toggle-done{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     color:var(--text-dim);
     display:flex;
@@ -353,7 +362,7 @@
 
   /* SECTIONS */
   .section-title{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:13px;
     letter-spacing:1.5px;
     text-transform:uppercase;
@@ -564,7 +573,7 @@
     color:var(--ink);
     padding:8px 10px;
     border-radius:var(--radius);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:13px;
     resize:vertical;
   }
@@ -580,7 +589,7 @@
     font-size:11px;
   }
   .tag{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:9.5px;
     color:var(--ink-soft);
     background:var(--paper-2);
@@ -614,7 +623,7 @@
     opacity:0.65;
   }
   .tag-edit-select, .tag-edit-date{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:10.5px;
     padding:1px 4px;
     border-radius:8px;
@@ -649,7 +658,7 @@
   .loading{
     text-align:center;
     color:var(--text-dim);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:12px;
     padding:40px 0;
   }
@@ -710,7 +719,7 @@
     background:var(--bg);
   }
   .proj-dropdown-item .pdnum{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     color:var(--normal);
     flex-shrink:0;
   }
@@ -730,7 +739,7 @@
   .project-lookup{
     flex:1;
     min-width:140px;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:12.5px;
     color:var(--text-dim);
     padding-bottom:10px;
@@ -741,7 +750,7 @@
     background:transparent;
     border:1px solid var(--line);
     color:var(--text-dim);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     padding:9px 12px;
     border-radius:var(--radius);
@@ -761,7 +770,7 @@
   .app-footer{
     text-align:center;
     margin-top:36px;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     letter-spacing:1px;
     text-transform:uppercase;
@@ -799,7 +808,7 @@
     margin-bottom:14px;
   }
   .modal-header h2{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:17px;
     text-transform:uppercase;
     letter-spacing:0.5px;
@@ -826,7 +835,7 @@
     background:transparent;
     border:1px solid var(--normal);
     color:var(--normal);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     text-transform:uppercase;
     letter-spacing:0.5px;
@@ -841,7 +850,7 @@
     color:var(--text-dim);
   }
   .csv-import-msg{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11.5px;
     color:var(--normal);
     margin-bottom:12px;
@@ -872,7 +881,7 @@
     padding:8px 10px;
   }
   .proj-row .pnum{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:12px;
     color:var(--normal);
     flex-shrink:0;
@@ -893,7 +902,7 @@
     margin-bottom:8px;
   }
   .proj-count{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     color:var(--text-dim);
   }
@@ -901,7 +910,7 @@
     background:none;
     border:none;
     color:var(--overdue);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     text-decoration:underline;
     cursor:pointer;
@@ -932,7 +941,7 @@
     margin:0 0 8px;
   }
   #deleteConfirmInput{
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     letter-spacing:1px;
   }
   .delete-modal-actions{
@@ -945,7 +954,7 @@
     background:transparent;
     border:1px solid var(--line);
     color:var(--text-dim);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:12px;
     padding:9px 16px;
     border-radius:var(--radius);
@@ -957,7 +966,7 @@
     background:var(--overdue);
     color:#fff;
     border:none;
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-weight:600;
     text-transform:uppercase;
     letter-spacing:0.5px;
@@ -1120,7 +1129,7 @@
   color:var(--text-primary);
   padding:0 10px;
   border-radius:var(--radius);
-  font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+  font-family:var(--police-toolbox);
   font-size:12.5px;
   height:34px;
 }
@@ -1145,7 +1154,7 @@
   color:var(--text-primary);
   padding:7px 10px 7px 28px;
   border-radius:var(--radius);
-  font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+  font-family:var(--police-toolbox);
   font-size:12.5px;
   height:34px;
   box-sizing:border-box;
@@ -1263,7 +1272,7 @@
     color:var(--text-primary);
     padding:0 6px;
     border-radius:var(--radius);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:11px;
     height:32px;
   }
@@ -1303,7 +1312,7 @@
 </head>
 <body>
 <div class="top-bar"></div>
-<div id="pepGarde" style="min-height:100vh; background:#edeff1; display:flex; align-items:center; justify-content:center; padding:20px; font-family:Calibri,'Segoe UI',Arial,sans-serif;">
+<div id="pepGarde" style="min-height:100vh; background:#edeff1; display:flex; align-items:center; justify-content:center; padding:20px; font-family:var(--police-toolbox);">
   <div style="width:100%; max-width:460px; background:#fff; border:1px solid #d7dbe0;">
     <div style="height:4px; background:#e4022e;"></div>
     <div style="background:#0f2138; padding:20px 24px;">

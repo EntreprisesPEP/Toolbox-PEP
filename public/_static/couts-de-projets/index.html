@@ -11,7 +11,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.1/jspdf.plugin.autotable.min.js"></script>
 <style>
+  /* Les champs de formulaire et les boutons n'heritent pas de la police de
+     la page : le navigateur leur impose la sienne (Arial). Sans cette regle,
+     le bouton « Se connecter » de l'accueil restait dans une autre ecriture
+     que tout le reste. Trouve en verifiant la revision 61. */
+  input, textarea, select, button { font-family: var(--police-toolbox); }
   :root{
+    /* Police unique de tout le site (revision 61). Cette page est
+       statique : elle ne recoit pas styles/commun.css, donc elle porte
+       sa propre copie de la declaration. */
+    --police-toolbox: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
     --navy-900:#0d1930;
     --navy-800:#14213d;
     --navy-700:#1e2f52;
@@ -87,7 +96,7 @@
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    font-family:var(--police-toolbox);
     font-size:14px;
   }
   header{
@@ -361,7 +370,7 @@
 </div>
 <main id="main"></main>
 
-<div id="pepGarde" style="min-height:100vh; background:#edeff1; display:flex; align-items:center; justify-content:center; padding:20px; font-family:Calibri,'Segoe UI',Arial,sans-serif;">
+<div id="pepGarde" style="min-height:100vh; background:#edeff1; display:flex; align-items:center; justify-content:center; padding:20px; font-family:var(--police-toolbox);">
   <div style="width:100%; max-width:460px; background:#fff; border:1px solid #d7dbe0;">
     <div style="height:4px; background:#e4022e;"></div>
     <div style="background:#0f2138; padding:20px 24px;">

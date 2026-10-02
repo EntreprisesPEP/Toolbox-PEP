@@ -55,7 +55,7 @@ function joursEntre(dateA, dateB) {
 function champStyle(th) {
   return {
     width: '100%', padding: '9px 10px', border: `1px solid ${th.line}`, fontSize: 14,
-    fontFamily: "'Inter',sans-serif", boxSizing: 'border-box',
+    boxSizing: 'border-box',
     background: th.inputBg, color: th.text,
   };
 }
@@ -343,7 +343,7 @@ function DemandePetitsOutils({ nom, poste, accessToken }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: th.bg, color: th.text, fontFamily: "'Inter',sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: th.bg, color: th.text }}>
       <EnTeteApp
         titre="Demande petits outils"
         sousTitre="Formulaire de demande de petits outils"
@@ -594,7 +594,7 @@ function DemandePetitsOutils({ nom, poste, accessToken }) {
             disabled={envoiEnCours}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, background: ROUGE, color: '#fff',
-              border: 'none', padding: '12px 24px', fontFamily: "'Oswald',sans-serif", fontWeight: 600,
+              border: 'none', padding: '12px 24px', fontWeight: 600,
               fontSize: 14, letterSpacing: '0.03em', textTransform: 'uppercase', cursor: 'pointer',
               opacity: envoiEnCours ? 0.6 : 1,
             }}

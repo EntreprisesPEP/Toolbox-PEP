@@ -10,7 +10,16 @@
 <link rel="icon" href="icon-192.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js"></script>
 <style>
+  /* Les champs de formulaire et les boutons n'heritent pas de la police de
+     la page : le navigateur leur impose la sienne (Arial). Sans cette regle,
+     le bouton « Se connecter » de l'accueil restait dans une autre ecriture
+     que tout le reste. Trouve en verifiant la revision 61. */
+  input, textarea, select, button { font-family: var(--police-toolbox); }
   :root{
+    /* Police unique de tout le site (revision 61). Cette page est
+       statique : elle ne recoit pas styles/commun.css, donc elle porte
+       sa propre copie de la declaration. */
+    --police-toolbox: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
     --bg: #10192e;
     --bg-panel: #182238;
     --line: #2c3752;
@@ -36,7 +45,7 @@
     min-height:100vh;
     background:var(--bg);
     color:var(--text-primary);
-    font-family:Calibri,'Segoe UI',Candara,Optima,Arial,sans-serif;
+    font-family:var(--police-toolbox);
   }
   .top-bar{ height:4px; background:var(--brand-red); }
 

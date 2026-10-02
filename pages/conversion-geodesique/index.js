@@ -137,8 +137,7 @@ function ConversionGeodesiqueApp({ nom, poste }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: th.bg, color: th.text,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: th.bg, color: th.text }}>
       <EnTeteApp
         titre="Conversion géodésique"
         sousTitre="Pieds-pouces ↔ géodésique"

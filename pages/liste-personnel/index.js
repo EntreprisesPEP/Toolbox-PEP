@@ -39,7 +39,7 @@ function styles(th) {
 
 function Center({ th, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: th.bg, color: th.text }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, background: th.bg, color: th.text }}>
       {children}
     </div>
   );
@@ -267,7 +267,7 @@ function ListePersonnel({ userId, nom, poste }) {
   if (loading) return <Center th={th}><Spinner th={th} /><div>Chargement…</div></Center>;
 
   return (
-    <div style={{ minHeight: '100vh', background: th.bg, fontFamily: 'Calibri, sans-serif', color: th.text }}>
+    <div style={{ minHeight: '100vh', background: th.bg, color: th.text }}>
       <Head><title>Liste de contacts - Toolbox PEP</title></Head>
 
       <EnTeteApp
@@ -521,7 +521,7 @@ export default function Page() {
 function Modal({ th, titre, children, large }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: th.panel, color: th.text, borderRadius: 8, padding: 22, width: '100%', maxWidth: large ? 620 : 460, maxHeight: '88vh', overflowY: 'auto', fontFamily: 'Calibri, sans-serif', boxShadow: th.ombre }}>
+      <div style={{ background: th.panel, color: th.text, borderRadius: 8, padding: 22, width: '100%', maxWidth: large ? 620 : 460, maxHeight: '88vh', overflowY: 'auto', boxShadow: th.ombre }}>
         <h3 style={{ marginTop: 0, color: th.accent }}>{titre}</h3>
         {children}
       </div>
@@ -542,7 +542,7 @@ function FichePersonne({ th, personne, peutModifier, onModifier, onFermer }) {
   const { btn, btnGhost } = styles(th);
   return (
     <div onClick={onFermer} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: th.panel, color: th.text, width: '100%', maxWidth: 460, padding: 22, borderTopLeftRadius: 10, borderTopRightRadius: 10, fontFamily: 'Calibri, sans-serif' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: th.panel, color: th.text, width: '100%', maxWidth: 460, padding: 22, borderTopLeftRadius: 10, borderTopRightRadius: 10 }}>
         <div style={{ fontSize: 18, fontWeight: 700, color: th.accent }}>{personne.nom}</div>
         {personne.titre && <div style={{ fontSize: 13, color: th.textDim, marginBottom: 16 }}>{personne.titre}</div>}
 

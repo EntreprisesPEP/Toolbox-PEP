@@ -1,0 +1,51 @@
+/* ============================================================================
+   Toolbox PEP — police unique de tout le site (revision 61)
+
+   UNE SEULE declaration de police pour toutes les apps. Avant cette revision,
+   chaque app declarait la sienne dans son coin : 11 pages en Calibri, la
+   Planification hebdomadaire en Segoe UI, l'Ordre du jour et les Petits outils
+   en Inter + Oswald. Resultat : le meme bandeau, le meme logo et le meme texte
+   « William Dubreuil » rendaient 12 % plus etroits sur une page que sur
+   l'autre — c'est ce qui donnait l'impression que certaines pages etaient
+   « coincees ».
+
+   Pourquoi une pile systeme plutot qu'une police nommee :
+   - Sur Windows, elle donne Segoe UI — exactement le rendu de la
+     Planification hebdomadaire, qui est celui qu'on voulait partout.
+   - Sur iPhone et iPad, Segoe UI n'existe pas. Une pile qui ne nommerait que
+     Segoe UI retomberait sur Arial, etroit et serre : precisement le defaut
+     qu'on cherche a eliminer. -apple-system donne San Francisco, l'equivalent
+     natif, aussi large et aere que Segoe UI.
+   - Aucun telechargement, donc aucun scintillement de texte sur un chantier
+     avec un mauvais signal.
+
+   Ce fichier est importe EN PREMIER dans pages/_app.js : les feuilles des apps
+   chargees ensuite peuvent encore surcharger un cas particulier si besoin.
+
+   Hors de ce fichier, on ne declare plus de font-family pour du texte, sauf :
+   - le monospace (chiffres alignes : temps du Defi Strava, etc.) ;
+   - les COURRIELS (lib/.../emailTemplate.js, pages/api/.../notifier.js) et les
+     exports PDF/Excel, qui restent en Calibri/Arial : ils sont lus dans
+     Outlook, pas dans le navigateur, et n'heritent de rien d'ici.
+   ============================================================================ */
+
+:root {
+  --police-toolbox: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+html,
+body {
+  font-family: var(--police-toolbox);
+}
+
+/* Les champs de formulaire n'heritent pas de la police de la page : les
+   navigateurs leur imposent leur propre police systeme. Sans cette regle, un
+   <input> ou un <select> resterait dans une autre ecriture que le texte
+   autour. */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}

@@ -566,7 +566,6 @@ function VisiteSurintendant({ nom, poste, accessToken }) {
     <div style={{
       minHeight: '100vh',
       background: th.bg,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
       color: th.text,
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>

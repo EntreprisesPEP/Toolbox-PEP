@@ -418,7 +418,7 @@ function Administration({ nom, poste, mode, onChangerMode }) {
   }
 
   return (
-    <div style={{ fontFamily: 'Calibri, Segoe UI, sans-serif', background: th.bg, color: th.text, minHeight: '100vh' }}>
+    <div style={{ background: th.bg, color: th.text, minHeight: '100vh' }}>
       <Head><title>Administration - Toolbox PEP</title></Head>
 
       <EnTeteApp
@@ -1044,7 +1044,7 @@ function Td({ children }) {
 function Center({ children }) {
   const th = usePalette();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, fontFamily: 'Calibri, sans-serif', background: th.bg, color: th.text }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: 12, background: th.bg, color: th.text }}>
       {children}
     </div>
   );

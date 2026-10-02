@@ -44,7 +44,6 @@ function Cadre({ titre, children }) {
     <div style={{
       minHeight: '100vh', background: '#edeff1', display: 'flex',
       alignItems: 'center', justifyContent: 'center', padding: 20,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
     }}>
       <div style={{ width: '100%', maxWidth: 460, background: '#fff', border: '1px solid #d7dbe0' }}>
         <div style={{ height: 4, background: ROUGE }} />

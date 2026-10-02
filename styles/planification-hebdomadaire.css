@@ -16,9 +16,10 @@ html[data-theme='nuit'] {
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+/* La police n'est plus declaree ici : elle vient de styles/commun.css, qui
+   l'applique a tout le site (revision 61). */
 body {
   background: var(--page); color: var(--ink);
-  font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
   transition: background .15s, color .15s;
 }
 .ph-scope .topline { height: 4px; background: var(--red); }

@@ -43,7 +43,7 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!ready || board.loading) {
-    return <div style={{ padding: 40, fontFamily: 'Segoe UI, Arial, sans-serif' }}>Chargement...</div>;
+    return <div style={{ padding: 40 }}>Chargement...</div>;
   }
 
   const editable = prefs.role === 'edit';

@@ -1018,7 +1018,7 @@ function DemandeArpentageApp({ userId, nom, poste, email, accessToken }) {
     return (
       <div style={{
         minHeight: '100vh', background: th.bg, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', color: th.textDim, fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
+        justifyContent: 'center', color: th.textDim,
       }}>
         Chargement…
       </div>
@@ -1028,7 +1028,7 @@ function DemandeArpentageApp({ userId, nom, poste, email, accessToken }) {
     return (
       <div style={{
         minHeight: '100vh', background: th.bg, display: 'flex', alignItems: 'center',
-        justifyContent: 'center', color: BRAND_RED, fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
+        justifyContent: 'center', color: BRAND_RED,
         textAlign: 'center', padding: 24,
       }}>
         {erreurChargement}
@@ -1040,7 +1040,6 @@ function DemandeArpentageApp({ userId, nom, poste, email, accessToken }) {
     <div style={{
       minHeight: '100vh',
       background: th.bg,
-      fontFamily: "Calibri, 'Segoe UI', Candara, Optima, Arial, sans-serif",
       color: th.text,
       transition: 'background 0.2s ease, color 0.2s ease',
     }}>
