@@ -647,6 +647,26 @@
     .tile-grid.format-sticker .tile-icon .cone-icon{ width:56px; height:56px; }
     .tile-grid.format-sticker .tile-name{ font-size:11.5px; }
   }
+
+  /* ---- Zoom automatique d'iOS (revision 63) ----
+     Des qu'on touche un champ dont le texte fait MOINS de 16 px, iOS agrandit
+     toute la page — et il ne revient jamais a l'echelle normale tout seul.
+     Les champs de connexion etaient a 14 px : apres s'etre connecte, tout
+     l'accueil restait zoome, parce que passer du formulaire au hub ne recharge
+     pas la page. On remonte donc les champs a 16 px.
+
+     Seulement sur ecran tactile (pointer: coarse) : l'ordinateur ne bouge pas.
+     Ces regles sont les dernieres de la feuille et ont la meme specificite que
+     celles qu'elles corrigent, donc elles l'emportent.
+
+     On ne touche PAS a maximum-scale / user-scalable dans le <meta viewport> :
+     ca reglerait le zoom aussi, mais en empechant du meme coup de zoomer avec
+     les doigts — inacceptable pour quelqu'un qui lit un numero de projet au
+     soleil sur un chantier. */
+  @media (pointer: coarse){
+    .login-card input,
+    .note-add-row input{ font-size:16px; }
+  }
 </style>
 </head>
 <body>
