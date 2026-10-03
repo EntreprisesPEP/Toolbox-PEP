@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Toolbox PEP</title>
 <meta name="theme-color" content="#14213d">
+<!-- Revision 64 — l'app est installee sur l'ecran d'accueil (manifest
+     display:standalone). Sans ces deux balises, iOS reserve la zone de la
+     barre d'etat et la peint avec le fond de la page : sur l'accueil, ca
+     donnait une bande pale de 55 px au-dessus du bandeau. En
+     « black-translucent », le contenu passe DERRIERE la barre d'etat et
+     l'heure s'affiche en blanc sur le marine du bandeau. Les marges
+     env(safe-area-inset-top) plus bas empechent le contenu de se cacher
+     sous l'horloge. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
@@ -20,6 +30,11 @@
        statique : elle ne recoit pas styles/commun.css, donc elle porte
        sa propre copie de la declaration. */
     --police-toolbox: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    /* Hauteur de la barre d'etat de l'appareil (0 sur ordinateur). Passer par
+       une variable plutot que d'ecrire env() partout permet de la remplacer
+       par une valeur fixe pour tester le rendu iPhone dans un navigateur
+       ordinaire, qui ne connait pas les zones de securite. */
+    --haut-securite: env(safe-area-inset-top, 0px);
     --bg: #10192e;
     --bg-panel: #182238;
     --line: #2c3752;
@@ -592,10 +607,24 @@
     /* Rien ne doit pouvoir pousser la page sur le cote. */
     html, body{ max-width:100%; overflow-x:hidden; }
 
-    /* Le bandeau passe sur deux rangees au telephone. Sur la deuxieme, le nom
-       est colle a gauche et Deconnexion a droite, au lieu que le bloc complet
-       flotte au centre (revision 62). */
-    header.hub-header{ padding:16px 16px; gap:12px; }
+    /* La page commence tout en haut de l'ecran (revision 64).
+       Avant : 55 px de barre d'etat pale + 4 px de rouge + 28 px de marge
+       au-dessus du bandeau. Maintenant le bandeau monte jusqu'au bord, prend
+       toute la largeur, et son marine passe derriere la barre d'etat. On ne
+       peut pas supprimer la barre d'etat elle-meme, mais on peut la couvrir :
+       le haut de la page devient un seul bloc marine.
+       Le rembourrage du haut inclut la zone de securite, sinon l'heure et la
+       batterie se superposeraient au logo. */
+    .hub-wrap{ padding-top:0; }
+    header.hub-header{
+      margin:0 -20px 18px;
+      border-radius:0;
+      padding:calc(14px + var(--haut-securite)) 16px 16px;
+      gap:12px;
+    }
+    /* L'ecran de connexion est centre verticalement : on lui donne la meme
+       marge de securite pour que la carte ne glisse jamais sous l'horloge. */
+    .login-wrap{ padding-top:calc(20px + var(--haut-securite)); }
     .hub-user{ width:100%; justify-content:space-between; align-items:center; gap:12px; }
     .hub-user-infos{ align-items:flex-start; text-align:left; min-width:0; }
     .hub-user-infos .courriel{ overflow-wrap:anywhere; }
