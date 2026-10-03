@@ -630,38 +630,73 @@
     .hub-user-infos .courriel{ overflow-wrap:anywhere; }
     .logout-btn{ flex:0 0 auto; }
 
+    /* ---- Pastilles du telephone : le nom sort du rond (revision 65) ----
+       Avant, l'icone ET le nom vivaient a l'interieur d'un rond de 160 px.
+       Un rond gaspille ses quatre coins : le nom se retrouvait coince dans la
+       partie etroite, borne a trois lignes, sous une icone de 72 px.
+       « Validation factures de fournisseurs » n'entrait pas.
+       Maintenant le rond ne porte que l'icone — qui passe de 72 a 92 px — et
+       le nom descend dessous, sur toute la largeur de la colonne. */
     .tile-grid.format-sticker{
       display:grid;
       grid-template-columns:1fr 1fr;
       justify-content:stretch;
-      padding:14px 10px;
-      gap:10px;
+      padding:18px 12px;
+      gap:20px 12px;
     }
-    .tile-grid.format-sticker .tile{
+    /* Le prefixe html[data-theme] n'est pas decoratif : la regle de theme
+       html[data-theme="day"] .tile-grid.format-sticker .tile peint la tuile en
+       marine et le texte en blanc, et sa specificite battait celle d'une regle
+       de media query ecrite sans prefixe. Sans ca, la tuile restait un bloc
+       marine plein et le rond disparaissait dedans. */
+    html[data-theme] .tile-grid.format-sticker .tile{
       width:auto;
       height:auto;
-      min-width:0;          /* sans ca, un long mot elargit la pastille */
-      padding:10px;
-      border-width:3px;
-      gap:5px;
+      aspect-ratio:auto;
+      min-width:0;          /* sans ca, un long mot elargit la colonne */
+      padding:0;
+      gap:9px;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      color:var(--text-primary);   /* le nom est sur le panneau, plus sur le marine */
+      overflow:visible;
     }
-    .tile-grid.format-sticker .tile-icon{ font-size:30px; line-height:1; }
-    .tile-grid.format-sticker .tile-icon .app-icon-img,
-    .tile-grid.format-sticker .tile-icon .cone-icon{ width:72px; height:72px; }
-    .tile-grid.format-sticker .tile-name{
-      font-size:12.5px;
-      min-height:0;
-      line-height:1.2;
-      overflow-wrap:anywhere;   /* « fournisseurs » plutot que la pastille qui grossit */
+    /* C'est l'icone qui devient le rond. */
+    .tile-grid.format-sticker .tile-icon{
+      width:136px;
+      height:136px;
       max-width:100%;
-      /* Un rond a une hauteur fixe : un nom de quatre lignes en sortait par
-         le bas (« Validation des factures (Fournisseurs/Sous-traitants) »).
-         On le borne a trois lignes. */
+      aspect-ratio:1;
+      border-radius:50%;
+      background:var(--navy);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-shrink:0;
+      font-size:44px;
+      line-height:1;
+    }
+    .tile-grid.format-sticker .tile-icon .app-icon-img,
+    .tile-grid.format-sticker .tile-icon .cone-icon{ width:92px; height:92px; }
+    .tile-grid.format-sticker .tile-name{
+      font-size:13px;
+      min-height:0;
+      line-height:1.25;
+      font-weight:700;
+      overflow-wrap:anywhere;   /* « fournisseurs » plutot que la colonne qui grossit */
+      max-width:100%;
+      /* Le nom n'est plus enferme dans un rond, mais on garde une borne pour
+         que deux tuiles cote a cote restent a la meme hauteur. */
       display:-webkit-box;
       -webkit-line-clamp:3;
       -webkit-box-orient:vertical;
       overflow:hidden;
     }
+    /* L'etoile des favoris suit le rond, pas la tuile : le rond fait 136 px
+       de large et est centre, donc son bord droit est a 68 px du centre. */
+    .tile-grid.format-sticker .etoile-favori{ top:8px; right:calc(50% - 60px); }
+    .tile-grid.format-sticker .note-dot{ top:10px; right:calc(50% - 58px); }
     /* La pastille « EN LIGNE / À VENIR » est ce qui coute le plus de hauteur
        pour ce qu'elle apprend : les apps a venir sont deja grises, avec un
        cone et leur propre mention. On la retire du telephone pour rendre
@@ -672,9 +707,12 @@
   /* Un iPhone SE n'a pas la place pour une icone de 72 px avec trois lignes
      de nom : on redescend plutot que de laisser le nom sortir du rond. */
   @media (max-width: 360px){
+    .tile-grid.format-sticker .tile-icon{ width:112px; height:112px; }
     .tile-grid.format-sticker .tile-icon .app-icon-img,
-    .tile-grid.format-sticker .tile-icon .cone-icon{ width:56px; height:56px; }
-    .tile-grid.format-sticker .tile-name{ font-size:11.5px; }
+    .tile-grid.format-sticker .tile-icon .cone-icon{ width:76px; height:76px; }
+    .tile-grid.format-sticker .tile-name{ font-size:12px; }
+    .tile-grid.format-sticker .etoile-favori{ right:calc(50% - 48px); }
+    .tile-grid.format-sticker .note-dot{ right:calc(50% - 46px); }
   }
 
   /* ---- Zoom automatique d'iOS (revision 63) ----
@@ -1093,6 +1131,18 @@ function renderTiles(){
       const slug = app.url.replace(/^\/|\/$/g, '');
       return mesAppsAutorisees.has(slug);
     });
+
+  // Ordre alphabetique (revision 65). L'ordre d'avant etait celui dans lequel
+  // les apps avaient ete ajoutees au fil des mois — illisible rendu a 17.
+  // localeCompare en 'fr' avec sensitivity 'base' ignore les accents, sinon
+  // « Creation », « Defi » et « geodesique » tomberaient apres « Visite ».
+  // Les tuiles « a venir » restent groupees a la fin.
+  // On trie l'AFFICHAGE, jamais le tableau APPS : c'est l'index d'origine qui
+  // identifie les notes deja ecrites dans le navigateur (noteStorageKey).
+  const rangStatut = (e) => (e.app.status === 'live' && e.app.url) ? 0 : 1;
+  appsVisibles.sort((a, b) =>
+    rangStatut(a) - rangStatut(b) ||
+    a.app.name.localeCompare(b.app.name, 'fr', { sensitivity: 'base' }));
 
   // Une app favorite monte dans son bloc et quitte la liste du bas : elle
   // n'apparait jamais deux fois.
