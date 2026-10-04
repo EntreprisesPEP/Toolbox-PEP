@@ -40,36 +40,53 @@ export default async function handler(req, res) {
     if (erreurRacine) throw erreurRacine;
 
     let effacees = 0;
+    let lotsEffaces = 0;
     const personnes = (dossiers || []).filter((d) => !d.id); // un dossier n'a pas d'id
 
+    // Depuis la révision 70, les photos sont rangées par lot d'import :
+    //   <user_id>/p/<numéro de lot>/<fichier>   et la vignette sous /v/.
+    // Il y a donc un niveau de plus à parcourir qu'avant.
     for (const personne of personnes) {
-      const prefixe = `${personne.name}/p`;
-      const prefixeV = `${personne.name}/v`;
+      const racineP = `${personne.name}/p`;
+      const racineV = `${personne.name}/v`;
 
-      // Pagination explicite : sans elle, une personne avec plus de 1000
-      // photos verrait les plus anciennes rester pour toujours.
-      let page = 0;
-      for (;;) {
-        const { data: objets, error } = await admin.storage.from(SEAU)
-          .list(prefixe, { limit: 1000, offset: page * 1000 });
-        if (error) throw error;
-        if (!objets || objets.length === 0) break;
+      const { data: lots, error: erreurLots } = await admin.storage.from(SEAU)
+        .list(racineP, { limit: 1000 });
+      if (erreurLots) throw erreurLots;
 
-        const vieilles = objets.filter((o) => o.id && new Date(o.created_at).getTime() < limite);
-        if (vieilles.length > 0) {
-          const chemins = [];
-          vieilles.forEach((o) => { chemins.push(`${prefixe}/${o.name}`, `${prefixeV}/${o.name}`); });
-          const { error: erreurSuppression } = await admin.storage.from(SEAU).remove(chemins);
-          if (erreurSuppression) throw erreurSuppression;
-          effacees += vieilles.length;
+      for (const lot of (lots || []).filter((d) => !d.id)) {
+        // Pagination explicite : sans elle, un lot de plus de 1000 photos
+        // verrait les dernières rester pour toujours.
+        let page = 0;
+        let videLot = true;
+        for (;;) {
+          const { data: objets, error } = await admin.storage.from(SEAU)
+            .list(`${racineP}/${lot.name}`, { limit: 1000, offset: page * 1000 });
+          if (error) throw error;
+          if (!objets || objets.length === 0) break;
+
+          const fichiers = objets.filter((o) => o.id);
+          const vieilles = fichiers.filter((o) => new Date(o.created_at).getTime() < limite);
+          if (vieilles.length < fichiers.length) videLot = false;
+
+          if (vieilles.length > 0) {
+            const chemins = [];
+            vieilles.forEach((o) => {
+              chemins.push(`${racineP}/${lot.name}/${o.name}`, `${racineV}/${lot.name}/${o.name}`);
+            });
+            const { error: erreurSuppression } = await admin.storage.from(SEAU).remove(chemins);
+            if (erreurSuppression) throw erreurSuppression;
+            effacees += vieilles.length;
+          }
+
+          if (objets.length < 1000) break;
+          page++;
         }
-
-        if (objets.length < 1000) break;
-        page++;
+        if (videLot) lotsEffaces++;
       }
     }
 
-    return res.status(200).json({ ok: true, casiers: personnes.length, photosEffacees: effacees });
+    return res.status(200).json({ ok: true, casiers: personnes.length, lotsVides: lotsEffaces, photosEffacees: effacees });
   } catch (e) {
     console.error('Erreur ménage casier:', e); // eslint-disable-line no-console
     return res.status(500).json({ error: e.message || 'Erreur inconnue.' });
