@@ -36,6 +36,24 @@ import {
 //    son nombre de photos. Le numero vit dans le chemin de stockage, pas dans
 //    l'etat de la page : il survit a un rechargement et se lit depuis
 //    n'importe quel appareil.
+//
+// ---- Revision 71 : deux changements demandes par William -------------------
+//
+// 3. ON VOIT CE QUE LE FORMAT DONNE, EN CHIFFRES.
+//    Le gain n'est PAS calcule par une formule : une formule ne sait pas si
+//    une photo est deja compressee. On prend jusqu'a trois vraies photos du
+//    casier — la plus petite, une moyenne, la plus grosse — on les reduit pour
+//    de bon dans le navigateur, et on affiche le rapport MESURE. Tant que la
+//    mesure vient de l'echantillon, les chiffres portent un « ~ ». Des qu'un
+//    vrai telechargement a eu lieu, son chiffre exact remplace l'estimation et
+//    le « ~ » disparait. Si la mesure echoue, on n'affiche rien plutot que
+//    d'inventer un pourcentage.
+//
+// 4. LE CHOIX DE FORMAT EST FIGE EN HAUT (sticky).
+//    Il reste visible pendant qu'on descend dans le casier, pour qu'on sache
+//    toujours dans quel format part le prochain lot. La phrase d'explication
+//    est sortie de la barre : une barre figee doit rester courte sur un
+//    telephone.
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -236,6 +254,11 @@ function TransfertPhotos({ userId, nom, poste }) {
   const [info, setInfo] = useState('');
   const [travail, setTravail] = useState('');    // texte pendant un telechargement
   const [survol, setSurvol] = useState(false);
+  // Ce que chaque format donne vraiment : { leger: { ratio, n, reel } }.
+  // « reel: false » = mesure sur un echantillon du casier (affichee avec un ~).
+  // « reel: true »  = chiffre d'un vrai telechargement (affiche sans ~).
+  const [apercu, setApercu] = useState({});
+  const [mesure, setMesure] = useState(false);
   const champFichier = useRef(null);
 
   const racineP = `${userId}/p`;
@@ -387,6 +410,58 @@ function TransfertPhotos({ userId, nom, poste }) {
     await charger();
   }
 
+  // --- Mesure du format choisi ---------------------------------------------
+  // On ne devine pas le gain : le taux de compression depend de la photo, pas
+  // d'une regle. On prend jusqu'a trois vraies photos du casier (la plus
+  // petite, une moyenne, la plus grosse), on les reduit pour de bon, et on
+  // garde le rapport obtenu. Une seule mesure par format, gardee en memoire.
+  useEffect(() => {
+    if (format === 'original' || apercu[format] || lots.length === 0) return;
+    let annule = false;
+
+    (async () => {
+      // Petite pause : si on tape Leger puis Standard puis Original, on ne
+      // declenche pas trois mesures pour rien.
+      await new Promise((r) => setTimeout(r, 400));
+      if (annule) return;
+
+      const reglage = FORMATS.find((f) => f.id === format);
+      const toutes = [];
+      lots.forEach((l) => l.photos.forEach((p) => toutes.push({ lot: l.num, photo: p })));
+      toutes.sort((a, b) => (a.photo.metadata?.size || 0) - (b.photo.metadata?.size || 0));
+      const indices = Array.from(new Set([0, Math.floor(toutes.length / 2), toutes.length - 1]));
+
+      setMesure(true);
+      let avant = 0;
+      let apres = 0;
+      let n = 0;
+      try {
+        for (const i of indices) {
+          const { lot, photo } = toutes[i];
+          const { data, error } = await sb.storage.from(SEAU)
+            .createSignedUrl(`${racineP}/${lot}/${photo.name}`, 300);
+          if (error || annule) return;
+          const brut = await (await fetch(data.signedUrl)).blob();
+          if (annule) return;
+          const petit = await redessiner(brut, reglage.max, reglage.q);
+          if (annule) return;
+          avant += brut.size;
+          apres += petit && petit.size < brut.size ? petit.size : brut.size;
+          n += 1;
+        }
+      } catch (e) {
+        return; // Pas de mesure : on n'affichera aucun chiffre plutot qu'un chiffre invente.
+      } finally {
+        if (!annule) setMesure(false);
+      }
+      if (!annule && avant > 0) {
+        setApercu((a) => ({ ...a, [format]: { ratio: apres / avant, n, reel: false } }));
+      }
+    })();
+
+    return () => { annule = true; };
+  }, [format, lots, apercu, racineP]);
+
   // --- Telechargement : c'est ICI que la reduction se fait -----------------
   async function recuperer(cheminComplet, nomFichier) {
     const reglage = FORMATS.find((f) => f.id === format) || FORMATS[1];
@@ -394,13 +469,13 @@ function TransfertPhotos({ userId, nom, poste }) {
     if (error) throw error;
     const rep = await fetch(data.signedUrl);
     const brut = await rep.blob();
-    if (reglage.id === 'original') return { blob: brut, nom: nomFichier, reduit: false };
+    if (reglage.id === 'original') return { blob: brut, nom: nomFichier, reduit: false, avant: brut.size };
 
     const petit = await redessiner(brut, reglage.max, reglage.q);
     // Si le navigateur n'a pas su lire le fichier, ou si la reduction ne gagne
     // rien, on rend l'original — mais on le dit a l'appelant.
-    if (!petit || petit.size >= brut.size) return { blob: brut, nom: nomFichier, reduit: false };
-    return { blob: petit, nom: `${nomFichier.replace(/\.[^.]+$/, '')}.jpg`, reduit: true };
+    if (!petit || petit.size >= brut.size) return { blob: brut, nom: nomFichier, reduit: false, avant: brut.size };
+    return { blob: petit, nom: `${nomFichier.replace(/\.[^.]+$/, '')}.jpg`, reduit: true, avant: brut.size };
   }
 
   async function telechargerUne(lotNum, photo) {
@@ -410,6 +485,11 @@ function TransfertPhotos({ userId, nom, poste }) {
       telechargerBlob(r.blob, r.nom);
       if (!r.reduit && format !== 'original') {
         setInfo("Cette photo n'a pas pu être réduite (format non lisible par le navigateur) — tu as reçu l'original.");
+      } else if (r.reduit && r.avant > 0) {
+        const pc = Math.round((1 - r.blob.size / r.avant) * 100);
+        setInfo(`${photo.name} : ${formaterTaille(r.avant)} → ${formaterTaille(r.blob.size)}, soit ${pc} % de moins.`);
+        // Un chiffre vrai vaut mieux qu'une estimation : il la remplace.
+        setApercu((a) => ({ ...a, [format]: { ratio: r.blob.size / r.avant, n: 1, reel: true } }));
       }
     } catch (e) {
       setErreur("Le téléchargement a échoué. Réessaie dans un instant.");
@@ -425,17 +505,32 @@ function TransfertPhotos({ userId, nom, poste }) {
     try {
       const entrees = [];
       let nonReduites = 0;
+      let avant = 0;
+      let apres = 0;
       for (let i = 0; i < items.length; i++) {
         setTravail(`Préparation ${i + 1} / ${items.length}…`);
         const r = await recuperer(`${racineP}/${items[i].lot}/${items[i].photo.name}`, items[i].photo.name);
         if (!r.reduit && format !== 'original') nonReduites++;
+        avant += r.avant;
+        apres += r.blob.size;
         entrees.push({ nom: r.nom, octets: new Uint8Array(await r.blob.arrayBuffer()) });
       }
       setTravail('Création de l’archive…');
-      telechargerBlob(construireZip(entrees), nomArchive);
-      if (nonReduites > 0) {
-        setInfo(`${nonReduites} photo(s) n'ont pas pu être réduites (format non lisible par le navigateur) — elles sont dans l'archive en taille originale.`);
+      const archive = construireZip(entrees);
+      telechargerBlob(archive, nomArchive);
+
+      // Le chiffre affiche est celui du fichier qui vient d'atterrir sur le
+      // disque — taille de l'archive, pas la somme theorique des photos.
+      const messages = [];
+      if (format !== 'original' && avant > 0 && archive.size < avant) {
+        const pc = Math.round((1 - archive.size / avant) * 100);
+        messages.push(`${items.length} photos : ${formaterTaille(avant)} → ${formaterTaille(archive.size)} dans le .zip, soit ${pc} % de moins.`);
+        setApercu((a) => ({ ...a, [format]: { ratio: apres / avant, n: items.length, reel: true } }));
       }
+      if (nonReduites > 0) {
+        messages.push(`${nonReduites} photo(s) n'ont pas pu être réduites (format non lisible par le navigateur) — elles sont dans l'archive en taille originale.`);
+      }
+      if (messages.length > 0) setInfo(messages.join(' '));
     } catch (e) {
       setErreur("L'archive n'a pas pu être créée. Essaie avec moins de photos à la fois.");
     } finally {
@@ -488,6 +583,29 @@ function TransfertPhotos({ userId, nom, poste }) {
 
   const poidsFile = file.reduce((t, f) => t + f.fichier.size, 0);
   const occupe = () => !!travail || !!envoi;
+
+  // --- Ce qu'on affiche a partir de la mesure ------------------------------
+  const infoFormat = apercu[format];
+  const ratioFormat = format === 'original' ? 1 : (infoFormat ? infoFormat.ratio : null);
+  const chiffreExact = format === 'original' || (infoFormat ? infoFormat.reel : false);
+  const pourcentage = ratioFormat == null ? null : Math.round((1 - ratioFormat) * 100);
+  const poidsCasier = lots.reduce((t, l) => t + l.octets, 0);
+  const poidsSelection = itemsSelectionnes.reduce((t, i) => t + (i.photo.metadata?.size || 0), 0);
+  const reglageActif = FORMATS.find((f) => f.id === format) || FORMATS[1];
+
+  // Taille attendue pour un poids donne. Rend null si on n'a rien mesure :
+  // mieux vaut ne rien montrer qu'un chiffre sorti de nulle part.
+  function texteProjete(octets) {
+    if (format === 'original' || ratioFormat == null || !Number.isFinite(octets) || octets <= 0) return null;
+    return `${chiffreExact ? '' : '~'}${formaterTaille(Math.round(octets * ratioFormat))}`;
+  }
+
+  // Le petit « → 0,8 Mo » rouge accroche a une taille.
+  function fleche(octets) {
+    const t = texteProjete(octets);
+    if (!t) return null;
+    return <span style={{ color: ROUGE, fontWeight: 600 }}> → {t}</span>;
+  }
 
   // --- Styles partages -----------------------------------------------------
   const carte = { background: th.panel, border: `1px solid ${th.line}`, borderRadius: 10, boxShadow: th.ombre };
@@ -614,38 +732,81 @@ function TransfertPhotos({ userId, nom, poste }) {
           </div>
         )}
 
-        {/* --- Format de téléchargement ------------------------------------ */}
-        <div style={{ ...carte, padding: '14px 16px', margin: '18px 0' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: th.textDim, marginRight: 4 }}>
-              Format au téléchargement
-            </span>
-            {FORMATS.map((f) => {
-              const actif = f.id === format;
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setFormat(f.id)}
-                  style={{ ...btnLeger, padding: '7px 13px', background: actif ? ROUGE : 'transparent', color: actif ? '#fff' : th.text, borderColor: actif ? ROUGE : th.line }}
-                >
-                  {f.label}
-                  <span style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 500 }}>{f.aide}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 12.5, color: th.textDim, marginTop: 10, lineHeight: 1.5 }}>
-            Le choix s&rsquo;applique au moment où tu télécharges, pas à l&rsquo;envoi : tes photos restent en taille
-            originale dans le casier. Tu peux prendre un lot en Léger, puis le reprendre en Original.
+        {/* --- Format de téléchargement — figé en haut ---------------------- */}
+        {/* La barre colle au haut de l'écran : en descendant dans le casier,
+            on sait toujours dans quel format partira le prochain lot. Elle
+            reste volontairement courte — la phrase d'explication est sortie
+            en dessous, dans le flux normal. */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 30, margin: '18px 0 0', padding: '8px 0', background: th.bg }}>
+          <div style={{ ...carte, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: th.textDim, marginRight: 4 }}>
+                Format au téléchargement
+              </span>
+              {FORMATS.map((f) => {
+                const actif = f.id === format;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFormat(f.id)}
+                    style={{ ...btnLeger, padding: '7px 13px', background: actif ? ROUGE : 'transparent', color: actif ? '#fff' : th.text, borderColor: actif ? ROUGE : th.line }}
+                  >
+                    {f.label}
+                    <span style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 500 }}>{f.aide}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 12.5, color: th.textDim, marginTop: 9, lineHeight: 1.45 }}>
+              {format === 'original' ? (
+                <>
+                  <strong style={{ color: th.text }}>Original : aucune réduction.</strong>{' '}
+                  Tu reçois le fichier exactement comme il a été envoyé
+                  {poidsCasier > 0 ? <> — <strong style={{ color: th.text }}>{formaterTaille(poidsCasier)}</strong> pour tout le casier</> : null}.
+                </>
+              ) : mesure ? (
+                <><Loader2 size={12} style={{ verticalAlign: -1, marginRight: 5 }} /> Mesure en cours sur de vraies photos du casier…</>
+              ) : ratioFormat != null ? (
+                <>
+                  <strong style={{ color: th.text }}>
+                    {reglageActif.label} ({reglageActif.max} px) : {pourcentage} % de moins
+                  </strong>
+                  {poidsCasier > 0 ? (
+                    <> — le casier passerait de {formaterTaille(poidsCasier)} à <span style={{ color: ROUGE, fontWeight: 700 }}>{texteProjete(poidsCasier)}</span>.</>
+                  ) : '.'}
+                  {' '}
+                  <span style={{ opacity: 0.85 }}>
+                    {chiffreExact
+                      ? `Chiffre exact, relevé sur ${infoFormat.n} photo${infoFormat.n > 1 ? 's' : ''} que tu as déjà téléchargée${infoFormat.n > 1 ? 's' : ''}.`
+                      : `Estimation mesurée sur ${infoFormat.n} photo${infoFormat.n > 1 ? 's' : ''} de ton casier — d'où le « ~ ».`}
+                  </span>
+                </>
+              ) : lots.length === 0 ? (
+                <>Le gain s&rsquo;affichera ici dès qu&rsquo;il y aura des photos à mesurer.</>
+              ) : (
+                <>Impossible de mesurer le gain pour l&rsquo;instant — aucun chiffre ne sera inventé.</>
+              )}
+            </div>
           </div>
         </div>
+
+        <p style={{ fontSize: 12.5, color: th.textDim, margin: '0 0 18px', lineHeight: 1.5 }}>
+          Le choix s&rsquo;applique au moment où tu télécharges, pas à l&rsquo;envoi : tes photos restent en taille
+          originale dans le casier. Tu peux prendre un lot en Léger, puis le reprendre en Original.
+        </p>
 
         {/* --- Barre de sélection ------------------------------------------- */}
         {itemsSelectionnes.length > 0 && (
           <div style={{ ...carte, padding: '12px 16px', marginBottom: 18, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>
               {itemsSelectionnes.length} photo{itemsSelectionnes.length > 1 ? 's' : ''} cochée{itemsSelectionnes.length > 1 ? 's' : ''}
+              {poidsSelection > 0 && (
+                <span style={{ fontWeight: 500, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                  {' · '}{formaterTaille(poidsSelection)}{fleche(poidsSelection)}
+                </span>
+              )}
             </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <button
@@ -700,7 +861,7 @@ function TransfertPhotos({ userId, nom, poste }) {
                       <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 15, fontWeight: 700, color: ROUGE }}>{lot.num}</span>
                       <span style={{ fontSize: 14.5, fontWeight: 600 }}>{dateLongue(lot.quand)}</span>
                       <span style={{ fontSize: 13, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
-                        · {lot.photos.length} photo{lot.photos.length > 1 ? 's' : ''} · {formaterTaille(lot.octets)}
+                        · {lot.photos.length} photo{lot.photos.length > 1 ? 's' : ''} · {formaterTaille(lot.octets)}{fleche(lot.octets)}
                       </span>
                     </button>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -747,7 +908,7 @@ function TransfertPhotos({ userId, nom, poste }) {
                             </div>
                             <div style={{ padding: '8px 9px 10px' }}>
                               <div style={{ fontSize: 12, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
-                                {formaterTaille(p.metadata?.size)}
+                                {formaterTaille(p.metadata?.size)}{fleche(p.metadata?.size)}
                               </div>
                               <button
                                 type="button"
