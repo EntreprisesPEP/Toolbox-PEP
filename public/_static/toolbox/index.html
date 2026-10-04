@@ -300,6 +300,13 @@
     background:transparent;
   }
   .bouton-favoris.actif{ background:var(--brand-red); color:#fff; border-color:var(--brand-red); }
+  /* Le bouton porte deux libelles : le long pour l'ordinateur, le court pour
+     le telephone, ou il doit tenir sur la meme ligne que Lune/Soleil et
+     Liste/Pastilles (revision 67). Deux <span> plutot qu'un texte reecrit en
+     JavaScript : la largeur disponible est une question de mise en page, donc
+     c'est le CSS qui tranche, pas le script. */
+  .bouton-favoris{ display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .libelle-court{ display:none; }
   .aide-favoris{
     display:none;
     margin:0 0 14px;
@@ -607,6 +614,19 @@
     /* Rien ne doit pouvoir pousser la page sur le cote. */
     html, body{ max-width:100%; overflow-x:hidden; }
 
+    /* ---- Une seule ligne de controles sur le telephone (revision 67) ----
+       Demande de William : le bouton des favoris a droite de Lune/Soleil et
+       Liste/Pastilles, au lieu de retomber sur une deuxieme ligne.
+       Trois choses rendent la place : le libelle court, un rembourrage plus
+       serre sur Liste/Pastilles, et un ecart de 8 px. Mesure a 390 px de
+       large : 352 px occupes sur 358 px disponibles. */
+    .view-controls{ flex-wrap:nowrap; align-items:center; gap:8px; }
+    .toggle-group, .bouton-favoris{ flex-shrink:0; }
+    #formatToggleGroup .toggle-btn{ padding:7px 11px; }
+    .bouton-favoris{ padding:7px 11px; }
+    .libelle-long{ display:none; }
+    .libelle-court{ display:inline; }
+
     /* La page commence tout en haut de l'ecran (revision 64).
        Avant : 55 px de barre d'etat pale + 4 px de rouge + 28 px de marge
        au-dessus du bandeau. Maintenant le bandeau monte jusqu'au bord, prend
@@ -706,6 +726,21 @@
 
   /* Un iPhone SE n'a pas la place pour une icone de 72 px avec trois lignes
      de nom : on redescend plutot que de laisser le nom sortir du rond. */
+  /* En dessous de 380 px (iPhone SE, iPhone 13 mini), meme le libelle court ne
+     rentre plus sur la ligne : mesure a 375 px, le bouton finissait a 1 px du
+     bord. L'etoile seule suffit — c'est deja le symbole utilise sur les tuiles,
+     et aria-label porte le nom complet pour la lecture d'ecran. */
+  @media (max-width: 380px){
+    .libelle-court{ display:none; }
+    .bouton-favoris{ padding:7px 12px; font-size:14px; line-height:1; }
+  }
+
+  /* iPhone 5 / SE de premiere generation : 1 px de trop, repris sur
+     Liste/Pastilles. */
+  @media (max-width: 340px){
+    #formatToggleGroup .toggle-btn{ padding:7px 9px; }
+  }
+
   @media (max-width: 360px){
     .tile-grid.format-sticker .tile-icon{ width:112px; height:112px; }
     .tile-grid.format-sticker .tile-icon .app-icon-img,
@@ -850,7 +885,7 @@
       <button type="button" class="toggle-btn" data-format-btn="list">Liste</button>
       <button type="button" class="toggle-btn" data-format-btn="sticker">Pastilles</button>
     </div>
-    <button type="button" class="toggle-btn bouton-favoris" id="boutonModeFavoris">&#9734; Modifier mes favoris</button>
+    <button type="button" class="toggle-btn bouton-favoris" id="boutonModeFavoris" aria-label="Modifier mes favoris"><span class="etoile-btn">&#9734;</span><span class="libelle-long">Modifier mes favoris</span><span class="libelle-court">Favoris</span></button>
   </div>
 
   <p class="aide-favoris" id="aideFavoris">Touche une application pour l&rsquo;ajouter ou la retirer de tes favoris.</p>
@@ -1329,7 +1364,10 @@ document.getElementById('boutonModeFavoris').addEventListener('click', ()=>{
   modeFavoris = !modeFavoris;
   const btn = document.getElementById('boutonModeFavoris');
   btn.classList.toggle('actif', modeFavoris);
-  btn.innerHTML = modeFavoris ? '&#9733; Terminé' : '&#9734; Modifier mes favoris';
+  btn.querySelector('.etoile-btn').innerHTML = modeFavoris ? '&#9733;' : '&#9734;';
+  btn.querySelector('.libelle-long').textContent = modeFavoris ? 'Terminé' : 'Modifier mes favoris';
+  btn.querySelector('.libelle-court').textContent = modeFavoris ? 'Terminé' : 'Favoris';
+  btn.setAttribute('aria-label', modeFavoris ? 'Terminé' : 'Modifier mes favoris');
   const aide = document.getElementById('aideFavoris');
   aide.textContent = "Touche une application pour l’ajouter ou la retirer de tes favoris.";
   aide.classList.toggle('visible', modeFavoris);
