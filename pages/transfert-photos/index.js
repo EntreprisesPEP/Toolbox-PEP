@@ -5,25 +5,37 @@ import EnTeteApp from '../../components/commun/EnTeteApp';
 import { PALETTES, useModePep } from '../../components/commun/ThemeToolbox';
 import {
   Upload, Download, Trash2, Check, AlertTriangle, Clock, Image as ImageIcon,
-  Loader2, X, CheckSquare, Square,
+  Loader2, X, CheckSquare, Square, ChevronDown, ChevronRight,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // TRANSFERT DE PHOTOS — le casier personnel
 //
 // Une seule chose : sortir des photos d'un telephone pour les reprendre sur un
-// ordinateur, en les allegeant au passage. Ce n'est pas une archive, c'est un
-// tuyau — d'ou l'effacement automatique apres 7 jours, affiche sur chaque
-// photo pour que personne ne s'y fie comme a un rangement.
+// ordinateur. Ce n'est pas une archive, c'est un tuyau — d'ou l'effacement
+// automatique apres 7 jours, affiche sur chaque lot.
 //
-// Chaque photo est rangee sous l'identifiant de la personne, et les politiques
-// du seau n'autorisent la lecture qu'au proprietaire du dossier. Il n'y a
+// Chaque lot est range sous l'identifiant de la personne, et la politique du
+// seau n'autorise la lecture qu'au proprietaire du dossier. Il n'y a
 // volontairement AUCUNE politique d'administrateur : un casier est prive, meme
 // pour un admin du Toolbox.
 //
-// La reduction se fait dans le navigateur, avant l'envoi — c'est la seule
-// facon de rendre l'envoi rapide sur un lien de chantier, et ca evite de
-// stocker des originaux de 4 Mo qu'on effacera dans une semaine.
+// ---- Revision 70 : deux changements demandes par William -------------------
+//
+// 1. LA REDUCTION SE FAIT AU TELECHARGEMENT, PLUS A L'ENVOI.
+//    Avant, on reduisait dans le telephone et l'original n'existait plus : le
+//    reglage choisi apres coup ne changeait donc rien. Maintenant l'ORIGINAL
+//    monte dans le casier et la reduction se fait au moment ou on telecharge,
+//    cote ordinateur. On peut donc essayer Leger, puis Standard, puis
+//    l'original, sur les memes photos.
+//    Le prix a payer : l'envoi depuis le telephone est plus lourd. C'est le
+//    compromis assume pour pouvoir changer d'avis apres.
+//
+// 2. LE CASIER EST RANGE PAR LOT D'IMPORT.
+//    Chaque envoi devient un dossier numerote — 0001, 0002… — avec sa date et
+//    son nombre de photos. Le numero vit dans le chemin de stockage, pas dans
+//    l'etat de la page : il survit a un rechargement et se lit depuis
+//    n'importe quel appareil.
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,10 +48,11 @@ const VIGNETTE_MAX = 320;
 const THEMES = PALETTES;
 const ROUGE = '#c41230';
 
-const TAILLES = [
+// Les formats proposes au telechargement. « max: 0 » = on ne touche a rien.
+const FORMATS = [
   { id: 'leger', label: 'Léger', max: 1280, q: 0.80, aide: 'pour un courriel' },
   { id: 'standard', label: 'Standard', max: 1920, q: 0.85, aide: 'recommandé' },
-  { id: 'original', label: 'Original', max: 0, q: 1, aide: 'aucune réduction' },
+  { id: 'original', label: 'Original', max: 0, q: 1, aide: 'tel quel' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -67,7 +80,6 @@ function estHeic(fichier) {
   return t.includes('heic') || t.includes('heif') || n.endsWith('.heic') || n.endsWith('.heif');
 }
 
-// Jours entiers restants avant l'effacement automatique.
 function joursRestants(creeLe) {
   const t = new Date(creeLe).getTime();
   if (!Number.isFinite(t)) return JOURS_CONSERVATION;
@@ -75,14 +87,20 @@ function joursRestants(creeLe) {
   return Math.max(0, Math.ceil((limite - Date.now()) / 86400000));
 }
 
-// Redessine l'image a maxDim sur le plus grand cote, en JPEG. Retourne null si
-// le navigateur n'arrive pas a lire le fichier (cas typique : un HEIC glisse
-// depuis un PC) — l'appelant decide alors quoi faire, plutot que de recevoir
-// l'original sans le savoir.
-async function redessiner(fichier, maxDim, qualite) {
+function dateLongue(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// Redessine une image a maxDim sur le plus grand cote, en JPEG. Retourne null
+// si le navigateur n'arrive pas a lire le fichier (cas typique : un HEIC) —
+// l'appelant decide alors quoi faire, plutot que de recevoir l'original sans
+// le savoir.
+async function redessiner(source, maxDim, qualite) {
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return null;
   try {
-    const bitmap = await createImageBitmap(fichier, { imageOrientation: 'from-image' });
+    const bitmap = await createImageBitmap(source, { imageOrientation: 'from-image' });
     const plusGrand = Math.max(bitmap.width, bitmap.height);
     const ratio = maxDim > 0 ? Math.min(1, maxDim / plusGrand) : 1;
     const canvas = document.createElement('canvas');
@@ -92,8 +110,7 @@ async function redessiner(fichier, maxDim, qualite) {
     if (!ctx) { if (bitmap.close) bitmap.close(); return null; }
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     if (bitmap.close) bitmap.close();
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', qualite));
-    return blob || null;
+    return await new Promise((r) => canvas.toBlob(r, 'image/jpeg', qualite));
   } catch (e) {
     return null;
   }
@@ -101,9 +118,8 @@ async function redessiner(fichier, maxDim, qualite) {
 
 // ---------------------------------------------------------------------------
 // Archive ZIP « stockee » (sans compression). Des JPEG sont deja compresses :
-// les recompresser ne gagne rien et couterait plusieurs secondes de calcul sur
-// un telephone. Ecrit a la main plutot qu'avec une librairie — ca evite
-// d'ajouter une dependance au depot pour 70 lignes.
+// les recompresser ne gagne rien. Ecrit a la main plutot qu'avec une
+// librairie — ca evite d'ajouter une dependance au depot pour 70 lignes.
 // ---------------------------------------------------------------------------
 
 const TABLE_CRC = (() => {
@@ -125,7 +141,6 @@ function crc32(octets) {
 function ecrire32(vue, pos, val) { vue.setUint32(pos, val >>> 0, true); }
 function ecrire16(vue, pos, val) { vue.setUint16(pos, val & 0xFFFF, true); }
 
-// entrees : [{ nom, octets: Uint8Array }]
 function construireZip(entrees) {
   const encodeur = new TextEncoder();
   const morceaux = [];
@@ -140,10 +155,10 @@ function construireZip(entrees) {
     const entete = new Uint8Array(30 + nomOctets.length);
     const v = new DataView(entete.buffer);
     ecrire32(v, 0, 0x04034b50);
-    ecrire16(v, 4, 20);          // version minimale
+    ecrire16(v, 4, 20);
     ecrire16(v, 6, 0x0800);      // nom de fichier en UTF-8
     ecrire16(v, 8, 0);           // methode 0 = stocke
-    ecrire16(v, 10, 0); ecrire16(v, 12, 0); // heure et date, sans importance ici
+    ecrire16(v, 10, 0); ecrire16(v, 12, 0);
     ecrire32(v, 14, somme);
     ecrire32(v, 18, taille);
     ecrire32(v, 22, taille);
@@ -208,56 +223,78 @@ function TransfertPhotos({ userId, nom, poste }) {
   const [mode, setMode] = useModePep();
   const th = THEMES[mode];
 
-  const [tailleChoisie, setTailleChoisie] = useState('standard');
+  const [format, setFormat] = useState('standard');
   const [enPreparation, setEnPreparation] = useState(0);
-  const [file, setFile] = useState([]);          // photos preparees, pas encore envoyees
+  const [file, setFile] = useState([]);          // photos choisies, pas encore envoyees
   const [envoi, setEnvoi] = useState(null);      // { fait, total }
-  const [photos, setPhotos] = useState([]);      // casier
+  const [lots, setLots] = useState([]);          // casier, du plus recent au plus ancien
   const [vignettes, setVignettes] = useState({});
+  const [replies, setReplies] = useState(() => new Set()); // lots refermes
   const [selection, setSelection] = useState(() => new Set());
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState('');
   const [info, setInfo] = useState('');
-  const [zipEnCours, setZipEnCours] = useState(false);
+  const [travail, setTravail] = useState('');    // texte pendant un telechargement
   const [survol, setSurvol] = useState(false);
   const champFichier = useRef(null);
 
-  const prefixe = `${userId}/p`;
-  const prefixeV = `${userId}/v`;
+  const racineP = `${userId}/p`;
+  const racineV = `${userId}/v`;
 
-  // --- Lecture du casier, avec menage des photos expirees ------------------
+  // --- Lecture du casier, avec menage des lots expires ---------------------
   const charger = useCallback(async () => {
     setChargement(true);
     setErreur('');
     try {
-      const { data, error } = await sb.storage.from(SEAU).list(prefixe, {
-        limit: 300,
-        sortBy: { column: 'created_at', order: 'desc' },
-      });
+      const { data: dossiers, error } = await sb.storage.from(SEAU).list(racineP, { limit: 200 });
       if (error) throw error;
 
-      const fichiers = (data || []).filter((o) => o.id);
-      const limite = Date.now() - JOURS_CONSERVATION * 86400000;
-      const expirees = fichiers.filter((o) => new Date(o.created_at).getTime() < limite);
-      const vivantes = fichiers.filter((o) => new Date(o.created_at).getTime() >= limite);
+      // Un dossier n'a pas d'id. On trie a l'envers : le dernier lot en haut.
+      const numeros = (dossiers || []).filter((d) => !d.id).map((d) => d.name).sort().reverse();
 
-      // Le menage se fait aussi a l'ouverture, pas seulement par la tache
-      // quotidienne : une photo qui a depasse 7 jours ne doit jamais
-      // s'afficher, meme si la tache a saute une nuit.
-      if (expirees.length > 0) {
-        const aEffacer = [];
-        expirees.forEach((o) => { aEffacer.push(`${prefixe}/${o.name}`, `${prefixeV}/${o.name}`); });
-        await sb.storage.from(SEAU).remove(aEffacer);
+      const bruts = await Promise.all(numeros.map(async (num) => {
+        const { data: fichiers } = await sb.storage.from(SEAU)
+          .list(`${racineP}/${num}`, { limit: 500, sortBy: { column: 'name', order: 'asc' } });
+        const photos = (fichiers || []).filter((f) => f.id && f.name !== '.emptyFolderPlaceholder');
+        return { num, photos };
+      }));
+
+      const limite = Date.now() - JOURS_CONSERVATION * 86400000;
+      const vivants = [];
+      const aEffacer = [];
+
+      for (const lot of bruts) {
+        if (lot.photos.length === 0) continue;
+        const quand = lot.photos[0].created_at;
+        // Le menage se fait aussi a l'ouverture, pas seulement par la tache
+        // quotidienne : un lot qui a depasse 7 jours ne doit jamais s'afficher,
+        // meme si la tache a saute une nuit.
+        if (new Date(quand).getTime() < limite) {
+          lot.photos.forEach((p) => {
+            aEffacer.push(`${racineP}/${lot.num}/${p.name}`, `${racineV}/${lot.num}/${p.name}`);
+          });
+          continue;
+        }
+        vivants.push({
+          num: lot.num,
+          quand,
+          jours: joursRestants(quand),
+          photos: lot.photos,
+          octets: lot.photos.reduce((t, p) => t + (p.metadata?.size || 0), 0),
+        });
       }
 
-      setPhotos(vivantes);
+      if (aEffacer.length > 0) await sb.storage.from(SEAU).remove(aEffacer);
+
+      setLots(vivants);
       setSelection(new Set());
 
-      if (vivantes.length > 0) {
-        const chemins = vivantes.map((o) => `${prefixeV}/${o.name}`);
+      const chemins = [];
+      vivants.forEach((l) => l.photos.forEach((p) => chemins.push(`${racineV}/${l.num}/${p.name}`)));
+      if (chemins.length > 0) {
         const { data: liens } = await sb.storage.from(SEAU).createSignedUrls(chemins, 3600);
         const table = {};
-        (liens || []).forEach((l, i) => { if (l?.signedUrl) table[vivantes[i].name] = l.signedUrl; });
+        (liens || []).forEach((lien, i) => { if (lien?.signedUrl) table[chemins[i]] = lien.signedUrl; });
         setVignettes(table);
       } else {
         setVignettes({});
@@ -267,11 +304,13 @@ function TransfertPhotos({ userId, nom, poste }) {
     } finally {
       setChargement(false);
     }
-  }, [prefixe, prefixeV]);
+  }, [racineP, racineV]);
 
   useEffect(() => { charger(); }, [charger]);
 
-  // --- Preparation : reduction dans le navigateur --------------------------
+  // --- Choix des photos ----------------------------------------------------
+  // On ne touche PAS a l'image ici : c'est l'original qui partira. On ne
+  // fabrique que la vignette, pour que la galerie reste legere.
   async function ajouterFichiers(listeFichiers) {
     const fichiers = Array.from(listeFichiers || []).filter((f) => f.type.startsWith('image/') || estHeic(f));
     if (fichiers.length === 0) return;
@@ -279,37 +318,15 @@ function TransfertPhotos({ userId, nom, poste }) {
     setErreur('');
     setEnPreparation((n) => n + fichiers.length);
 
-    const reglage = TAILLES.find((t) => t.id === tailleChoisie) || TAILLES[1];
-
     for (const original of fichiers) {
-      let reduit = null;
-      let heicNonLu = false;
-
-      if (reglage.id === 'original') {
-        reduit = original;
-      } else {
-        const blob = await redessiner(original, reglage.max, reglage.q);
-        if (blob && blob.size < original.size) {
-          reduit = new File([blob], `${original.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
-        } else {
-          // Le navigateur n'a pas su lire le fichier, ou la reduction ne
-          // gagnait rien : on envoie l'original. Si c'est un HEIC, on le dit,
-          // parce qu'un .heic telecharge sur un PC Windows ne s'ouvre pas.
-          reduit = original;
-          heicNonLu = !blob && estHeic(original);
-        }
-      }
-
-      const vignetteBlob = await redessiner(reduit, VIGNETTE_MAX, 0.7);
-
+      const vignetteBlob = await redessiner(original, VIGNETTE_MAX, 0.7);
       setFile((f) => [...f, {
         cle: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        nomAffiche: original.name,
-        tailleOrigine: original.size,
-        fichier: reduit,
+        fichier: original,
         vignette: vignetteBlob,
         apercu: vignetteBlob ? URL.createObjectURL(vignetteBlob) : null,
-        heicNonLu,
+        illisible: !vignetteBlob,
+        heic: estHeic(original),
       }]);
       setEnPreparation((n) => Math.max(0, n - 1));
     }
@@ -323,27 +340,38 @@ function TransfertPhotos({ userId, nom, poste }) {
     });
   }
 
-  // --- Envoi ---------------------------------------------------------------
+  // --- Envoi : un lot numerote --------------------------------------------
   async function envoyer() {
     if (file.length === 0) return;
     setEnvoi({ fait: 0, total: file.length });
     setErreur('');
     setInfo('');
-    let echecs = 0;
 
+    // Le numero du lot se deduit de ce qui existe deja. Quand le casier est
+    // vide, on repart a 0001 — sinon les numeros grimperaient pour toujours
+    // alors que rien ne reste plus de sept jours.
+    let numero = '0001';
+    try {
+      const { data: dossiers } = await sb.storage.from(SEAU).list(racineP, { limit: 200 });
+      const existants = (dossiers || []).filter((d) => !d.id)
+        .map((d) => parseInt(d.name, 10)).filter((n) => Number.isFinite(n));
+      if (existants.length > 0) numero = String(Math.max(...existants) + 1).padStart(4, '0');
+    } catch (e) { /* casier vide ou illisible : on garde 0001 */ }
+
+    let echecs = 0;
     for (let i = 0; i < file.length; i++) {
       const item = file[i];
-      const nomObjet = `${Date.now()}-${i}-${nettoyerNom(item.fichier.name)}`;
+      const nomObjet = `${String(i + 1).padStart(3, '0')}-${nettoyerNom(item.fichier.name)}`;
       try {
         const { error } = await sb.storage.from(SEAU)
-          .upload(`${prefixe}/${nomObjet}`, item.fichier, {
+          .upload(`${racineP}/${numero}/${nomObjet}`, item.fichier, {
             contentType: item.fichier.type || 'image/jpeg',
             upsert: false,
           });
         if (error) throw error;
         if (item.vignette) {
           await sb.storage.from(SEAU)
-            .upload(`${prefixeV}/${nomObjet}`, item.vignette, { contentType: 'image/jpeg', upsert: true });
+            .upload(`${racineV}/${numero}/${nomObjet}`, item.vignette, { contentType: 'image/jpeg', upsert: true });
         }
       } catch (e) {
         echecs++;
@@ -354,75 +382,112 @@ function TransfertPhotos({ userId, nom, poste }) {
     file.forEach((x) => { if (x.apercu) URL.revokeObjectURL(x.apercu); });
     setFile([]);
     setEnvoi(null);
-    if (echecs > 0) setErreur(`${echecs} photo(s) n'ont pas pu être envoyées. Vérifie ta connexion et réessaie.`);
-    else setInfo('Envoyé. Les photos sont dans ton casier, prêtes à récupérer sur ton ordinateur.');
+    if (echecs > 0) setErreur(`${echecs} photo(s) n'ont pas pu être envoyées. Une photo de plus de 20 Mo est refusée; sinon, vérifie ta connexion et réessaie.`);
+    else setInfo(`Lot ${numero} envoyé. Choisis le format, puis récupère-les sur ton ordinateur.`);
     await charger();
   }
 
-  // --- Telechargement ------------------------------------------------------
-  async function telechargerUne(photo) {
+  // --- Telechargement : c'est ICI que la reduction se fait -----------------
+  async function recuperer(cheminComplet, nomFichier) {
+    const reglage = FORMATS.find((f) => f.id === format) || FORMATS[1];
+    const { data, error } = await sb.storage.from(SEAU).createSignedUrl(cheminComplet, 300);
+    if (error) throw error;
+    const rep = await fetch(data.signedUrl);
+    const brut = await rep.blob();
+    if (reglage.id === 'original') return { blob: brut, nom: nomFichier, reduit: false };
+
+    const petit = await redessiner(brut, reglage.max, reglage.q);
+    // Si le navigateur n'a pas su lire le fichier, ou si la reduction ne gagne
+    // rien, on rend l'original — mais on le dit a l'appelant.
+    if (!petit || petit.size >= brut.size) return { blob: brut, nom: nomFichier, reduit: false };
+    return { blob: petit, nom: `${nomFichier.replace(/\.[^.]+$/, '')}.jpg`, reduit: true };
+  }
+
+  async function telechargerUne(lotNum, photo) {
+    setErreur(''); setTravail('Préparation…');
     try {
-      const { data, error } = await sb.storage.from(SEAU).createSignedUrl(`${prefixe}/${photo.name}`, 120);
-      if (error) throw error;
-      const rep = await fetch(data.signedUrl);
-      telechargerBlob(await rep.blob(), photo.name);
+      const r = await recuperer(`${racineP}/${lotNum}/${photo.name}`, photo.name);
+      telechargerBlob(r.blob, r.nom);
+      if (!r.reduit && format !== 'original') {
+        setInfo("Cette photo n'a pas pu être réduite (format non lisible par le navigateur) — tu as reçu l'original.");
+      }
     } catch (e) {
       setErreur("Le téléchargement a échoué. Réessaie dans un instant.");
+    } finally {
+      setTravail('');
     }
   }
 
-  async function telechargerSelection() {
-    const choisies = photos.filter((p) => selection.has(p.name));
-    if (choisies.length === 0) return;
-    if (choisies.length === 1) { await telechargerUne(choisies[0]); return; }
-    setZipEnCours(true);
-    setErreur('');
+  async function telechargerPlusieurs(items, nomArchive) {
+    if (items.length === 0) return;
+    if (items.length === 1) { await telechargerUne(items[0].lot, items[0].photo); return; }
+    setErreur(''); setInfo('');
     try {
-      const chemins = choisies.map((p) => `${prefixe}/${p.name}`);
-      const { data: liens, error } = await sb.storage.from(SEAU).createSignedUrls(chemins, 300);
-      if (error) throw error;
       const entrees = [];
-      for (let i = 0; i < choisies.length; i++) {
-        const lien = liens?.[i]?.signedUrl;
-        if (!lien) continue;
-        const rep = await fetch(lien);
-        entrees.push({ nom: choisies[i].name, octets: new Uint8Array(await rep.arrayBuffer()) });
+      let nonReduites = 0;
+      for (let i = 0; i < items.length; i++) {
+        setTravail(`Préparation ${i + 1} / ${items.length}…`);
+        const r = await recuperer(`${racineP}/${items[i].lot}/${items[i].photo.name}`, items[i].photo.name);
+        if (!r.reduit && format !== 'original') nonReduites++;
+        entrees.push({ nom: r.nom, octets: new Uint8Array(await r.blob.arrayBuffer()) });
       }
-      const jour = new Date().toISOString().slice(0, 10);
-      telechargerBlob(construireZip(entrees), `photos-${jour}.zip`);
+      setTravail('Création de l’archive…');
+      telechargerBlob(construireZip(entrees), nomArchive);
+      if (nonReduites > 0) {
+        setInfo(`${nonReduites} photo(s) n'ont pas pu être réduites (format non lisible par le navigateur) — elles sont dans l'archive en taille originale.`);
+      }
     } catch (e) {
       setErreur("L'archive n'a pas pu être créée. Essaie avec moins de photos à la fois.");
     } finally {
-      setZipEnCours(false);
+      setTravail('');
     }
   }
 
-  async function supprimerSelection() {
-    const choisies = photos.filter((p) => selection.has(p.name));
-    if (choisies.length === 0) return;
+  async function supprimer(items) {
+    if (items.length === 0) return;
     const aEffacer = [];
-    choisies.forEach((p) => { aEffacer.push(`${prefixe}/${p.name}`, `${prefixeV}/${p.name}`); });
+    items.forEach(({ lot, photo }) => {
+      aEffacer.push(`${racineP}/${lot}/${photo.name}`, `${racineV}/${lot}/${photo.name}`);
+    });
     try {
       const { error } = await sb.storage.from(SEAU).remove(aEffacer);
       if (error) throw error;
-      setInfo(`${choisies.length} photo(s) supprimée(s).`);
+      setInfo(`${items.length} photo(s) supprimée(s).`);
       await charger();
     } catch (e) {
       setErreur("La suppression a échoué.");
     }
   }
 
-  function basculer(nomPhoto) {
+  // --- Selection -----------------------------------------------------------
+  function cle(lotNum, photo) { return `${lotNum}/${photo.name}`; }
+
+  function basculer(lotNum, photo) {
     setSelection((s) => {
       const n = new Set(s);
-      if (n.has(nomPhoto)) n.delete(nomPhoto); else n.add(nomPhoto);
+      const k = cle(lotNum, photo);
+      if (n.has(k)) n.delete(k); else n.add(k);
       return n;
     });
   }
 
-  const toutSelectionne = photos.length > 0 && selection.size === photos.length;
-  const poidsAvant = file.reduce((t, f) => t + f.tailleOrigine, 0);
-  const poidsApres = file.reduce((t, f) => t + f.fichier.size, 0);
+  function basculerLot(lot) {
+    const cles = lot.photos.map((p) => cle(lot.num, p));
+    const toutes = cles.every((k) => selection.has(k));
+    setSelection((s) => {
+      const n = new Set(s);
+      cles.forEach((k) => { if (toutes) n.delete(k); else n.add(k); });
+      return n;
+    });
+  }
+
+  const itemsSelectionnes = [];
+  lots.forEach((l) => l.photos.forEach((p) => {
+    if (selection.has(cle(l.num, p))) itemsSelectionnes.push({ lot: l.num, photo: p });
+  }));
+
+  const poidsFile = file.reduce((t, f) => t + f.fichier.size, 0);
+  const occupe = () => !!travail || !!envoi;
 
   // --- Styles partages -----------------------------------------------------
   const carte = { background: th.panel, border: `1px solid ${th.line}`, borderRadius: 10, boxShadow: th.ombre };
@@ -432,7 +497,7 @@ function TransfertPhotos({ userId, nom, poste }) {
   };
   const btnLeger = {
     background: 'transparent', color: th.text, border: `1px solid ${th.line}`, borderRadius: 8,
-    padding: '9px 14px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+    padding: '8px 13px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
     display: 'inline-flex', alignItems: 'center', gap: 7,
   };
 
@@ -455,14 +520,7 @@ function TransfertPhotos({ userId, nom, poste }) {
           onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
           onDragLeave={() => setSurvol(false)}
           onDrop={(e) => { e.preventDefault(); setSurvol(false); ajouterFichiers(e.dataTransfer.files); }}
-          style={{
-            ...carte,
-            borderStyle: 'dashed',
-            borderWidth: 2,
-            borderColor: survol ? ROUGE : th.line,
-            padding: '30px 20px',
-            textAlign: 'center',
-          }}
+          style={{ ...carte, borderStyle: 'dashed', borderWidth: 2, borderColor: survol ? ROUGE : th.line, padding: '30px 20px', textAlign: 'center' }}
         >
           <input
             id="champ-photos"
@@ -478,70 +536,32 @@ function TransfertPhotos({ userId, nom, poste }) {
           </button>
           <div style={{ color: th.textDim, fontSize: 13.5, marginTop: 12, lineHeight: 1.5 }}>
             Sur un téléphone, ça ouvre directement la pellicule.<br />
-            Sur un ordinateur, tu peux aussi les glisser ici.
+            Les photos partent en taille originale — tu choisis le format en les récupérant.
           </div>
-        </div>
-
-        {/* --- Taille ------------------------------------------------------ */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', margin: '16px 0 4px' }}>
-          <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: th.textDim }}>
-            Réduction
-          </span>
-          {TAILLES.map((t) => {
-            const actif = t.id === tailleChoisie;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTailleChoisie(t.id)}
-                style={{
-                  ...btnLeger,
-                  padding: '7px 13px',
-                  background: actif ? ROUGE : 'transparent',
-                  color: actif ? '#fff' : th.text,
-                  borderColor: actif ? ROUGE : th.line,
-                }}
-              >
-                {t.label}
-                <span style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 500 }}>{t.aide}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 12.5, color: th.textDim, marginBottom: 18 }}>
-          La réduction se fait dans ton appareil, avant l&rsquo;envoi. Le réglage s&rsquo;applique aux prochaines photos ajoutées.
         </div>
 
         {/* --- Messages ---------------------------------------------------- */}
         {erreur && (
-          <div style={{ background: th.errBg, border: `1px solid ${th.errTexte}`, borderRadius: 8, padding: '12px 14px', color: th.errTexte, fontSize: 14, marginBottom: 16, display: 'flex', gap: 9 }}>
+          <div style={{ background: th.errBg, border: `1px solid ${th.errTexte}`, borderRadius: 8, padding: '12px 14px', color: th.errTexte, fontSize: 14, margin: '16px 0', display: 'flex', gap: 9 }}>
             <AlertTriangle size={17} style={{ flexShrink: 0, marginTop: 1 }} /> <span>{erreur}</span>
           </div>
         )}
         {info && (
-          <div style={{ background: th.okBg, border: `1px solid ${th.okLigne}`, borderRadius: 8, padding: '12px 14px', color: th.text, fontSize: 14, marginBottom: 16, display: 'flex', gap: 9 }}>
+          <div style={{ background: th.okBg, border: `1px solid ${th.okLigne}`, borderRadius: 8, padding: '12px 14px', color: th.text, fontSize: 14, margin: '16px 0', display: 'flex', gap: 9 }}>
             <Check size={17} style={{ flexShrink: 0, marginTop: 1, color: th.okLigne }} /> <span>{info}</span>
           </div>
         )}
 
         {/* --- File d'attente ---------------------------------------------- */}
         {(file.length > 0 || enPreparation > 0) && (
-          <div style={{ ...carte, padding: 18, marginBottom: 24 }}>
+          <div style={{ ...carte, padding: 18, margin: '18px 0 24px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>
-                {file.length} photo{file.length > 1 ? 's' : ''} prête{file.length > 1 ? 's' : ''} à envoyer
+                {file.length} photo{file.length > 1 ? 's' : ''} à envoyer
               </div>
-              {file.length > 0 && (
-                <div style={{ fontSize: 13.5, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
-                  {formaterTaille(poidsAvant)} <span style={{ opacity: 0.6 }}>→</span>{' '}
-                  <b style={{ color: th.text }}>{formaterTaille(poidsApres)}</b>
-                  {poidsAvant > 0 && poidsApres < poidsAvant && (
-                    <span style={{ color: th.okLigne, marginLeft: 8 }}>
-                      −{Math.round((1 - poidsApres / poidsAvant) * 100)} %
-                    </span>
-                  )}
-                </div>
-              )}
+              <div style={{ fontSize: 13.5, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                {formaterTaille(poidsFile)}
+              </div>
             </div>
 
             {enPreparation > 0 && (
@@ -552,16 +572,16 @@ function TransfertPhotos({ userId, nom, poste }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 10 }}>
               {file.map((f) => (
-                <div key={f.cle} style={{ position: 'relative', border: `1px solid ${f.heicNonLu ? th.avisTexte : th.line}`, borderRadius: 8, overflow: 'hidden', background: th.panelAlt }}>
+                <div key={f.cle} style={{ position: 'relative', border: `1px solid ${f.illisible ? th.avisTexte : th.line}`, borderRadius: 8, overflow: 'hidden', background: th.panelAlt }}>
                   {f.apercu
                     ? <img src={f.apercu} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
                     : <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.textDim }}><ImageIcon size={22} /></div>}
                   <div style={{ padding: '6px 7px', fontSize: 10.5, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
                     {formaterTaille(f.fichier.size)}
                   </div>
-                  {f.heicNonLu && (
+                  {f.illisible && (
                     <div style={{ padding: '0 7px 7px', fontSize: 10, color: th.avisTexte, lineHeight: 1.3 }}>
-                      HEIC — non réduit
+                      {f.heic ? 'HEIC' : 'Format inconnu'}
                     </div>
                   )}
                   <button
@@ -576,10 +596,11 @@ function TransfertPhotos({ userId, nom, poste }) {
               ))}
             </div>
 
-            {file.some((f) => f.heicNonLu) && (
+            {file.some((f) => f.illisible) && (
               <div style={{ background: th.avisBg, border: `1px solid ${th.avisTexte}`, borderRadius: 8, padding: '11px 13px', color: th.avisTexte, fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>
-                Certaines photos sont en format <b>HEIC</b> et n&rsquo;ont pas pu être réduites. Elles s&rsquo;enverront quand même,
-                mais risquent de ne pas s&rsquo;ouvrir sur un PC Windows. Pour l&rsquo;éviter sur un iPhone :
+                Le navigateur n&rsquo;arrive pas à lire certaines photos — souvent du <b>HEIC</b>. Elles s&rsquo;enverront
+                quand même, mais elles ne pourront pas être réduites au téléchargement, et un <code>.heic</code> ne
+                s&rsquo;ouvre pas sur un PC Windows. Pour l&rsquo;éviter sur un iPhone :
                 Réglages → Appareil photo → Formats → <b>Le plus compatible</b>.
               </div>
             )}
@@ -593,85 +614,155 @@ function TransfertPhotos({ userId, nom, poste }) {
           </div>
         )}
 
-        {/* --- Le casier ---------------------------------------------------- */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
-            Mon casier {photos.length > 0 && <span style={{ color: th.textDim, fontWeight: 500 }}>· {photos.length}</span>}
-          </h2>
-          {photos.length > 0 && (
+        {/* --- Format de téléchargement ------------------------------------ */}
+        <div style={{ ...carte, padding: '14px 16px', margin: '18px 0' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: th.textDim, marginRight: 4 }}>
+              Format au téléchargement
+            </span>
+            {FORMATS.map((f) => {
+              const actif = f.id === format;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFormat(f.id)}
+                  style={{ ...btnLeger, padding: '7px 13px', background: actif ? ROUGE : 'transparent', color: actif ? '#fff' : th.text, borderColor: actif ? ROUGE : th.line }}
+                >
+                  {f.label}
+                  <span style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 500 }}>{f.aide}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 12.5, color: th.textDim, marginTop: 10, lineHeight: 1.5 }}>
+            Le choix s&rsquo;applique au moment où tu télécharges, pas à l&rsquo;envoi : tes photos restent en taille
+            originale dans le casier. Tu peux prendre un lot en Léger, puis le reprendre en Original.
+          </div>
+        </div>
+
+        {/* --- Barre de sélection ------------------------------------------- */}
+        {itemsSelectionnes.length > 0 && (
+          <div style={{ ...carte, padding: '12px 16px', marginBottom: 18, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>
+              {itemsSelectionnes.length} photo{itemsSelectionnes.length > 1 ? 's' : ''} cochée{itemsSelectionnes.length > 1 ? 's' : ''}
+            </span>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              <button type="button" style={btnLeger} onClick={() => setSelection(toutSelectionne ? new Set() : new Set(photos.map((p) => p.name)))}>
-                {toutSelectionne ? <Square size={15} /> : <CheckSquare size={15} />}
-                {toutSelectionne ? 'Tout décocher' : 'Tout cocher'}
-              </button>
               <button
                 type="button"
-                style={{ ...btnLeger, opacity: selection.size === 0 || zipEnCours ? 0.5 : 1 }}
-                disabled={selection.size === 0 || zipEnCours}
-                onClick={telechargerSelection}
+                style={{ ...btnLeger, opacity: occupe() ? 0.5 : 1 }}
+                disabled={occupe()}
+                onClick={() => telechargerPlusieurs(itemsSelectionnes, `photos-${new Date().toISOString().slice(0,10)}.zip`)}
               >
-                <Download size={15} />
-                {zipEnCours ? 'Préparation…' : `Télécharger${selection.size > 1 ? ` (${selection.size}) en .zip` : selection.size === 1 ? '' : ''}`}
+                <Download size={15} /> {travail || `Télécharger la sélection${itemsSelectionnes.length > 1 ? ' (.zip)' : ''}`}
+              </button>
+              <button type="button" style={btnLeger} onClick={() => setSelection(new Set())}>
+                <X size={15} /> Tout décocher
               </button>
               <button
                 type="button"
-                style={{ ...btnLeger, color: selection.size ? th.errTexte : th.textDim, borderColor: selection.size ? th.errTexte : th.line, opacity: selection.size === 0 ? 0.5 : 1 }}
-                disabled={selection.size === 0}
-                onClick={supprimerSelection}
+                style={{ ...btnLeger, color: th.errTexte, borderColor: th.errTexte }}
+                onClick={() => supprimer(itemsSelectionnes)}
               >
                 <Trash2 size={15} /> Supprimer
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* --- Le casier, par lot -------------------------------------------- */}
+        <h2 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 12px' }}>
+          Mon casier {lots.length > 0 && <span style={{ color: th.textDim, fontWeight: 500 }}>· {lots.length} lot{lots.length > 1 ? 's' : ''}</span>}
+        </h2>
 
         {chargement ? (
           <div style={{ ...carte, padding: 34, textAlign: 'center', color: th.textDim, fontSize: 14 }}>Chargement…</div>
-        ) : photos.length === 0 ? (
+        ) : lots.length === 0 ? (
           <div style={{ ...carte, padding: 34, textAlign: 'center', color: th.textDim, fontSize: 14.5 }}>
             <ImageIcon size={22} style={{ opacity: 0.5, marginBottom: 8 }} />
-            <div>Ton casier est vide. Les photos que tu envoies apparaissent ici,<br />et s&rsquo;effacent toutes seules après {JOURS_CONSERVATION} jours.</div>
+            <div>Ton casier est vide. Chaque envoi forme un lot numéroté,<br />et s&rsquo;efface tout seul après {JOURS_CONSERVATION} jours.</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-            {photos.map((p) => {
-              const choisie = selection.has(p.name);
-              const reste = joursRestants(p.created_at);
+          <div style={{ display: 'grid', gap: 16 }}>
+            {lots.map((lot) => {
+              const ferme = replies.has(lot.num);
+              const cles = lot.photos.map((p) => cle(lot.num, p));
+              const toutCoche = cles.every((k) => selection.has(k));
               return (
-                <div
-                  key={p.name}
-                  style={{
-                    ...carte,
-                    overflow: 'hidden',
-                    borderColor: choisie ? ROUGE : th.line,
-                    borderWidth: choisie ? 2 : 1,
-                    cursor: 'pointer',
-                  }}
-                  onClick={() => basculer(p.name)}
-                >
-                  <div style={{ position: 'relative', background: th.panelAlt }}>
-                    {vignettes[p.name]
-                      ? <img src={vignettes[p.name]} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
-                      : <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.textDim }}><ImageIcon size={24} /></div>}
-                    <div style={{ position: 'absolute', top: 7, left: 7, width: 24, height: 24, borderRadius: 6, background: choisie ? ROUGE : 'rgba(0,0,0,0.5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {choisie ? <Check size={15} /> : <Square size={13} />}
-                    </div>
-                  </div>
-                  <div style={{ padding: '9px 10px 11px' }}>
-                    <div style={{ fontSize: 12.5, color: th.textDim, fontVariantNumeric: 'tabular-nums', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                      <span>{formaterTaille(p.metadata?.size)}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: reste <= 1 ? th.avisTexte : th.textDim }}>
-                        <Clock size={12} /> {reste} j
-                      </span>
-                    </div>
+                <div key={lot.num} style={{ ...carte, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '13px 15px', background: th.panelAlt, borderBottom: ferme ? 'none' : `1px solid ${th.line}` }}>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); telechargerUne(p); }}
-                      style={{ ...btnLeger, width: '100%', justifyContent: 'center', marginTop: 9, padding: '7px 10px', fontSize: 12.5 }}
+                      onClick={() => setReplies((s) => { const n = new Set(s); if (n.has(lot.num)) n.delete(lot.num); else n.add(lot.num); return n; })}
+                      style={{ background: 'transparent', border: 'none', color: th.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: 0, textAlign: 'left', minWidth: 0 }}
                     >
-                      <Download size={14} /> Télécharger
+                      {ferme ? <ChevronRight size={17} /> : <ChevronDown size={17} />}
+                      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 15, fontWeight: 700, color: ROUGE }}>{lot.num}</span>
+                      <span style={{ fontSize: 14.5, fontWeight: 600 }}>{dateLongue(lot.quand)}</span>
+                      <span style={{ fontSize: 13, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                        · {lot.photos.length} photo{lot.photos.length > 1 ? 's' : ''} · {formaterTaille(lot.octets)}
+                      </span>
                     </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: lot.jours <= 1 ? th.avisTexte : th.textDim }}>
+                        <Clock size={13} /> expire dans {lot.jours} j
+                      </span>
+                      <button type="button" style={btnLeger} onClick={() => basculerLot(lot)}>
+                        {toutCoche ? <Square size={14} /> : <CheckSquare size={14} />}
+                        {toutCoche ? 'Décocher' : 'Cocher'}
+                      </button>
+                      <button
+                        type="button"
+                        style={{ ...btnLeger, opacity: occupe() ? 0.5 : 1 }}
+                        disabled={occupe()}
+                        onClick={() => telechargerPlusieurs(
+                          lot.photos.map((p) => ({ lot: lot.num, photo: p })),
+                          `lot-${lot.num}-${new Date(lot.quand).toISOString().slice(0,10)}.zip`,
+                        )}
+                      >
+                        <Download size={14} /> Télécharger le lot
+                      </button>
+                    </div>
                   </div>
+
+                  {!ferme && (
+                    <div style={{ padding: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 11 }}>
+                      {lot.photos.map((p) => {
+                        const k = cle(lot.num, p);
+                        const choisie = selection.has(k);
+                        const url = vignettes[`${racineV}/${lot.num}/${p.name}`];
+                        return (
+                          <div
+                            key={k}
+                            onClick={() => basculer(lot.num, p)}
+                            style={{ border: `${choisie ? 2 : 1}px solid ${choisie ? ROUGE : th.line}`, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', background: th.panel }}
+                          >
+                            <div style={{ position: 'relative', background: th.panelAlt }}>
+                              {url
+                                ? <img src={url} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }} />
+                                : <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.textDim }}><ImageIcon size={24} /></div>}
+                              <div style={{ position: 'absolute', top: 7, left: 7, width: 24, height: 24, borderRadius: 6, background: choisie ? ROUGE : 'rgba(0,0,0,0.5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {choisie ? <Check size={15} /> : <Square size={13} />}
+                              </div>
+                            </div>
+                            <div style={{ padding: '8px 9px 10px' }}>
+                              <div style={{ fontSize: 12, color: th.textDim, fontVariantNumeric: 'tabular-nums' }}>
+                                {formaterTaille(p.metadata?.size)}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); telechargerUne(lot.num, p); }}
+                                disabled={occupe()}
+                                style={{ ...btnLeger, width: '100%', justifyContent: 'center', marginTop: 8, padding: '6px 9px', fontSize: 12, opacity: occupe() ? 0.5 : 1 }}
+                              >
+                                <Download size={13} /> Télécharger
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -680,7 +771,8 @@ function TransfertPhotos({ userId, nom, poste }) {
 
         <p style={{ fontSize: 12.5, color: th.textDim, marginTop: 26, lineHeight: 1.6 }}>
           Ton casier est visible par toi seulement — aucun autre compte du Toolbox n&rsquo;y a accès, pas même un administrateur.
-          Les photos s&rsquo;effacent automatiquement {JOURS_CONSERVATION} jours après leur envoi : c&rsquo;est un tuyau de transfert, pas un rangement.
+          Les lots s&rsquo;effacent automatiquement {JOURS_CONSERVATION} jours après leur envoi : c&rsquo;est un tuyau de transfert, pas un rangement.
+          La numérotation repart à 0001 quand le casier est complètement vide.
         </p>
       </div>
     </div>
