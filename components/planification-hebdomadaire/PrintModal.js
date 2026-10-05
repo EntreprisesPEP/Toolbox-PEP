@@ -5,6 +5,8 @@ const SHEETS = [
   { key: '1', label: 'Meeting 1 - Suivi projets' },
   { key: '2', label: 'Meeting 2 - Attribution' },
   { key: '3', label: 'Projets termines' },
+  { key: 'coupes', label: 'Coupe de rue' },
+  { key: 'vacances', label: 'Vacances / Conges' },
 ];
 
 export default function PrintModal({ open, onCancel, onGenerate, generating }) {
