@@ -3,6 +3,8 @@ import Meeting1Pdf from './Meeting1Pdf';
 import Meeting2Pdf from './Meeting2Pdf';
 import TerminesPdf from './TerminesPdf';
 import AdminPdf from './AdminPdf';
+import CoupesPdf from './CoupesPdf';
+import VacancesPdf from './VacancesPdf';
 
 export default function PdfDocument({ selection, board }) {
   return (
@@ -11,6 +13,8 @@ export default function PdfDocument({ selection, board }) {
       {selection.includes('1') && <Meeting1Pdf board={board} />}
       {selection.includes('2') && <Meeting2Pdf board={board} />}
       {selection.includes('3') && <TerminesPdf board={board} />}
+      {selection.includes('coupes') && <CoupesPdf board={board} />}
+      {selection.includes('vacances') && <VacancesPdf board={board} />}
     </Document>
   );
 }
