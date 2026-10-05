@@ -3,6 +3,10 @@
   --red: #C41230;
   --red-dark: #9E0E26;
   --link: #5B8FD9;
+  /* Le vert etait ecrit en dur a trois endroits (statut en cours, pastille de
+     synchro). Revision 72 : une seule declaration, reutilisee par l'onglet
+     Coupe de rue. */
+  --vert: #2E9F58;
 }
 html[data-theme='jour'] {
   --page: #EDF2FA; --panel: #FFFFFF; --panel-2: #F3F5F8; --line: #E1E5EC;
@@ -392,3 +396,120 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
    moins projeté au mur. */
 .ph-scope .ph-plein-ecran tbody tr.surligne > td { background: #FFF3B0; color: #15181B; }
 .ph-scope .ph-plein-ecran tbody tr.surligne .jobline .no { color: #5A4A00; }
+
+/* ---------- Revision 72 : Coupe de rue et Vacances / Conges ----------------
+
+   La barre d'onglets passe de 4 a 6 boutons. `.pill-toggle` etait en
+   `inline-flex` sans retour a la ligne : a six libelles, elle debordait
+   l'ecran d'un telephone. Elle passe sur deux rangees plutot que de deborder.
+   -------------------------------------------------------------------------- */
+.ph-scope .pill-toggle { flex-wrap: wrap; max-width: 100%; }
+
+/* Les deux nouveaux tableaux : meme grammaire que `.admin-table-wrap`, avec
+   des colonnes etroites centrees pour les cases a cocher. */
+.ph-scope .coupes-table th.ctr,
+.ph-scope .coupes-table td.ctr,
+.ph-scope .vac-table th.ctr,
+.ph-scope .vac-table td.ctr { text-align: center; }
+
+.ph-scope .coupes-table th { font-size: 10.5px; white-space: normal; line-height: 1.3; }
+.ph-scope .coupes-table td { font-size: 12.5px; }
+.ph-scope .coupes-table input[type="date"],
+.ph-scope .vac-table input[type="date"] { min-width: 120px; }
+/* « Non coordonne » est le libelle le plus long du menu : sans largeur
+   minimale, le select le coupe a « Non coordo... » et on ne sait plus si
+   c'est coordonne ou non — exactement l'information qu'on vient lire. */
+.ph-scope .coupes-table select { min-width: 132px; }
+
+/* Une coupe prete se repere d'un coup d'oeil : un filet vert a gauche de la
+   rangee. Pas un fond colore — il se serait battu avec le zebrage des
+   rangees paires. */
+.ph-scope .coupes-table tr.coupe-prete td:first-child { box-shadow: inset 3px 0 0 var(--vert); }
+
+.ph-scope .chip-pret {
+  display: inline-flex; align-items: center; gap: 4px; background: var(--vert); color: #fff;
+  border-radius: 20px; padding: 2px 9px 2px 7px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .03em; white-space: nowrap;
+}
+
+/* Le formulaire d'ajout d'une absence. `vac-calcule` affiche le nombre de
+   jours ouvrables pendant la saisie, avant meme d'avoir ajoute la ligne. */
+.ph-scope .vac-add-grid { display: grid; grid-template-columns: 1.4fr 1.4fr 1fr 1fr 110px auto; gap: 10px; align-items: end; }
+.ph-scope .vac-add-grid label { font-size: 11px; color: var(--ink-dim); display: block; margin-bottom: 4px; }
+.ph-scope .vac-add-grid input {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px; color: var(--ink);
+}
+.ph-scope .vac-add-grid .btn { padding: 8px 16px; border-radius: 8px; white-space: nowrap; }
+.ph-scope .vac-calcule {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font-size: 15px; font-weight: 700; text-align: center; color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .ph-scope .vac-add-grid { grid-template-columns: 1fr 1fr; }
+  .ph-scope .vac-add-grid > div[style*="grid-column"] { grid-column: 1 / -1 !important; }
+  .ph-scope .vac-add-grid .btn { grid-column: 1 / -1; }
+}
+
+/* ---------- Les deux nouveaux tableaux sur telephone ----------------------
+
+   Onze colonnes pour Coupe de rue, sept pour Vacances : au-dela de ~760 px
+   elles ne rentrent plus. `.admin-table-wrap` etant en `overflow: hidden`,
+   les colonnes de droite — justement celles qu'on vient lire : les permis,
+   « Pret », le surintendant — etaient simplement coupees et inatteignables.
+
+   Plutot qu'un defilement horizontal, chaque rangee devient une fiche, avec
+   l'intitule de colonne devant la valeur. C'est la solution deja retenue
+   pour le tableau des points de la Conversion geodesique.
+   -------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  .ph-scope .coupes-table thead,
+  .ph-scope .vac-table thead { display: none; }
+
+  .ph-scope .coupes-table,
+  .ph-scope .coupes-table tbody,
+  .ph-scope .vac-table,
+  .ph-scope .vac-table tbody { display: block; width: 100%; }
+
+  .ph-scope .coupes-table tr,
+  .ph-scope .vac-table tr { display: block; padding: 10px 12px; border-top: 1px solid var(--line); }
+  .ph-scope .coupes-table tbody tr:first-child,
+  .ph-scope .vac-table tbody tr:first-child { border-top: none; }
+
+  .ph-scope .coupes-table td,
+  .ph-scope .vac-table td {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border: none; padding: 5px 0; text-align: left;
+  }
+  .ph-scope .coupes-table td::before,
+  .ph-scope .vac-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto; font-size: 10.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--ink-dim);
+  }
+
+  /* La premiere cellule fait le titre de la fiche : pas d'intitule, pleine
+     largeur, un peu plus grosse. */
+  .ph-scope .coupes-table td.cell-titre,
+  .ph-scope .vac-table td.cell-titre { display: block; font-size: 14px; font-weight: 700; padding-bottom: 8px; }
+  .ph-scope .coupes-table td.cell-titre::before,
+  .ph-scope .vac-table td.cell-titre::before { content: none; }
+
+  .ph-scope .coupes-table td.cell-action,
+  .ph-scope .vac-table td.cell-action { display: flex; justify-content: flex-end; text-align: right !important; padding-top: 8px; }
+
+  /* Le filet vert d'une coupe prete passe de la cellule a la fiche entiere. */
+  .ph-scope .coupes-table tr.coupe-prete td:first-child { box-shadow: none; }
+  .ph-scope .coupes-table tr.coupe-prete { box-shadow: inset 3px 0 0 var(--vert); }
+
+  /* Les champs de saisie prennent la place restante a droite de l'intitule. */
+  .ph-scope .coupes-table td .admin-input-ghost,
+  .ph-scope .vac-table td .admin-input-ghost { flex: 1 1 auto; min-width: 0; max-width: 62%; text-align: right; }
+  /* Un menu deroulant ne peut pas etre tronque sans perdre son sens : c'est
+     l'intitule qui cede la place, pas la valeur. */
+  .ph-scope .coupes-table td select.admin-input-ghost { flex: 0 0 auto; max-width: none; }
+  .ph-scope .coupes-table td:has(select)::before { flex: 1 1 auto; min-width: 0; }
+  .ph-scope .coupes-table td.cell-titre .admin-input-ghost,
+  .ph-scope .vac-table td.cell-titre .admin-input-ghost { max-width: 100%; text-align: left; }
+}
