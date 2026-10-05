@@ -27,6 +27,12 @@ export function useBoard() {
   const [bottinEnPanne, setBottinEnPanne] = useState(null);
   const [comments, setComments] = useState([]); // project_comments rows
   const [projetsSuggeres, setProjetsSuggeres] = useState([]);
+  // Revision 72 : les deux nouveaux onglets.
+  const [coupes, setCoupes] = useState([]);
+  const [vacances, setVacances] = useState([]);
+  // Le bottin complet (nom + titre). `chargerGroupes` le renvoie deja pour
+  // resoudre les groupes : on le garde plutot que de le relire une 2e fois.
+  const [bottin, setBottin] = useState([]);
   const [settings, setSettings] = useState({ range_start: null, notes_week_start: null });
   const [loading, setLoading] = useState(true);
   const [syncState, setSyncState] = useState('synchronise');
@@ -45,7 +51,7 @@ export function useBoard() {
   nameOverridesRef.current = nameOverrides;
 
   const loadAll = useCallback(async () => {
-    const [p, cm, asg, roles, st, cmts, no, sugg] = await Promise.all([
+    const [p, cm, asg, roles, st, cmts, no, sugg, cr, vac] = await Promise.all([
       supabase.from('projects').select('*').order('sort_order', { ascending: true }),
       supabase.from('contremaitres').select('*').order('sort_order', { ascending: true }),
       supabase.from('assignments').select('*'),
@@ -54,6 +60,9 @@ export function useBoard() {
       supabase.from('project_comments').select('*').order('created_at', { ascending: false }),
       supabase.from('contremaitre_name_overrides').select('*'),
       supabase.from('projets_suggeres').select('*').eq('statut', 'en_attente').order('created_at', { ascending: false }),
+      // Les coupes sans date exacte passent en dernier (nullsFirst: false).
+      supabase.from('coupes_de_rue').select('*').order('date_exacte', { ascending: true, nullsFirst: false }),
+      supabase.from('vacances').select('*').order('date_debut', { ascending: true, nullsFirst: false }),
     ]);
     if (!mounted.current) return;
     if (p.data) setProjects(p.data);
@@ -79,9 +88,15 @@ export function useBoard() {
         : null);
     }
 
+    // Le bottin complet sert au menu des noms de l'onglet Vacances. Il arrive
+    // avec le titre de chaque personne, ce qui evite de le retaper.
+    setBottin((roles.personnes || []).filter((x) => x.actif !== false));
+
     if (cmts.data) setComments(cmts.data);
     if (no.data) setNameOverrides(no.data);
     if (sugg.data) setProjetsSuggeres(sugg.data);
+    if (cr.data) setCoupes(cr.data);
+    if (vac.data) setVacances(vac.data);
     if (st.data) {
       setSettings(st.data);
     } else {
@@ -103,6 +118,8 @@ export function useBoard() {
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'app_settings' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'project_comments' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'contremaitre_name_overrides' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'coupes_de_rue' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'planif_hebdo', table: 'vacances' }, loadAll)
       .subscribe();
     return () => { mounted.current = false; supabase.removeChannel(channel); };
   }, [loadAll]);
@@ -439,7 +456,70 @@ export function useBoard() {
     setProjetsSuggeres((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // ---------- Coupes de rue (revision 72) ----------
+  //
+  // Une coupe pointe vers un projet par son `project_id`; le charge et le
+  // surintendant ne sont PAS recopies ici, ils se lisent sur le projet au
+  // moment de l'affichage. Sinon, changer le surintendant d'un projet dans
+  // Admin laisserait l'ancien nom sur la coupe, et les deux ecrans se
+  // contrediraient.
+  //
+  // Mise a jour optimiste : cocher une case doit repondre tout de suite, meme
+  // sur un lien de chantier. Si l'ecriture echoue, `loadAll` dans `withSync`
+  // remet la valeur du serveur et l'indicateur passe au rouge.
+  async function addCoupe(row) {
+    await withSync(async () => {
+      const { error } = await supabase.from('coupes_de_rue').insert(row);
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+  async function updateCoupe(id, patch) {
+    setCoupes((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    await withSync(async () => {
+      const { error } = await supabase.from('coupes_de_rue').update(patch).eq('id', id);
+      if (error) throw error;
+    });
+  }
+  async function deleteCoupe(id) {
+    await withSync(async () => {
+      const { error } = await supabase.from('coupes_de_rue').delete().eq('id', id);
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+
+  // ---------- Vacances / Conges (revision 72) ----------
+  //
+  // Le nombre de jours ouvrables n'est pas une colonne : il se calcule a
+  // l'affichage avec `joursOuvrables(date_debut, date_fin)`. Voir la note dans
+  // lib/planification-hebdomadaire/dates.js.
+  async function addVacance(row) {
+    await withSync(async () => {
+      const { error } = await supabase.from('vacances').insert(row);
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+  async function updateVacance(id, patch) {
+    setVacances((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    await withSync(async () => {
+      const { error } = await supabase.from('vacances').update(patch).eq('id', id);
+      if (error) throw error;
+    });
+  }
+  async function deleteVacance(id) {
+    await withSync(async () => {
+      const { error } = await supabase.from('vacances').delete().eq('id', id);
+      if (error) throw error;
+      await loadAll();
+    });
+  }
+
   return {
+    coupes, addCoupe, updateCoupe, deleteCoupe,
+    vacances, addVacance, updateVacance, deleteVacance,
+    bottin,
     projects, contremaitres, assignments, charges, surintendants, settings, loading, syncState,
     bottinEnPanne,
     addProject, updateProject, deleteProject,
