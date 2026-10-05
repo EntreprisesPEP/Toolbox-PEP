@@ -7,6 +7,8 @@ import AdminView from '../../components/planification-hebdomadaire/AdminView';
 import Meeting1View from '../../components/planification-hebdomadaire/Meeting1View';
 import Meeting2View from '../../components/planification-hebdomadaire/Meeting2View';
 import TerminesView from '../../components/planification-hebdomadaire/TerminesView';
+import CoupesView from '../../components/planification-hebdomadaire/CoupesView';
+import VacancesView from '../../components/planification-hebdomadaire/VacancesView';
 import PrintModal from '../../components/planification-hebdomadaire/PrintModal';
 import PasswordModal from '../../components/planification-hebdomadaire/PasswordModal';
 import { usePrefs } from '../../hooks/planification-hebdomadaire/usePrefs';
@@ -19,6 +21,8 @@ const TABS = [
   { key: '1', label: 'MEETING 1 - SUIVI PROJETS' },
   { key: '2', label: 'MEETING 2 - ATTRIBUTION' },
   { key: '3', label: 'PROJETS TERMINES' },
+  { key: 'coupes', label: 'COUPE DE RUE' },
+  { key: 'vacances', label: 'VACANCES / CONGES' },
 ];
 
 // Ce compte n'a jamais besoin du mot de passe partagé pour passer en mode
@@ -175,6 +179,8 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
         {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
         {tab === '2' && <Meeting2View board={board} editable={editable} theme={prefs.theme} />}
         {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
+        {tab === 'coupes' && <CoupesView board={board} editable={editable} />}
+        {tab === 'vacances' && <VacancesView board={board} editable={editable} />}
 
         <div className="footnote">
           Donnée partagée en temps réel via Supabase entre tous ceux qui ouvrent cette page.
