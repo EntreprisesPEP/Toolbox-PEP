@@ -49,3 +49,114 @@ select,
 button {
   font-family: inherit;
 }
+
+/* ===========================================================================
+   CHAMP AVEC LISTE FILTRANTE — revision 73
+   Composant partagé : components/commun/ChampListe.js
+   Vit dans commun.css (et non dans la feuille d'une app) parce qu'il est
+   destiné à remplacer les <datalist> et les <select> longs de tout le
+   Toolbox, app par app.
+   =========================================================================== */
+
+.champ-liste {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.champ-liste-input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 24px; /* place pour la flèche */
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.champ-liste-fleche {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 10px;
+  opacity: .55;
+}
+
+.champ-liste-menu {
+  /* `fixed`, pas `absolute` : le menu doit sortir des tableaux à défilement
+     horizontal, qui le découperaient. La position est calculée en JS. */
+  position: fixed;
+  z-index: 2000;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  /* Assez large pour un nom de projet complet, même quand le champ est
+     étroit dans un tableau : une liste tronquée oblige à deviner. */
+  min-width: 240px;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid #C8CEDA;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(16, 24, 40, .16);
+  -webkit-overflow-scrolling: touch;
+}
+
+.champ-liste-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.champ-liste-option.survol { background: #EEF2F9; }
+.champ-liste-option.retenue { font-weight: 700; }
+.champ-liste-option.retenue::after { content: '✓'; margin-left: auto; color: #C41230; }
+.champ-liste-option.vide { color: #6B7280; font-style: italic; }
+
+.champ-liste-libelle { min-width: 0; }
+.champ-liste-detail { font-size: 11.5px; color: #6B7280; margin-left: auto; white-space: nowrap; }
+
+.champ-liste-rien {
+  padding: 10px;
+  font-size: 12.5px;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+/* Au doigt : cibles plus hautes, et on empêche iOS de zoomer en ouvrant le
+   champ — un zoom sur ouverture de clavier casse la page sous le menu. */
+@media (max-width: 860px) {
+  .champ-liste-input { font-size: 16px; }
+  .champ-liste-option { padding: 11px 12px; font-size: 15px; }
+}
+
+/* Dans une cellule de tableau : le champ prend la place de la cellule et perd
+   son cadre, comme les autres champs fantômes de ces tableaux. */
+.champ-liste.dans-tableau .champ-liste-input {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 20px 4px 6px;
+}
+.champ-liste.dans-tableau .champ-liste-input:hover,
+.champ-liste.dans-tableau .champ-liste-input:focus {
+  background: var(--input-bg, #FFFFFF);
+  border-color: var(--line, #C8CEDA);
+}
+
+/* Mode nuit : la Planification hebdomadaire bascule tout via data-theme. */
+[data-theme='nuit'] .champ-liste-menu {
+  background: #1B2438;
+  border-color: #333C56;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+}
+[data-theme='nuit'] .champ-liste-option { color: #EDEFF4; }
+[data-theme='nuit'] .champ-liste-option.survol { background: #2A3652; }
+[data-theme='nuit'] .champ-liste-option.vide,
+[data-theme='nuit'] .champ-liste-detail,
+[data-theme='nuit'] .champ-liste-rien { color: #A8B0C2; }
