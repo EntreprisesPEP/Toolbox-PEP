@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATUS_OPTS } from '../../lib/planification-hebdomadaire/statusColors';
+import { STATUS_OPTS, libelleStatut } from '../../lib/planification-hebdomadaire/statusColors';
 import { formatDateFr, dateKey, today } from '../../lib/planification-hebdomadaire/dates';
 
 export default function StatusCell({ project, editable, onChange }) {
@@ -9,7 +9,7 @@ export default function StatusCell({ project, editable, onChange }) {
     if (project.statut === 'Date' && project.date_valeur) {
       return <span>Date &middot; {formatDateFr(project.date_valeur)}</span>;
     }
-    return <span>{project.statut}</span>;
+    return <span>{libelleStatut(project.statut)}</span>;
   }
 
   if (project.statut === 'Date' && !showDropdown) {
@@ -40,7 +40,7 @@ export default function StatusCell({ project, editable, onChange }) {
         setShowDropdown(false);
       }}
     >
-      {STATUS_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+      {STATUS_OPTS.map((o) => <option key={o} value={o}>{libelleStatut(o)}</option>)}
     </select>
   );
 }
