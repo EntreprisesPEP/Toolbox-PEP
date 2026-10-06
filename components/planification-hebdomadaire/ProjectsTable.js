@@ -108,6 +108,8 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
             return (
               <tr key={p.id} style={rowStyle}>
                 <td
+                  data-label="Projet"
+                  className="cell-titre"
                   onClick={onHighlight ? () => onHighlight(p.id) : undefined}
                   style={onHighlight ? { cursor: 'pointer' } : undefined}
                   title={onHighlight ? 'Cliquer pour surligner ce projet pour tout le monde' : undefined}
@@ -116,27 +118,27 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                     <span className="no">{p.no}</span>{p.projet}
                   </span>
                 </td>
-                <td className="nowrap-col">
+                <td className="nowrap-col" data-label="Statut">
                   <StatusCell project={p} editable={editable} onChange={(patch) => onUpdate(p.id, patch)} />
                 </td>
-                <td>
+                <td data-label="Commentaire" className="cell-large">
                   <AutoTextarea value={p.commentaire} editable={editable} onChange={(v) => onUpdate(p.id, { commentaire: v })} />
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td style={{ textAlign: 'right' }} data-label="Besoin semaine 1">
                   <span
                     className={`need-chip ${p.s1 ? 'need-yes' : 'need-no'} ${editable ? '' : 'readonly'}`}
                     onClick={() => editable && onUpdate(p.id, { s1: !p.s1 })}
                   >{p.s1 ? 'OUI' : 'NON'}</span>
                 </td>
-                <td style={{ textAlign: 'right' }}>
+                <td style={{ textAlign: 'right' }} data-label="Besoin semaine 2">
                   <span
                     className={`need-chip ${p.s2 ? 'need-yes' : 'need-no'} ${editable ? '' : 'readonly'}`}
                     onClick={() => editable && onUpdate(p.id, { s2: !p.s2 })}
                   >{p.s2 ? 'OUI' : 'NON'}</span>
                 </td>
-                <td className="nowrap-col">{p.charge}</td>
-                <td className="nowrap-col">{p.surintendant}</td>
-                <td style={{ textAlign: 'center' }}>
+                <td className="nowrap-col" data-label="Chargé">{p.charge}</td>
+                <td className="nowrap-col" data-label="Surintendant">{p.surintendant}</td>
+                <td style={{ textAlign: 'center' }} className="cell-action" data-label="Commentaires">
                   <CommentBadge
                     project={p}
                     comments={projComments}

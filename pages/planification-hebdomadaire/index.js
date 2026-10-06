@@ -25,8 +25,17 @@ const TABS = [
   { key: 'vacances', label: 'VACANCES / CONGES' },
 ];
 
-// Ce compte n'a jamais besoin du mot de passe partagé pour passer en mode
-// admin — comparaison insensible à la casse par prudence.
+// ---------------------------------------------------------------------------
+// LA SEULE EXEMPTION DE MOT DE PASSE
+//
+// Ce compte passe en mode admin sans saisir le mot de passe partagé. Tous les
+// autres le saisissent — y compris les administrateurs Toolbox : être admin
+// de l'app Administration donne le droit de CHANGER le mot de passe, pas
+// celui d'entrer sans.
+//
+// Comparaison insensible à la casse et espaces retirés : un courriel tapé
+// « WDubreuil@pep2000.com » reste le même compte.
+// ---------------------------------------------------------------------------
 const COMPTE_SANS_MOT_DE_PASSE = 'wdubreuil@pep2000.com';
 
 function PlanificationHebdomadaire({ nom, poste, email }) {
@@ -92,12 +101,12 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
     }
   }
 
-  async function handleGeneratePdf(selection) {
+  async function handleGeneratePdf(selection, format) {
     setGenerating(true);
     try {
       const { pdf } = await import('@react-pdf/renderer');
       const { default: PdfDocument } = await import('../../components/planification-hebdomadaire/pdf/PdfDocument');
-      const blob = await pdf(<PdfDocument selection={selection} board={board} />).toBlob();
+      const blob = await pdf(<PdfDocument selection={selection} board={board} format={format} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -184,7 +193,8 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
 
         <div className="footnote">
           Donnée partagée en temps réel via Supabase entre tous ceux qui ouvrent cette page.
-          Le mode participant est en lecture seule; le mode admin demande le mot de passe animateur.
+          Le mode participant est en lecture seule; le mode admin demande le mot de passe, qui se
+          change dans l&apos;app Administration.
         </div>
       </div>
 

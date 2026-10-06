@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import GardeConnexion from '../../components/commun/GardeConnexion';
 import EnTeteApp from '../../components/commun/EnTeteApp';
 import { FournisseurPalette, usePalette, useModePep } from '../../components/commun/ThemeToolbox';
+import CarteMotDePasseApp from '../../components/administration/CarteMotDePasseApp';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -432,6 +433,15 @@ function Administration({ nom, poste, mode, onChangerMode }) {
       />
 
       <main style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px 60px' }}>
+        <CarteMotDePasseApp
+          appSlug="planification-hebdomadaire"
+          nomApp="Planification hebdomadaire"
+          jetonDeSession={async () => {
+            const { data: { session: s } } = await supabase.auth.getSession();
+            return s?.access_token;
+          }}
+        />
+
         <Card>
           <h2 style={{ color: ROUGE, fontSize: 16, marginTop: 0 }}>Inviter un nouvel utilisateur</h2>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>

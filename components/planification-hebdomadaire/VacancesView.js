@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Palmtree } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import ChampListe from '../commun/ChampListe';
 import { joursOuvrables, formatDateFr } from '../../lib/planification-hebdomadaire/dates';
 
 // ---------------------------------------------------------------------------
@@ -63,16 +64,17 @@ export default function VacancesView({ board, editable }) {
           <div className="vac-add-grid">
             <div>
               <label>Nom</label>
-              <input
-                type="text"
-                list="vac-noms"
+              {/* `libre` : le bottin ne contient pas tout le monde (sous-traitants,
+                  nouveaux pas encore saisis). On tape, la liste se reduit, et un nom
+                  absent du bottin reste quand meme acceptable. */}
+              <ChampListe
+                options={nomsBottin}
+                valeur={nouveau.nom}
+                onChange={choisirNom}
                 placeholder="Nom de la personne"
-                value={nouveau.nom}
-                onChange={(e) => choisirNom(e.target.value)}
+                ariaLabel="Nom de la personne"
+                libre
               />
-              <datalist id="vac-noms">
-                {nomsBottin.map((n) => <option key={n} value={n} />)}
-              </datalist>
             </div>
             <div>
               <label>Titre</label>
@@ -147,7 +149,16 @@ export default function VacancesView({ board, editable }) {
                   <tr key={v.id}>
                     <td data-label="Nom" className="cell-titre">
                       {editable
-                        ? <input className="admin-input-ghost" type="text" list="vac-noms" defaultValue={v.nom || ''} onBlur={(e) => e.target.value !== (v.nom || '') && updateVacance(v.id, { nom: e.target.value })} />
+                        ? (
+                          <ChampListe
+                            className="dans-tableau"
+                            options={nomsBottin}
+                            valeur={v.nom || ''}
+                            onChange={(nom) => nom !== (v.nom || '') && updateVacance(v.id, { nom })}
+                            ariaLabel="Nom de la personne"
+                            libre
+                          />
+                        )
                         : <strong>{v.nom}</strong>}
                     </td>
                     <td data-label="Titre">

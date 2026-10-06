@@ -15,7 +15,10 @@ export default function PasswordModal({ open, onSubmit, onCancel }) {
   return (
     <div className="confirm-overlay">
       <div className="confirm-box">
-        <p style={{ marginBottom: 10, fontWeight: 700 }}>Mot de passe animateur</p>
+        <p style={{ marginBottom: 4, fontWeight: 700 }}>Mot de passe admin</p>
+        <p style={{ marginTop: 0, marginBottom: 10, fontSize: 12, color: 'var(--ink-dim)' }}>
+          Il se change dans l&apos;app Administration.
+        </p>
         <div style={{ display: 'flex', gap: 6 }}>
           <input
             type={show ? 'text' : 'password'}
