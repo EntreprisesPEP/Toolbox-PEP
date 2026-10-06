@@ -1,51 +1,18 @@
-import { Page, View, Text } from '@react-pdf/renderer';
-import { pdfStyles } from '../../../lib/planification-hebdomadaire/pdfStyles';
-import { formatDateFr } from '../../../lib/planification-hebdomadaire/dates';
+import { Page, Text } from '@react-pdf/renderer';
+import { pdfStyles, taillePage } from '../../../lib/planification-hebdomadaire/pdfStyles';
 import { PdfHeader, PdfFooter } from './PdfChrome';
+import TableauProjets from './TableauProjets';
 
-// Memes largeurs que Meeting1Pdf : voir la note la-bas (revision 56).
-const COLS = [16, 16, 35, 5, 5, 11.5, 11.5];
-
-function statutLabel(p) {
-  if (p.statut === 'Date' && p.date_valeur) return `Date - ${formatDateFr(p.date_valeur)}`;
-  return p.statut;
-}
-
-export default function TerminesPdf({ board }) {
-  const done = board.projects.filter((p) => p.statut === 'Termine');
-
+export default function TerminesPdf({ board, format }) {
+  const termines = board.projects.filter((p) => p.statut === 'Termine');
   return (
-    <Page size={[792, 1224]} style={pdfStyles.page}>
-      <PdfHeader title="Projets termines" fixed />
-
-      <View style={pdfStyles.table}>
-        <View style={pdfStyles.row}>
-          <Text style={[pdfStyles.th, { width: `${COLS[0]}%` }]}>No / Projet</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[1]}%` }]}>Statut</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[2]}%` }]}>Commentaire</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[3]}%`, textAlign: 'right' }]}>Sem 1</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[4]}%`, textAlign: 'right' }]}>Sem 2</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[5]}%` }]}>Charge</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[6]}%` }]}>Surintendant</Text>
-        </View>
-
-        {done.length === 0 && (
-          <Text style={[pdfStyles.td, { padding: 8, textAlign: 'center' }]}>Aucun projet termine pour le moment.</Text>
-        )}
-        {done.map((p) => (
-          <View key={p.id} style={pdfStyles.row} wrap={false}>
-            <Text style={[pdfStyles.tdBold, { width: `${COLS[0]}%` }]}>{p.no} {p.projet}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[1]}%` }]}>{statutLabel(p)}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[2]}%` }]}>{p.commentaire || ''}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[3]}%`, textAlign: 'right' }]}>{p.s1 ? 'OUI' : 'NON'}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[4]}%`, textAlign: 'right' }]}>{p.s2 ? 'OUI' : 'NON'}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[5]}%` }]}>{p.charge}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[6]}%` }]}>{p.surintendant}</Text>
-          </View>
-        ))}
-      </View>
-
-      <PdfFooter fixed />
+    <Page size={taillePage(format)} style={pdfStyles.page}>
+      <PdfHeader title="Projets terminés" subtitle={`${termines.length} projet${termines.length > 1 ? 's' : ''} au dossier`} />
+      <TableauProjets projets={termines} vide="Aucun projet terminé pour le moment." />
+      <Text style={pdfStyles.note}>
+        S1 / S2 : besoin d’une équipe en semaine 1 / semaine 2. Une case vide veut dire non.
+      </Text>
+      <PdfFooter mention="Projets terminés" />
     </Page>
   );
 }

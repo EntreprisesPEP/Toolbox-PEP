@@ -1,63 +1,109 @@
 import { Page, View, Text } from '@react-pdf/renderer';
-import { pdfStyles } from '../../../lib/planification-hebdomadaire/pdfStyles';
+import { pdfStyles, taillePage, ZEBRA } from '../../../lib/planification-hebdomadaire/pdfStyles';
 import { formatDateFr } from '../../../lib/planification-hebdomadaire/dates';
-import { PdfHeader, PdfFooter } from './PdfChrome';
+import { PdfHeader, PdfFooter, TableHead } from './PdfChrome';
 
-// Revision 72. Memes largeurs en pourcentage que les autres pages : la somme
-// fait 100, sinon react-pdf laisse une bande vide a droite.
-// Les trois colonnes de permis ont ete elargies de 7 a 8,5 % : a 7 %,
-// react-pdf coupait « Permis occup. » en « PERMIS OC- / CUP. » au milieu du
-// mot. La somme fait toujours 100.
-const COLS = [18, 9, 11, 8.5, 8.5, 8.5, 10.5, 6, 10, 10];
+// ---------------------------------------------------------------------------
+// COUPE DE RUE — refonte revision 73
+//
+// Les trois colonnes de permis affichaient OUI ou NON. Une colonne pleine de
+// NON cache les OUI : seul le OUI s'imprime maintenant, une case vide veut
+// dire que le document manque. Un sur-en-tete « Documents requis » les coiffe
+// pour qu'on voie d'un coup d'oeil ce qui compose « Pret ».
+//
+// Somme des largeurs = 100.
+// ---------------------------------------------------------------------------
+// Depuis qu'on a coupe la cesure, un mot d'en-tete plus large que sa colonne
+// deborde sur la voisine au lieu de se couper : « PERMIS D'OCCUPATION » et
+// « PLAN DE SIGNALISATION » se chevauchaient. Les trois colonnes de permis
+// portent donc le mot distinctif seul — « Documents requis » au-dessus dit de
+// quoi il s'agit. Somme = 100.
+const C = {
+  no: 5, projet: 14.5, exacte: 10.5, approx: 9,
+  coupe: 6.5, signal: 9.5, occupation: 8.5,
+  percement: 10, pret: 5, charge: 10, surint: 11.5,
+};
+const GROUPE_AVANT = C.no + C.projet + C.exacte + C.approx;
+const GROUPE = C.coupe + C.signal + C.occupation;
+const GROUPE_APRES = C.percement + C.pret + C.charge + C.surint;
 
-const PERCEMENT = { oui: 'Coordonne', non: 'NON coordonne' };
+const PERCEMENT = { oui: 'Coordonné', non: 'Non coordonné' };
 
-export default function CoupesPdf({ board }) {
+function Oui({ actif, largeur }) {
+  return (
+    <Text style={[pdfStyles.td, pdfStyles.ctr, { width: `${largeur}%` }]}>
+      {actif ? <Text style={pdfStyles.oui}>OUI</Text> : ''}
+    </Text>
+  );
+}
+
+export default function CoupesPdf({ board, format }) {
   const { coupes, projects } = board;
   const parId = new Map(projects.map((p) => [String(p.id), p]));
+  const pretes = coupes.filter((c) => c.permis_coupe && c.plan_signalisation && c.permis_occupation).length;
 
   return (
-    <Page size={[792, 1224]} style={pdfStyles.page}>
-      <PdfHeader title="Coupe de rue" fixed />
+    <Page size={taillePage(format)} style={pdfStyles.page}>
+      <PdfHeader
+        title="Coupe de rue"
+        subtitle={`${coupes.length} coupe${coupes.length > 1 ? 's' : ''} au suivi · ${pretes} prête${pretes > 1 ? 's' : ''}`}
+      />
 
       <View style={pdfStyles.table}>
-        <View style={pdfStyles.row}>
-          <Text style={[pdfStyles.th, { width: `${COLS[0]}%` }]}>No / Projet</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[1]}%` }]}>Date exacte</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[2]}%` }]}>Date approx.</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[3]}%`, textAlign: 'center' }]}>Permis coupe</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[4]}%`, textAlign: 'center' }]}>Plan signal.</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[5]}%`, textAlign: 'center' }]}>Occupation</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[6]}%` }]}>Percement</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[7]}%`, textAlign: 'center' }]}>Pret</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[8]}%` }]}>Charge</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[9]}%` }]}>Surintendant</Text>
+        <View style={pdfStyles.row} fixed>
+          <Text style={[pdfStyles.thGroup, { width: `${GROUPE_AVANT}%`, backgroundColor: '#FFFFFF', borderLeftWidth: 0, borderBottomWidth: 0 }]}> </Text>
+          <Text style={[pdfStyles.thGroup, { width: `${GROUPE}%` }]}>Documents requis</Text>
+          <Text style={[pdfStyles.thGroup, { width: `${GROUPE_APRES}%`, backgroundColor: '#FFFFFF', borderLeftWidth: 0, borderBottomWidth: 0 }]}> </Text>
         </View>
 
-        {coupes.length === 0 && (
-          <Text style={[pdfStyles.td, { padding: 8, textAlign: 'center' }]}>Aucune coupe de rue au suivi.</Text>
-        )}
-        {coupes.map((c) => {
+        <TableHead>
+          <Text style={[pdfStyles.th, { width: `${C.no}%` }]}>No</Text>
+          <Text style={[pdfStyles.th, { width: `${C.projet}%` }]}>Projet</Text>
+          <Text style={[pdfStyles.th, { width: `${C.exacte}%` }]}>Date exacte</Text>
+          <Text style={[pdfStyles.th, { width: `${C.approx}%` }]}>Date approx.</Text>
+          <Text style={[pdfStyles.th, pdfStyles.ctr, { width: `${C.coupe}%` }]}>Coupe</Text>
+          <Text style={[pdfStyles.th, pdfStyles.ctr, { width: `${C.signal}%` }]}>Signalisation</Text>
+          <Text style={[pdfStyles.th, pdfStyles.ctr, { width: `${C.occupation}%` }]}>Occupation</Text>
+          <Text style={[pdfStyles.th, { width: `${C.percement}%` }]}>Percement</Text>
+          <Text style={[pdfStyles.th, pdfStyles.ctr, { width: `${C.pret}%` }]}>Prêt</Text>
+          <Text style={[pdfStyles.th, { width: `${C.charge}%` }]}>Chargé</Text>
+          <Text style={[pdfStyles.th, { width: `${C.surint}%` }]}>Surintendant</Text>
+        </TableHead>
+
+        {coupes.length === 0 && <Text style={pdfStyles.empty}>Aucune coupe de rue au suivi.</Text>}
+
+        {coupes.map((c, i) => {
           const p = parId.get(String(c.project_id));
           const pret = c.permis_coupe && c.plan_signalisation && c.permis_occupation;
           return (
-            <View key={c.id} style={pdfStyles.row} wrap={false}>
-              <Text style={[pdfStyles.tdBold, { width: `${COLS[0]}%` }]}>{p ? `${p.no} ${p.projet}` : 'Projet retire'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[1]}%` }]}>{c.date_exacte ? formatDateFr(c.date_exacte) : ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[2]}%` }]}>{c.date_approx || ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[3]}%`, textAlign: 'center' }]}>{c.permis_coupe ? 'OUI' : 'NON'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[4]}%`, textAlign: 'center' }]}>{c.plan_signalisation ? 'OUI' : 'NON'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[5]}%`, textAlign: 'center' }]}>{c.permis_occupation ? 'OUI' : 'NON'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[6]}%` }]}>{PERCEMENT[c.percement] || ''}</Text>
-              <Text style={[pdfStyles.tdBold, { width: `${COLS[7]}%`, textAlign: 'center' }]}>{pret ? 'PRET' : ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[8]}%` }]}>{p?.charge || ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[9]}%` }]}>{p?.surintendant || ''}</Text>
+            <View key={c.id} style={[pdfStyles.row, i % 2 === 1 ? { backgroundColor: ZEBRA } : {}]} wrap={false}>
+              <Text style={[pdfStyles.tdBold, { width: `${C.no}%` }]}>{p ? p.no : ''}</Text>
+              <Text style={[pdfStyles.tdBold, { width: `${C.projet}%` }]}>
+                {p ? p.projet : 'Projet retiré de la liste'}
+              </Text>
+              <Text style={[pdfStyles.td, { width: `${C.exacte}%` }]}>{c.date_exacte ? formatDateFr(c.date_exacte) : ''}</Text>
+              <Text style={[pdfStyles.tdDim, { width: `${C.approx}%` }]}>{c.date_approx || ''}</Text>
+              <Oui actif={c.permis_coupe} largeur={C.coupe} />
+              <Oui actif={c.plan_signalisation} largeur={C.signal} />
+              <Oui actif={c.permis_occupation} largeur={C.occupation} />
+              <Text style={[pdfStyles.td, { width: `${C.percement}%` }]}>{PERCEMENT[c.percement] || ''}</Text>
+              <Text style={[pdfStyles.td, pdfStyles.ctr, { width: `${C.pret}%` }]}>
+                {pret ? <Text style={pdfStyles.pret}>PRÊT</Text> : ''}
+              </Text>
+              <Text style={[pdfStyles.td, { width: `${C.charge}%` }]}>{p?.charge || ''}</Text>
+              <Text style={[pdfStyles.td, { width: `${C.surint}%` }]}>{p?.surintendant || ''}</Text>
             </View>
           );
         })}
       </View>
 
-      <PdfFooter fixed />
+      <Text style={pdfStyles.note}>
+        Documents requis : permis de coupe, plan de signalisation, permis d’occupation de la ville.
+        Une case vide veut dire que le document n’est pas obtenu — une coupe est prête quand les trois
+        le sont. « Percement » = percement sous pression. Le chargé et le surintendant sont ceux du projet.
+      </Text>
+
+      <PdfFooter mention="Coupe de rue" />
     </Page>
   );
 }

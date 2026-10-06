@@ -1,56 +1,66 @@
 import { Page, View, Text } from '@react-pdf/renderer';
-import { pdfStyles } from '../../../lib/planification-hebdomadaire/pdfStyles';
+import { pdfStyles, taillePage, ZEBRA } from '../../../lib/planification-hebdomadaire/pdfStyles';
 import { formatDateFr, joursOuvrables } from '../../../lib/planification-hebdomadaire/dates';
-import { PdfHeader, PdfFooter } from './PdfChrome';
+import { PdfHeader, PdfFooter, TableHead } from './PdfChrome';
 
-// Revision 72. La somme des largeurs fait 100.
-const COLS = [22, 22, 13, 13, 8, 22];
+// Somme = 100.
+const C = { nom: 18, titre: 20, debut: 12, fin: 12, jours: 7, commentaire: 31 };
 
-export default function VacancesPdf({ board }) {
-  const { vacances } = board;
+export default function VacancesPdf({ board, format }) {
+  // Trie par date de debut pour l'impression : a l'ecran on veut l'ordre de
+  // saisie (on retrouve ce qu'on vient d'ajouter), sur papier on veut savoir
+  // qui part en premier.
+  const vacances = [...board.vacances].sort((a, b) => (a.date_debut || '9999').localeCompare(b.date_debut || '9999'));
   const total = vacances.reduce((t, v) => t + (joursOuvrables(v.date_debut, v.date_fin) || 0), 0);
 
   return (
-    <Page size={[792, 1224]} style={pdfStyles.page}>
-      <PdfHeader title="Vacances / Conges" fixed />
+    <Page size={taillePage(format)} style={pdfStyles.page}>
+      <PdfHeader
+        title="Vacances / Congés"
+        subtitle={`${vacances.length} absence${vacances.length > 1 ? 's' : ''} inscrite${vacances.length > 1 ? 's' : ''}`}
+      />
 
       <View style={pdfStyles.table}>
-        <View style={pdfStyles.row}>
-          <Text style={[pdfStyles.th, { width: `${COLS[0]}%` }]}>Nom</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[1]}%` }]}>Titre</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[2]}%` }]}>Debut</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[3]}%` }]}>Fin</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[4]}%`, textAlign: 'right' }]}>Jours</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[5]}%` }]}>Commentaire</Text>
-        </View>
+        <TableHead>
+          <Text style={[pdfStyles.th, { width: `${C.nom}%` }]}>Nom</Text>
+          <Text style={[pdfStyles.th, { width: `${C.titre}%` }]}>Titre</Text>
+          <Text style={[pdfStyles.th, { width: `${C.debut}%` }]}>Début</Text>
+          <Text style={[pdfStyles.th, { width: `${C.fin}%` }]}>Fin</Text>
+          <Text style={[pdfStyles.th, pdfStyles.ctr, { width: `${C.jours}%` }]}>Jours</Text>
+          <Text style={[pdfStyles.th, { width: `${C.commentaire}%` }]}>Commentaire</Text>
+        </TableHead>
 
-        {vacances.length === 0 && (
-          <Text style={[pdfStyles.td, { padding: 8, textAlign: 'center' }]}>Aucune absence inscrite.</Text>
-        )}
-        {vacances.map((v) => {
+        {vacances.length === 0 && <Text style={pdfStyles.empty}>Aucune absence inscrite.</Text>}
+
+        {vacances.map((v, i) => {
           const jours = joursOuvrables(v.date_debut, v.date_fin);
           return (
-            <View key={v.id} style={pdfStyles.row} wrap={false}>
-              <Text style={[pdfStyles.tdBold, { width: `${COLS[0]}%` }]}>{v.nom || ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[1]}%` }]}>{v.titre || ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[2]}%` }]}>{v.date_debut ? formatDateFr(v.date_debut) : ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[3]}%` }]}>{v.date_fin ? formatDateFr(v.date_fin) : ''}</Text>
-              <Text style={[pdfStyles.tdBold, { width: `${COLS[4]}%`, textAlign: 'right' }]}>{jours === null ? '' : jours}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[5]}%` }]}>{v.commentaire || ''}</Text>
+            <View key={v.id} style={[pdfStyles.row, i % 2 === 1 ? { backgroundColor: ZEBRA } : {}]} wrap={false}>
+              <Text style={[pdfStyles.tdBold, { width: `${C.nom}%` }]}>{v.nom || ''}</Text>
+              <Text style={[pdfStyles.tdDim, { width: `${C.titre}%` }]}>{v.titre || ''}</Text>
+              <Text style={[pdfStyles.td, { width: `${C.debut}%` }]}>{v.date_debut ? formatDateFr(v.date_debut) : ''}</Text>
+              <Text style={[pdfStyles.td, { width: `${C.fin}%` }]}>{v.date_fin ? formatDateFr(v.date_fin) : ''}</Text>
+              <Text style={[pdfStyles.tdBold, pdfStyles.ctr, { width: `${C.jours}%` }]}>{jours === null ? '' : jours}</Text>
+              <Text style={[pdfStyles.td, { width: `${C.commentaire}%` }]}>{v.commentaire || ''}</Text>
             </View>
           );
         })}
 
         {vacances.length > 0 && (
-          <View style={pdfStyles.row} wrap={false}>
-            <Text style={[pdfStyles.tdBold, { width: `${COLS[0] + COLS[1] + COLS[2] + COLS[3]}%` }]}>Total</Text>
-            <Text style={[pdfStyles.tdBold, { width: `${COLS[4]}%`, textAlign: 'right' }]}>{total}</Text>
-            <Text style={[pdfStyles.td, { width: `${COLS[5]}%` }]}>jours ouvrables (lun-ven, feries non deduits)</Text>
+          <View style={pdfStyles.totalRow} wrap={false}>
+            <Text style={[pdfStyles.tdBold, { width: `${C.nom + C.titre + C.debut + C.fin}%` }]}>Total</Text>
+            <Text style={[pdfStyles.tdBold, pdfStyles.ctr, { width: `${C.jours}%` }]}>{total}</Text>
+            <Text style={[pdfStyles.tdDim, { width: `${C.commentaire}%` }]}>jours ouvrables</Text>
           </View>
         )}
       </View>
 
-      <PdfFooter fixed />
+      <Text style={pdfStyles.note}>
+        Les jours sont comptés du lundi au vendredi, bornes incluses. Les jours fériés
+        ne sont pas déduits.
+      </Text>
+
+      <PdfFooter mention="Vacances / Congés" />
     </Page>
   );
 }

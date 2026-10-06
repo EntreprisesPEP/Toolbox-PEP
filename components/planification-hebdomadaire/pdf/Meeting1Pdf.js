@@ -1,57 +1,27 @@
-import { Page, View, Text } from '@react-pdf/renderer';
-import { pdfStyles } from '../../../lib/planification-hebdomadaire/pdfStyles';
-import { statusColor } from '../../../lib/planification-hebdomadaire/statusColors';
-import { formatDateFr, fmtDateLong } from '../../../lib/planification-hebdomadaire/dates';
+import { Page, Text } from '@react-pdf/renderer';
+import { pdfStyles, taillePage } from '../../../lib/planification-hebdomadaire/pdfStyles';
+import { mondayOf, today, fmtIntervalle, dateKey } from '../../../lib/planification-hebdomadaire/dates';
 import { PdfHeader, PdfFooter } from './PdfChrome';
+import TableauProjets from './TableauProjets';
 
-// Revision 56 : Statut, Charge et Surintendant sur UNE seule ligne, comme a
-// l ecran. « Date - 30 septembre 2026 » ne tenait pas dans 12 % et se coupait
-// avant « 2026 » ; les noms complets ne laissaient que 5 pt de marge dans 10 %.
-// La largeur reprise vient de Commentaire, seule colonne qui s enroule sans nuire.
-const COLS = [16, 16, 35, 5, 5, 11.5, 11.5]; // No/Projet, Statut, Commentaire, Sem1, Sem2, Charge, Surintendant
+export default function Meeting1Pdf({ board, format }) {
+  const actifs = board.projects.filter((p) => p.statut !== 'Termine');
 
-function statutLabel(p) {
-  if (p.statut === 'Date' && p.date_valeur) return `Date - ${formatDateFr(p.date_valeur)}`;
-  return p.statut;
-}
-
-export default function Meeting1Pdf({ board }) {
-  const active = board.projects.filter((p) => p.statut !== 'Termine');
-  const subtitle = fmtDateLong(new Date());
+  // Le sous-titre portait la date d'impression — qu'on retrouve deja dans le
+  // bandeau et le pied. Il porte maintenant la semaine couverte : une feuille
+  // retrouvee sur un bureau dit a quelle semaine elle appartient.
+  const lundi = mondayOf(new Date((board.settings?.range_start || dateKey(today())) + 'T00:00:00'));
+  const dimanche = new Date(lundi);
+  dimanche.setDate(dimanche.getDate() + 6);
 
   return (
-    <Page size={[792, 1224]} style={pdfStyles.page}>
-      <PdfHeader title="Meeting 1 - Suivi projets" subtitle={subtitle} fixed />
-
-      <View style={pdfStyles.table}>
-        <View style={pdfStyles.row}>
-          <Text style={[pdfStyles.th, { width: `${COLS[0]}%` }]}>No / Projet</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[1]}%` }]}>Statut</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[2]}%` }]}>Commentaire</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[3]}%`, textAlign: 'right' }]}>Sem 1</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[4]}%`, textAlign: 'right' }]}>Sem 2</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[5]}%` }]}>Charge</Text>
-          <Text style={[pdfStyles.th, { width: `${COLS[6]}%` }]}>Surintendant</Text>
-        </View>
-
-        {active.map((p) => {
-          const col = statusColor(p.statut, 'jour');
-          const rowStyle = col ? { backgroundColor: col.bg } : {};
-          return (
-            <View key={p.id} style={[pdfStyles.row, rowStyle]} wrap={false}>
-              <Text style={[pdfStyles.tdBold, { width: `${COLS[0]}%` }]}>{p.no} {p.projet}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[1]}%` }]}>{statutLabel(p)}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[2]}%` }]}>{p.commentaire || ''}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[3]}%`, textAlign: 'right' }]}>{p.s1 ? 'OUI' : 'NON'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[4]}%`, textAlign: 'right' }]}>{p.s2 ? 'OUI' : 'NON'}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[5]}%` }]}>{p.charge}</Text>
-              <Text style={[pdfStyles.td, { width: `${COLS[6]}%` }]}>{p.surintendant}</Text>
-            </View>
-          );
-        })}
-      </View>
-
-      <PdfFooter fixed />
+    <Page size={taillePage(format)} style={pdfStyles.page}>
+      <PdfHeader title="Meeting 1 — Suivi des projets" subtitle={`Semaine du ${fmtIntervalle(lundi, dimanche)}`} />
+      <TableauProjets projets={actifs} vide="Aucun projet actif." />
+      <Text style={pdfStyles.note}>
+        S1 / S2 : besoin d’une équipe en semaine 1 / semaine 2. Une case vide veut dire non.
+      </Text>
+      <PdfFooter mention="Meeting 1 — Suivi des projets" />
     </Page>
   );
 }
