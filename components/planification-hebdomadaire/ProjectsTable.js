@@ -124,13 +124,13 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                 <td data-label="Commentaire" className="cell-large">
                   <AutoTextarea value={p.commentaire} editable={editable} onChange={(v) => onUpdate(p.id, { commentaire: v })} />
                 </td>
-                <td style={{ textAlign: 'right' }} data-label="Besoin semaine 1">
+                <td style={{ textAlign: 'right' }} data-label="Sem 1" className="cell-sem">
                   <span
                     className={`need-chip ${p.s1 ? 'need-yes' : 'need-no'} ${editable ? '' : 'readonly'}`}
                     onClick={() => editable && onUpdate(p.id, { s1: !p.s1 })}
                   >{p.s1 ? 'OUI' : 'NON'}</span>
                 </td>
-                <td style={{ textAlign: 'right' }} data-label="Besoin semaine 2">
+                <td style={{ textAlign: 'right' }} data-label="Sem 2" className="cell-sem">
                   <span
                     className={`need-chip ${p.s2 ? 'need-yes' : 'need-no'} ${editable ? '' : 'readonly'}`}
                     onClick={() => editable && onUpdate(p.id, { s2: !p.s2 })}
