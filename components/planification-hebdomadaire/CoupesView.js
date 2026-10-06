@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Scissors, Check } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import ChampListe from '../commun/ChampListe';
 
 // ---------------------------------------------------------------------------
 // COUPE DE RUE — revision 72
@@ -82,16 +83,16 @@ export default function CoupesView({ board, editable }) {
               <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink-dim)', fontWeight: 700, marginBottom: 4 }}>
                 Projet
               </label>
-              <select
-                value={nouveauProjet}
-                onChange={(e) => setNouveauProjet(e.target.value)}
-                style={{ width: '100%' }}
-              >
-                <option value="">Choisir un projet…</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.no} — {p.projet}</option>
-                ))}
-              </select>
+              {/* 43 projets dans un <select> : taper une lettre y sautait d'option
+                  en option. Ici on tape « bern » ou « 26-7 » et la liste se reduit. */}
+              <ChampListe
+                options={projects.map((p) => ({ valeur: String(p.id), libelle: `${p.no} — ${p.projet}` }))}
+                valeur={nouveauProjet}
+                onChange={setNouveauProjet}
+                placeholder="Chercher un projet…"
+                ariaLabel="Projet"
+                videLabel="Choisir un projet…"
+              />
             </div>
             <button
               className="btn"

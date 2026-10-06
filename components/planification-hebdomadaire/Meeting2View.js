@@ -3,6 +3,7 @@ import { dayCellPalette } from '../../lib/planification-hebdomadaire/statusColor
 import { JOURS, dateKey, mondayOf, today, weekDates, twoWeekDates, fmtDateLong } from '../../lib/planification-hebdomadaire/dates';
 import NeedsPanel from './NeedsPanel';
 import ConfirmModal from './ConfirmModal';
+import ChampListe from '../commun/ChampListe';
 
 export default function Meeting2View({ board, editable, theme, printMode }) {
   const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments, clearMeeting2Week } = board;
@@ -132,25 +133,28 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
                     return (
                       <td
                         key={dIso}
-                        className="daycell"
+                        /* `data-jour` alimente l'intitule des fiches du cellulaire, ou
+                           la grille est retournee en « un bloc par contremaitre ». */
+                        data-jour={`${JOURS[d.getDay()]} ${d.getDate()}`}
+                        className={`daycell${d.getDay() === 0 || d.getDay() === 6 ? ' fin-de-semaine' : ''}`}
                         style={{ background: bg, borderLeft: startsWeek2 ? '2px solid var(--red)' : undefined, position: 'relative' }}
                       >
                         {editable ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <select
-                              value={projectId || ''}
-                              style={{ background: bg, color: pal.ink, borderColor: bd, flex: 1 }}
-                              onChange={(e) => setAssignment(c.id, dIso, e.target.value || null)}
-                              onKeyDown={(e) => {
-                                if (e.key === ' ') {
-                                  e.preventDefault();
-                                  setAssignment(c.id, dIso, null);
-                                }
-                              }}
-                            >
-                              <option value="">&mdash;</option>
-                              {activeProjects.map((p) => <option key={p.id} value={p.id}>{p.projet}</option>)}
-                            </select>
+                            {/* Un <select> de 43 projets par cellule, 14 jours x 15
+                                contremaitres : taper une lettre y sautait d'option en
+                                option. Et il posait 9 000 <option> dans le DOM. Ici la
+                                liste ne se construit qu'a l'ouverture, et elle filtre. */}
+                            <ChampListe
+                              className="dans-tableau"
+                              style={{ flex: 1 }}
+                              options={activeProjects.map((p) => ({
+                                valeur: String(p.id), libelle: p.projet, detail: p.no,
+                              }))}
+                              valeur={projectId ? String(projectId) : ''}
+                              onChange={(v) => setAssignment(c.id, dIso, v || null)}
+                              ariaLabel={`${c.nom} — ${dIso}`}
+                            />
                             {isMonday && (
                               <button
                                 type="button"

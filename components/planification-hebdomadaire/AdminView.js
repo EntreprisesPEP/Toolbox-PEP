@@ -1,16 +1,15 @@
 import { useState } from 'react';
 import { Plus, X, Trash2, Lightbulb, ClipboardList, Users, HardHat } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import ChampListe from '../commun/ChampListe';
 import { GROUPE_CHARGES, GROUPE_SURINTENDANTS } from '../../lib/commun/groupesPersonnel';
 
-function NameOptions({ list, selected }) {
-  return (
-    <>
-      <option value="">&mdash;</option>
-      {selected && !list.includes(selected) && <option value={selected}>{selected}</option>}
-      {list.map((n) => <option key={n} value={n}>{n}</option>)}
-    </>
-  );
+// Un nom deja enregistre mais absent du groupe du bottin (quelqu'un a change
+// de departement, ou le groupe a ete corrige) reste dans la liste : sans ca,
+// ouvrir la cellule pour une autre raison effacerait le nom en silence.
+function optionsNoms(list, selected) {
+  const base = selected && !list.includes(selected) ? [selected, ...list] : list;
+  return base.map((n) => ({ valeur: n, libelle: n }));
 }
 
 function initiales(nom) {
@@ -108,15 +107,23 @@ export default function AdminView({ board, editable }) {
             </div>
             <div>
               <label>Chargé</label>
-              <select value={newProj.charge} onChange={(e) => setNewProj({ ...newProj, charge: e.target.value })}>
-                <NameOptions list={charges} selected="" />
-              </select>
+              <ChampListe
+                options={optionsNoms(charges, '')}
+                valeur={newProj.charge}
+                onChange={(charge) => setNewProj({ ...newProj, charge })}
+                placeholder="Chercher un nom…"
+                ariaLabel="Chargé de projet"
+              />
             </div>
             <div>
               <label>Surintendant</label>
-              <select value={newProj.surintendant} onChange={(e) => setNewProj({ ...newProj, surintendant: e.target.value })}>
-                <NameOptions list={surintendants} selected="" />
-              </select>
+              <ChampListe
+                options={optionsNoms(surintendants, '')}
+                valeur={newProj.surintendant}
+                onChange={(surintendant) => setNewProj({ ...newProj, surintendant })}
+                placeholder="Chercher un nom…"
+                ariaLabel="Surintendant"
+              />
             </div>
             <button
               className="btn"
@@ -167,7 +174,7 @@ export default function AdminView({ board, editable }) {
         </div>
         {editable && <p className="card-desc">Clique une cellule pour la modifier.</p>}
         <div className="admin-table-wrap">
-          <table>
+          <table className="admin-projets-table">
             <thead><tr><th>No</th><th>Projet</th><th>Chargé</th><th>Surintendant</th><th /></tr></thead>
             <tbody>
               {projects.length === 0 && <tr><td colSpan={5} className="empty">Aucun projet.</td></tr>}
@@ -175,31 +182,39 @@ export default function AdminView({ board, editable }) {
                 <tr key={p.id}>
                   {editable ? (
                     <>
-                      <td><input className="admin-input-ghost no" type="text" defaultValue={p.no} onBlur={(e) => e.target.value !== p.no && updateProject(p.id, { no: e.target.value })} /></td>
-                      <td><input className="admin-input-ghost" type="text" defaultValue={p.projet} onBlur={(e) => e.target.value !== p.projet && updateProject(p.id, { projet: e.target.value })} /></td>
-                      <td>
-                        <select className="admin-input-ghost" value={p.charge || ''} onChange={(e) => updateProject(p.id, { charge: e.target.value })}>
-                          <NameOptions list={charges} selected={p.charge} />
-                        </select>
+                      <td data-label="No"><input className="admin-input-ghost no" type="text" defaultValue={p.no} onBlur={(e) => e.target.value !== p.no && updateProject(p.id, { no: e.target.value })} /></td>
+                      <td data-label="Projet" className="cell-titre"><input className="admin-input-ghost" type="text" defaultValue={p.projet} onBlur={(e) => e.target.value !== p.projet && updateProject(p.id, { projet: e.target.value })} /></td>
+                      <td data-label="Chargé">
+                        <ChampListe
+                          className="dans-tableau"
+                          options={optionsNoms(charges, p.charge)}
+                          valeur={p.charge || ''}
+                          onChange={(charge) => updateProject(p.id, { charge })}
+                          ariaLabel="Chargé de projet"
+                        />
                       </td>
-                      <td>
-                        <select className="admin-input-ghost" value={p.surintendant || ''} onChange={(e) => updateProject(p.id, { surintendant: e.target.value })}>
-                          <NameOptions list={surintendants} selected={p.surintendant} />
-                        </select>
+                      <td data-label="Surintendant">
+                        <ChampListe
+                          className="dans-tableau"
+                          options={optionsNoms(surintendants, p.surintendant)}
+                          valeur={p.surintendant || ''}
+                          onChange={(surintendant) => updateProject(p.id, { surintendant })}
+                          ariaLabel="Surintendant"
+                        />
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center' }} className="cell-action">
                         <button className="del-btn" onClick={() => setConfirmDel({ id: p.id, label: `${p.no} - ${p.projet}` })} aria-label="Supprimer"><Trash2 size={15} /></button>
                       </td>
                     </>
                   ) : (
                     <>
-                      <td>
+                      <td data-label="No">
                         <span className="avatar-chip">{p.no}</span>
                       </td>
-                      <td>{p.projet}</td>
-                      <td>{p.charge && <span className="avatar-chip"><span className="avatar-circle">{initiales(p.charge)}</span>{p.charge}</span>}</td>
-                      <td>{p.surintendant && <span className="avatar-chip"><span className="avatar-circle">{initiales(p.surintendant)}</span>{p.surintendant}</span>}</td>
-                      <td />
+                      <td data-label="Projet" className="cell-titre">{p.projet}</td>
+                      <td data-label="Chargé">{p.charge && <span className="avatar-chip"><span className="avatar-circle">{initiales(p.charge)}</span>{p.charge}</span>}</td>
+                      <td data-label="Surintendant">{p.surintendant && <span className="avatar-chip"><span className="avatar-circle">{initiales(p.surintendant)}</span>{p.surintendant}</span>}</td>
+                      <td className="cell-action" />
                     </>
                   )}
                 </tr>
