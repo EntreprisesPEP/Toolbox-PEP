@@ -963,7 +963,7 @@ const PLACEHOLDER_APPS = FUTURE_APP_NAMES.map((name, i) => ({
 // l'avoir en double. On les enlève APRÈS le .map() et non de FUTURE_APP_NAMES, pour
 // que les identifiants « placeholder-N » des autres ne bougent pas — ce sont eux qui
 // retiennent les notes déjà écrites dans le navigateur.
-const APPS_DEJA_LIVREES = ["Création d'un extra", "Gain imposable"];
+const APPS_DEJA_LIVREES = ["Création d'un extra", "Gain imposable", "Civalgo interne (BETA)"];
 const PLACEHOLDER_APPS_VISIBLES = PLACEHOLDER_APPS.filter(a => APPS_DEJA_LIVREES.indexOf(a.name) === -1);
 
 // Add or edit entries here as apps go live — just fill "url" and set status to "live".
@@ -1072,6 +1072,13 @@ const APPS = [
     name: 'Visite surintendant',
     desc: 'Rapport de visite de chantier par un surintendant, avec photos et notification par courriel.',
     url: '/visite-surintendant/',
+    status: 'live'
+  },
+  {
+    icon: '<img src="/_static/pepday/icone-app.svg" alt="" class="app-icon-img">',
+    name: 'Journal de chantier',
+    desc: 'Rapports journaliers de chantier, validation en 5 étapes et costs par projet, comparés au budget.',
+    url: '/pepday/',
     status: 'live'
   },
   {

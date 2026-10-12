@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Icône provisoire de PEPday (pas de charte graphique finale) : planchette de rapport + crochet de validation. -->
+  <rect width="256" height="256" rx="48" fill="#14213d"/>
+  <rect x="64" y="52" width="128" height="160" rx="14" fill="#ffffff"/>
+  <rect x="98" y="38" width="60" height="30" rx="8" fill="#c41230"/>
+  <rect x="86" y="92" width="84" height="10" rx="5" fill="#9aa5c0"/>
+  <rect x="86" y="114" width="64" height="10" rx="5" fill="#9aa5c0"/>
+  <path d="M92 160 l22 22 l46 -50" fill="none" stroke="#2e9f58" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
