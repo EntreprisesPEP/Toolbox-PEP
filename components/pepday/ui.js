@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { X, Flag, CheckCircle2 } from 'lucide-react';
+import { X, Flag, CheckCircle2, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { COULEURS_ETAPES, etape as infoEtape, ETAPES, statutProjet } from '../../lib/pepday/constantes';
 
 // ---------------------------------------------------------------------------
@@ -11,6 +11,42 @@ import { COULEURS_ETAPES, etape as infoEtape, ETAPES, statutProjet } from '../..
 export const ContextePepday = createContext(null);
 export function usePepday() {
   return useContext(ContextePepday);
+}
+
+// --- Position des filtres ---------------------------------------------------
+// Un seul réglage pour toute l'app, tenu par AppPepday. « gauche » sort les
+// filtres de la carte de tête et les met dans un rail collant à gauche du
+// contenu, comme Civalgo; « haut » les laisse en ligne, la mise en page
+// d'origine. Le rail n'existe qu'à partir de 1100 px : plus bas, il redevient
+// une carte empilée et repliable, parce qu'une colonne de 264 px n'a pas sa
+// place sur le téléphone du contremaître.
+export function useFiltresAGauche() {
+  const app = useContext(ContextePepday);
+  return (app && app.positionFiltres) === 'gauche';
+}
+
+export function RailFiltres({ titre = 'Filtres', children }) {
+  // Replié au départ : sur le cellulaire, le rail ne prend qu'une ligne tant
+  // qu'on n'y touche pas. Au bureau (≥ 1100 px) le corps reste visible de
+  // toute façon, « pd-replie » n'y fait rien.
+  const [ouvert, setOuvert] = useState(false);
+  return (
+    <aside className="pd-rail">
+      <button
+        type="button"
+        className="pd-rail-tete"
+        onClick={() => setOuvert((o) => !o)}
+        aria-expanded={ouvert}
+      >
+        <SlidersHorizontal size={14} />
+        {titre}
+        <span className="pd-espace" />
+        <span className="pd-rail-chevron">{ouvert ? <ChevronUp size={15} /> : <ChevronDown size={15} />}</span>
+      </button>
+      {/* Replié seulement sous 1100 px; au bureau le rail reste toujours ouvert. */}
+      <div className={`pd-rail-corps ${ouvert ? '' : 'pd-replie'}`}>{children}</div>
+    </aside>
+  );
 }
 
 export function Chargement({ texte = 'Chargement…' }) {

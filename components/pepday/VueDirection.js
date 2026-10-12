@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Download, LayoutGrid, Table2, Map as IconeCarte, Flag, Clock, PackagePlus } from 'lucide-react';
 import ChampListe from '../commun/ChampListe';
-import { usePepday, Champ, Jauge, PastilleStatut, optionsDe } from './ui';
+import { usePepday, Champ, Jauge, PastilleStatut, optionsDe , RailFiltres, useFiltresAGauche } from './ui';
 import CarteLeaflet from './CarteLeaflet';
 import { STATUTS_PROJET, statutProjet, DEPARTEMENTS } from '../../lib/pepday/constantes';
 import { budgetDuProjet, argent0, argent, pct, nombre, dateCourte, aujourdhui } from '../../lib/pepday/couts';
@@ -106,8 +106,37 @@ export default function VueDirection() {
     }]);
   }
 
+  const aGauche = useFiltresAGauche();
+  // Les filtres sont montés une seule fois et placés soit dans le rail de
+  // gauche, soit dans la carte de tête — jamais les deux.
+  const blocFiltres = (
+    <div className="pd-filtres">
+      <Champ label="Statut">
+        <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value })}>
+          <option value="actifs">Actifs</option>
+          <option value="tous">Tous</option>
+          {STATUTS_PROJET.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
+        </select>
+      </Champ>
+      <Champ label="Département">
+        <select className="pd-input" value={f.departement} onChange={(e) => setF({ ...f, departement: e.target.value })}>
+          <option value="">Tous</option>
+          {DEPARTEMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </Champ>
+      <Champ label="Chargé de projet"><ChampListe options={membres('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" /></Champ>
+      <Champ label="Surintendant"><ChampListe options={membres('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" /></Champ>
+      <Champ label="Trier par" style={{ gridColumn: 'span 2' }}>
+        <select className="pd-input" value={tri} onChange={(e) => setTri(e.target.value)}>
+          {TRIS.map((t) => <option key={t.code} value={t.code}>{t.libelle}</option>)}
+        </select>
+      </Champ>
+    </div>
+  );
+
   return (
-    <main className="pd-main pd-l1300">
+    <main className={`pd-main pd-l1300${aGauche ? ' pd-avec-rail' : ''}`}>
+      {aGauche && <RailFiltres>{blocFiltres}</RailFiltres>}
       <div className="pd-carte">
         <div className="pd-carte-titre">
           <h2>Vue Direction</h2>
@@ -130,28 +159,7 @@ export default function VueDirection() {
           <div className="pd-kpi"><div className="pd-kpi-val">{horsCatalogue}</div><div className="pd-kpi-lib">Ressources hors catalogue à régulariser</div></div>
           <div className="pd-kpi"><div className="pd-kpi-val" style={{ fontSize: 16, paddingTop: 4 }}>{RETARD_A_DEFINIR}</div><div className="pd-kpi-lib">Retard (formule à confirmer)</div></div>
         </div>
-        <div className="pd-filtres">
-          <Champ label="Statut">
-            <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value })}>
-              <option value="actifs">Actifs</option>
-              <option value="tous">Tous</option>
-              {STATUTS_PROJET.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Département">
-            <select className="pd-input" value={f.departement} onChange={(e) => setF({ ...f, departement: e.target.value })}>
-              <option value="">Tous</option>
-              {DEPARTEMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Chargé de projet"><ChampListe options={membres('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" /></Champ>
-          <Champ label="Surintendant"><ChampListe options={membres('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" /></Champ>
-          <Champ label="Trier par" style={{ gridColumn: 'span 2' }}>
-            <select className="pd-input" value={tri} onChange={(e) => setTri(e.target.value)}>
-              {TRIS.map((t) => <option key={t.code} value={t.code}>{t.libelle}</option>)}
-            </select>
-          </Champ>
-        </div>
+        {!aGauche && blocFiltres}
       </div>
 
       {affichage === 'cartes' && (

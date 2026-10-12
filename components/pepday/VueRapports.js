@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, CalendarPlus, Download, ChevronLeft, ChevronRight, CalendarDays, List, Flag } from 'lucide-react';
 import ChampListe from '../commun/ChampListe';
-import { usePepday, Champ, BadgeFlag, optionsDe } from './ui';
+import { usePepday, Champ, BadgeFlag, optionsDe, RailFiltres, useFiltresAGauche } from './ui';
 import { ItemRapport, NouveauRapport, DispatchJournee, peutCreerRapport, PastilleStatut } from './ElementsRapport';
 import { STATUTS_RAPPORT, codeStatut, statutRapport, etape as infoEtape } from '../../lib/pepday/constantes';
 import { peutVoirRapport, voitTout } from '../../lib/pepday/workflow';
@@ -39,8 +39,10 @@ export default function VueRapports() {
   const vue = nav.onglet === 'liste' ? 'liste' : 'calendrier';
   const [creation, setCreation] = useState(null);
   const [dispatch, setDispatch] = useState(false);
+  // Le rail n'existe que sur l'onglet Liste : le calendrier n'a pas de filtres.
+  const avecRail = useFiltresAGauche() && vue === 'liste';
   return (
-    <main className="pd-main pd-l1300">
+    <main className={`pd-main pd-l1300${avecRail ? ' pd-avec-rail' : ''}`}>
       <div className="pd-flex" style={{ marginBottom: 12 }}>
         <div className="pd-onglets" style={{ paddingBottom: 0 }}>
           <button className={`pd-onglet ${vue === 'calendrier' ? 'actif' : ''}`} onClick={() => naviguer('rapports', null, { onglet: 'calendrier' })}><CalendarDays size={15} /> Calendrier</button>
@@ -234,8 +236,30 @@ function Liste({ onCreer, onDispatch }) {
     }]);
   }
 
+  const aGauche = useFiltresAGauche();
+  // Les filtres sont montés une seule fois et placés soit dans le rail de
+  // gauche, soit dans la carte de tête — jamais les deux.
+  const blocFiltres = (
+    <div className="pd-filtres">
+      <Champ label="Du"><input className="pd-input" type="date" value={f.du} onChange={(e) => setF({ ...f, du: e.target.value })} /></Champ>
+      <Champ label="Au"><input className="pd-input" type="date" value={f.au} onChange={(e) => setF({ ...f, au: e.target.value })} /></Champ>
+      <Champ label="Projet"><ChampListe options={optionsDe(db.projets, { libelle: (p) => `${p.numero} — ${p.nom}` })} valeur={f.projet} onChange={(v) => setF({ ...f, projet: v })} placeholder="Tous" videLabel="Tous les projets" /></Champ>
+      <Champ label="Équipe"><ChampListe options={optionsDe(db.equipes || [])} valeur={f.equipe} onChange={(v) => setF({ ...f, equipe: v })} placeholder="Toutes" videLabel="Toutes" /></Champ>
+      <Champ label="Statut">
+        <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value, abandonnes: e.target.value === 'abandonne' || f.abandonnes })}>
+          <option value="">Tous</option>
+          {STATUTS_RAPPORT.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
+        </select>
+      </Champ>
+      <Champ label="Recherche"><input className="pd-input" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Titre, no, projet…" /></Champ>
+      <Champ label="Chargé de projet"><ChampListe options={membresRole('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} placeholder="Tous" videLabel="Tous" /></Champ>
+      <Champ label="Surintendant"><ChampListe options={membresRole('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} placeholder="Tous" videLabel="Tous" /></Champ>
+    </div>
+  );
+
   return (
     <>
+      {aGauche && <RailFiltres>{blocFiltres}</RailFiltres>}
       <div className="pd-carte">
         <div className="pd-carte-titre">
           <h2>Liste des rapports</h2>
@@ -244,21 +268,7 @@ function Liste({ onCreer, onDispatch }) {
             <BoutonsCreation onCreer={onCreer} onDispatch={onDispatch} />
           </div>
         </div>
-        <div className="pd-filtres">
-          <Champ label="Du"><input className="pd-input" type="date" value={f.du} onChange={(e) => setF({ ...f, du: e.target.value })} /></Champ>
-          <Champ label="Au"><input className="pd-input" type="date" value={f.au} onChange={(e) => setF({ ...f, au: e.target.value })} /></Champ>
-          <Champ label="Projet"><ChampListe options={optionsDe(db.projets, { libelle: (p) => `${p.numero} — ${p.nom}` })} valeur={f.projet} onChange={(v) => setF({ ...f, projet: v })} placeholder="Tous" videLabel="Tous les projets" /></Champ>
-          <Champ label="Équipe"><ChampListe options={optionsDe(db.equipes || [])} valeur={f.equipe} onChange={(v) => setF({ ...f, equipe: v })} placeholder="Toutes" videLabel="Toutes" /></Champ>
-          <Champ label="Statut">
-            <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value, abandonnes: e.target.value === 'abandonne' || f.abandonnes })}>
-              <option value="">Tous</option>
-              {STATUTS_RAPPORT.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Recherche"><input className="pd-input" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Titre, no, projet…" /></Champ>
-          <Champ label="Chargé de projet"><ChampListe options={membresRole('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} placeholder="Tous" videLabel="Tous" /></Champ>
-          <Champ label="Surintendant"><ChampListe options={membresRole('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} placeholder="Tous" videLabel="Tous" /></Champ>
-        </div>
+        {!aGauche && blocFiltres}
         <div className="pd-flex" style={{ justifyContent: 'space-between' }}>
           <span className="pd-flex">
             <label className="pd-case"><input type="checkbox" checked={f.flags} onChange={(e) => setF({ ...f, flags: e.target.checked })} /> « Lecture obligatoire » non lue</label>
