@@ -230,6 +230,41 @@ textarea.pd-input { min-height: 90px; resize: vertical; line-height: 1.45; }
 .pd-filtres { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
 @media (min-width: 860px) { .pd-filtres { grid-template-columns: repeat(6, 1fr); align-items: end; } }
 .pd-filtres .pd-champ { margin-bottom: 0; }
+
+/* --- Filtres dans un rail à gauche -----------------------------------------
+   Réglage « Filtres : à gauche / en haut », dans la barre d'onglets. À gauche,
+   les filtres sortent de la carte de tête et prennent une colonne collante,
+   comme dans Civalgo. Sous 1100 px (cellulaire, tablette), le rail redevient
+   une carte empilée qu'on peut replier : un rail de 264 px n'a pas sa place
+   sur le téléphone du contremaître. */
+.pd-rail { background: var(--pd-panel); border: 1px solid var(--pd-ligne); border-radius: 8px; padding: 14px; margin-bottom: 14px; min-width: 0; }
+.pd-rail-tete { display: flex; align-items: center; gap: 7px; width: 100%; background: none; border: none; padding: 0; margin: 0; color: var(--pd-texte-dim); font: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; text-align: left; }
+.pd-rail-corps { margin-top: 12px; }
+.pd-replie { display: none; }
+@media (min-width: 1100px) { .pd-replie { display: block; } }
+.pd-rail .pd-filtres { grid-template-columns: 1fr; gap: 10px; margin-bottom: 0; }
+@media (min-width: 1100px) {
+  /* Le <main> devient la grille : le rail prend la colonne 1, tout le reste
+     passe en colonne 2. Pas de row-gap, sinon les rangées vides de la colonne
+     de gauche écarteraient le contenu. */
+  .pd-main.pd-avec-rail { display: grid; grid-template-columns: 264px minmax(0, 1fr); column-gap: 14px; align-items: start; }
+  .pd-main.pd-avec-rail > * { grid-column: 2; min-width: 0; }
+  /* Le rail enjambe toutes les rangées : sinon la rangée 1 prendrait sa
+     hauteur et laisserait un trou sous la première carte. Les rangées vides
+     ne coûtent rien tant qu'il n'y a pas de row-gap. */
+  .pd-main.pd-avec-rail > .pd-rail { grid-column: 1; grid-row: 1 / span 99; position: sticky; top: 12px; margin-bottom: 0; max-height: calc(100vh - 24px); overflow-y: auto; align-self: start; }
+  .pd-rail-tete { cursor: default; }
+}
+.pd-rail-chevron { display: inline-flex; }
+@media (min-width: 1100px) { .pd-rail-chevron { display: none; } }
+/* Le réglage n'apparaît qu'à partir de 1100 px : c'est la largeur où le rail
+   existe vraiment. Plus bas, il n'y a rien à choisir. */
+.pd-reglages { display: none; align-items: center; gap: 6px; margin-top: 8px; color: var(--pd-texte-dim); }
+@media (min-width: 1100px) { .pd-reglages { display: flex; } }
+.pd-reglages > span { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.pd-bascule { display: inline-flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--pd-ligne); border-radius: 6px; padding: 4px 9px; font: inherit; font-size: 12.5px; color: var(--pd-texte-dim); cursor: pointer; }
+.pd-bascule:hover { border-color: var(--pd-accent); color: var(--pd-accent); }
+.pd-bascule.actif { background: var(--pd-accent); border-color: var(--pd-accent); color: #fff; }
 .pd-chargement { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--pd-texte-dim); }
 .pd-roue { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--pd-ligne); border-top-color: var(--pd-rouge); animation: pd-tourne .8s linear infinite; }
 @keyframes pd-tourne { to { transform: rotate(360deg); } }

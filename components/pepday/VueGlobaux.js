@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import ChampListe from '../commun/ChampListe';
-import { usePepday, Champ, Encadre, optionsDe } from './ui';
+import { usePepday, Champ, Encadre, optionsDe , RailFiltres, useFiltresAGauche } from './ui';
 import { LISTE_RAPPORTS, calculerRapport } from '../../lib/pepday/rapportsGlobaux';
 import { argent, nombre, pct, aujourdhui } from '../../lib/pepday/couts';
 import { exporterExcel } from '../../lib/pepday/exportExcel';
@@ -108,8 +108,33 @@ export default function VueGlobaux() {
 
   const membres = (role) => optionsDe(db.membres.filter((m) => (m.roles || []).includes(role)));
 
+  const aGauche = useFiltresAGauche();
+  // Les filtres sont montés une seule fois et placés soit dans le rail de
+  // gauche, soit dans la carte de tête — jamais les deux.
+  const blocFiltres = (
+    <div className="pd-filtres">
+      <Champ label="Période">
+        <select className="pd-input" value={per} onChange={(e) => { setPer(e.target.value); if (e.target.value !== 'perso') setF({ ...f, ...periode(e.target.value) }); }}>
+          <option value="mois">Ce mois-ci</option>
+          <option value="mois_prec">Le mois dernier</option>
+          <option value="30j">30 derniers jours</option>
+          <option value="trimestre">Ce trimestre</option>
+          <option value="annee">Cette année</option>
+          <option value="tout">Depuis le début</option>
+          <option value="perso">Personnalisée</option>
+        </select>
+      </Champ>
+      <Champ label="Du"><input className="pd-input" type="date" value={f.du} onChange={(e) => { setPer('perso'); setF({ ...f, du: e.target.value }); }} /></Champ>
+      <Champ label="Au"><input className="pd-input" type="date" value={f.au} onChange={(e) => { setPer('perso'); setF({ ...f, au: e.target.value }); }} /></Champ>
+      <Champ label="Projet"><ChampListe options={optionsDe(db.projets, { libelle: (p) => `${p.numero} — ${p.nom}` })} valeur={f.projet} onChange={(v) => setF({ ...f, projet: v })} videLabel="Tous" placeholder="Tous" /></Champ>
+      <Champ label="Chargé de projet"><ChampListe options={membres('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" /></Champ>
+      <Champ label="Surintendant"><ChampListe options={membres('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" /></Champ>
+    </div>
+  );
+
   return (
-    <main className="pd-main pd-l1300">
+    <main className={`pd-main pd-l1300${aGauche ? ' pd-avec-rail' : ''}`}>
+      {aGauche && <RailFiltres>{blocFiltres}</RailFiltres>}
       <div className="pd-carte">
         <div className="pd-carte-titre">
           <h2>Rapports globaux</h2>
@@ -118,24 +143,7 @@ export default function VueGlobaux() {
             <button className="pd-btn" onClick={exporterUn}><Download size={15} /> Ce rapport en Excel</button>
           </div>
         </div>
-        <div className="pd-filtres">
-          <Champ label="Période">
-            <select className="pd-input" value={per} onChange={(e) => { setPer(e.target.value); if (e.target.value !== 'perso') setF({ ...f, ...periode(e.target.value) }); }}>
-              <option value="mois">Ce mois-ci</option>
-              <option value="mois_prec">Le mois dernier</option>
-              <option value="30j">30 derniers jours</option>
-              <option value="trimestre">Ce trimestre</option>
-              <option value="annee">Cette année</option>
-              <option value="tout">Depuis le début</option>
-              <option value="perso">Personnalisée</option>
-            </select>
-          </Champ>
-          <Champ label="Du"><input className="pd-input" type="date" value={f.du} onChange={(e) => { setPer('perso'); setF({ ...f, du: e.target.value }); }} /></Champ>
-          <Champ label="Au"><input className="pd-input" type="date" value={f.au} onChange={(e) => { setPer('perso'); setF({ ...f, au: e.target.value }); }} /></Champ>
-          <Champ label="Projet"><ChampListe options={optionsDe(db.projets, { libelle: (p) => `${p.numero} — ${p.nom}` })} valeur={f.projet} onChange={(v) => setF({ ...f, projet: v })} videLabel="Tous" placeholder="Tous" /></Champ>
-          <Champ label="Chargé de projet"><ChampListe options={membres('charge_projet')} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" /></Champ>
-          <Champ label="Surintendant"><ChampListe options={membres('surintendant')} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" /></Champ>
-        </div>
+        {!aGauche && blocFiltres}
         <div className="pd-flex">
           <span className="pd-etiquette">Rapports inclus :</span>
           {[['toutes', 'Toutes les étapes'], ['confirmes', 'Cost final confirmé'], ['validation', 'En validation']].map(([v, l]) => (

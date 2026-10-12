@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Download } from 'lucide-react';
 import ChampListe from '../commun/ChampListe';
-import { usePepday, Champ, PastilleStatut, Jauge, optionsDe } from './ui';
+import { usePepday, Champ, PastilleStatut, Jauge, optionsDe , RailFiltres, useFiltresAGauche } from './ui';
 import FormProjet from './FormProjet';
 import { STATUTS_PROJET, statutProjet, DEPARTEMENTS } from '../../lib/pepday/constantes';
 import { RETARD_A_DEFINIR } from '../../lib/pepday/direction';
@@ -67,8 +67,39 @@ export default function VueProjets() {
     }]);
   }
 
+  const aGauche = useFiltresAGauche();
+  // Les filtres sont montés une seule fois et placés soit dans le rail de
+  // gauche, soit dans la carte de tête — jamais les deux.
+  const blocFiltres = (
+    <div className="pd-filtres">
+      <Champ label="Statut">
+        <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value })}>
+          <option value="actifs">Actifs (en cours, à venir, suspendus)</option>
+          <option value="tous">Tous</option>
+          {STATUTS_PROJET.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
+        </select>
+      </Champ>
+      <Champ label="Chargé de projet">
+        <ChampListe options={optionsDe(membresDuRole(db, 'charge_projet'))} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" />
+      </Champ>
+      <Champ label="Surintendant">
+        <ChampListe options={optionsDe(membresDuRole(db, 'surintendant'))} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" />
+      </Champ>
+      <Champ label="Département">
+        <select className="pd-input" value={f.departement} onChange={(e) => setF({ ...f, departement: e.target.value })}>
+          <option value="">Tous</option>
+          {DEPARTEMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </Champ>
+      <Champ label="Recherche">
+        <input className="pd-input" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Numéro, nom, client, adresse…" />
+      </Champ>
+    </div>
+  );
+
   return (
-    <main className="pd-main pd-l1300">
+    <main className={`pd-main pd-l1300${aGauche ? ' pd-avec-rail' : ''}`}>
+      {aGauche && <RailFiltres>{blocFiltres}</RailFiltres>}
       <div className="pd-carte">
         <div className="pd-carte-titre">
           <h2>Projets</h2>
@@ -83,30 +114,7 @@ export default function VueProjets() {
           <div className="pd-kpi"><div className="pd-kpi-val">{argent0(totCout)}</div><div className="pd-kpi-lib">Cost à date</div></div>
           <div className="pd-kpi"><div className="pd-kpi-val">{pct(totBudget ? totCout / totBudget : null)}</div><div className="pd-kpi-lib">Du budget consommé</div></div>
         </div>
-        <div className="pd-filtres">
-          <Champ label="Statut">
-            <select className="pd-input" value={f.statut} onChange={(e) => setF({ ...f, statut: e.target.value })}>
-              <option value="actifs">Actifs (en cours, à venir, suspendus)</option>
-              <option value="tous">Tous</option>
-              {STATUTS_PROJET.map((s) => <option key={s.code} value={s.code}>{s.libelle}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Chargé de projet">
-            <ChampListe options={optionsDe(membresDuRole(db, 'charge_projet'))} valeur={f.cp} onChange={(v) => setF({ ...f, cp: v })} videLabel="Tous" placeholder="Tous" />
-          </Champ>
-          <Champ label="Surintendant">
-            <ChampListe options={optionsDe(membresDuRole(db, 'surintendant'))} valeur={f.surint} onChange={(v) => setF({ ...f, surint: v })} videLabel="Tous" placeholder="Tous" />
-          </Champ>
-          <Champ label="Département">
-            <select className="pd-input" value={f.departement} onChange={(e) => setF({ ...f, departement: e.target.value })}>
-              <option value="">Tous</option>
-              {DEPARTEMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </Champ>
-          <Champ label="Recherche">
-            <input className="pd-input" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Numéro, nom, client, adresse…" />
-          </Champ>
-        </div>
+        {!aGauche && blocFiltres}
       </div>
 
       <div className="pd-liste pd-cache-bureau">

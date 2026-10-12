@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ClipboardCheck, FileText, FolderKanban, Map as IconeCarte, BarChart3, DollarSign, BookUser, RotateCcw, LayoutDashboard,
+  PanelLeft, PanelTop,
 } from 'lucide-react';
 import EnTeteApp from '../commun/EnTeteApp';
 import { useModePep } from '../commun/ThemeToolbox';
@@ -71,6 +72,23 @@ export default function AppPepday() {
 
 function AppAvecSession({ session }) {
   const [mode, setMode] = useModePep();
+
+  // Position des filtres : « gauche » (rail collant le long du contenu, comme
+  // Civalgo) ou « haut » (en ligne dans la carte de tête, la mise en page
+  // d'origine). Réglage par personne, gardé dans le navigateur — il ne touche
+  // pas la base. Lu après le premier rendu pour ne pas casser l'hydratation.
+  const [positionFiltres, setPositionFiltresEtat] = useState('gauche');
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem('pepday-filtres-position');
+      if (v === 'haut' || v === 'gauche') setPositionFiltresEtat(v);
+    } catch (e) { /* stockage bloqué : on garde le défaut */ }
+  }, []);
+  const setPositionFiltres = useCallback((v) => {
+    setPositionFiltresEtat(v);
+    try { window.localStorage.setItem('pepday-filtres-position', v); } catch (e) { /* tant pis */ }
+  }, []);
+
   const demoDemandee = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
   const enDemo = session.source === 'fictive' || demoDemandee || !supabaseConfigure();
 
@@ -258,7 +276,9 @@ function AppAvecSession({ session }) {
 
   const contexte = useMemo(() => ({
     db, index, moi, depot, actions, naviguer, nav, enDemo, session, derive,
-  }), [db, index, moi, depot, actions, naviguer, nav, enDemo, session, derive]);
+    positionFiltres, setPositionFiltres,
+  }), [db, index, moi, depot, actions, naviguer, nav, enDemo, session, derive,
+    positionFiltres, setPositionFiltres]);
 
   const ongletActif = PARENT[nav.vue] || nav.vue;
   const ongletsVisibles = ONGLETS.filter((o) => !o.cacherPour || !moi || moi.estAdmin
@@ -317,6 +337,28 @@ function AppAvecSession({ session }) {
             </button>
           ))}
         </nav>
+
+        {/* Où mettre les filtres. Caché sur cellulaire : sous 1100 px le rail
+            redevient de toute façon une carte empilée. */}
+        <div className="pd-reglages">
+          <span>Filtres</span>
+          <button
+            type="button"
+            className={`pd-bascule ${positionFiltres === 'gauche' ? 'actif' : ''}`}
+            onClick={() => setPositionFiltres('gauche')}
+            aria-pressed={positionFiltres === 'gauche'}
+          >
+            <PanelLeft size={14} /> À gauche
+          </button>
+          <button
+            type="button"
+            className={`pd-bascule ${positionFiltres === 'haut' ? 'actif' : ''}`}
+            onClick={() => setPositionFiltres('haut')}
+            aria-pressed={positionFiltres === 'haut'}
+          >
+            <PanelTop size={14} /> En haut
+          </button>
+        </div>
 
         {enDemo && db && (
           <div className="pd-demo">
