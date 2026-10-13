@@ -40,6 +40,10 @@ export const PALETTES = {
     errBg: '#2d1519',     // encadré d'erreur
     errTexte: '#e06a6a',
     ombre: '0 4px 14px rgba(0,0,0,0.45)',
+    beton: '#39465f',     // coupes techniques (Cubage béton) : béton
+    betonTrait: '#6b7a96',
+    acier: '#8390ab',     //   acier des poteaux et conduites
+    sol: '#5c6a85',       //   terrain et remblai granulaire
   },
   day: {
     bg: '#eef1f7',
@@ -61,6 +65,10 @@ export const PALETTES = {
     errBg: '#fdecec',
     errTexte: '#c23b3b',
     ombre: '0 4px 14px rgba(0,0,0,0.12)',
+    beton: '#c9d0dc',
+    betonTrait: '#94a0b5',
+    acier: '#78849a',
+    sol: '#9aa5b8',
   },
 };
 
