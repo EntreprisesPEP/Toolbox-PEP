@@ -43,6 +43,7 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
   const { prefs, update, ready } = usePrefs();
   const board = useBoard();
   const [tab, setTab] = useState('1');
+  const [besoinsLocal, setBesoinsLocal] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [pwdOpen, setPwdOpen] = useState(false);
@@ -60,10 +61,45 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
   }
 
   const editable = prefs.role === 'edit';
+  const estReunion = prefs.role === 'reunion';
 
-  function basculerRole() {
-    if (prefs.role === 'edit') {
-      update({ role: 'view' }); // revenir en participant ne demande jamais de mot de passe
+  // -------------------------------------------------------------------------
+  // LES TROIS VUES
+  //
+  // PARTICIPANT : lecture seule, chacun navigue de son bord.
+  // ADMIN       : l'animateur. Il edite, et sa navigation commande la tele.
+  // REUNION     : l'ecran de la tele. Identique a Participant — rien de plus,
+  //               rien de moins — sauf qu'il suit l'onglet et l'ouverture des
+  //               Besoins de l'animateur. Il ne commande jamais l'inverse :
+  //               deux ecrans qui se renvoient la balle finiraient par
+  //               clignoter.
+  //
+  // L'aiguillage passe par app_settings (ecran_onglet, ecran_besoins), deja
+  // diffusee en temps reel a tous les postes par Supabase.
+  // -------------------------------------------------------------------------
+  const ongletAffiche = estReunion ? (board.settings.ecran_onglet || '1') : tab;
+  const besoinsOuverts = estReunion ? Boolean(board.settings.ecran_besoins) : besoinsLocal;
+
+  function choisirOnglet(k) {
+    setTab(k);
+    if (prefs.role === 'edit' && board.settings.ecran_onglet !== k) {
+      board.updateSettings({ ecran_onglet: k });
+    }
+  }
+
+  function majBesoins(v) {
+    if (estReunion) return; // la tele regarde, elle ne commande pas
+    setBesoinsLocal(v);
+    if (prefs.role === 'edit' && Boolean(board.settings.ecran_besoins) !== Boolean(v)) {
+      board.updateSettings({ ecran_besoins: Boolean(v) });
+    }
+  }
+
+  function choisirRole(r) {
+    if (r === prefs.role) return;
+    // Participant et Reunion sont en lecture seule : aucun mot de passe.
+    if (r !== 'edit') {
+      update({ role: r });
       return;
     }
     const estExempte = (email || '').trim().toLowerCase() === COMPTE_SANS_MOT_DE_PASSE;
@@ -140,7 +176,7 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
         onChangerMode={setMode}
         nom={nom}
         poste={poste}
-        onAccueil={() => setTab('1')}
+        onAccueil={() => choisirOnglet('1')}
       />
 
       <div className="wrap">
@@ -149,26 +185,32 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
             <span className="eyebrow">Vue</span>
             <div className="pill-toggle">
               {TABS.map((t) => (
-                <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+                <button key={t.key} className={ongletAffiche === t.key ? 'active' : ''} onClick={() => choisirOnglet(t.key)}>
                   {t.label}
                 </button>
               ))}
             </div>
 
-            {/* Le choix participant / animateur est propre à cette app : il
-                descend dans la barre d'outils, avec les autres commandes. */}
+            {/* Le choix participant / animateur / tele est propre à cette app :
+                il descend dans la barre d'outils, avec les autres commandes. */}
             <span className="eyebrow">Mode</span>
             <div className="pill-toggle">
               <button
                 type="button"
-                className={prefs.role !== 'edit' ? 'active' : ''}
-                onClick={() => prefs.role === 'edit' && basculerRole()}
+                className={prefs.role === 'view' ? 'active' : ''}
+                onClick={() => choisirRole('view')}
               >PARTICIPANT</button>
               <button
                 type="button"
                 className={prefs.role === 'edit' ? 'active' : ''}
-                onClick={() => prefs.role !== 'edit' && basculerRole()}
+                onClick={() => choisirRole('edit')}
               >ADMIN</button>
+              <button
+                type="button"
+                className={estReunion ? 'active' : ''}
+                title="L'écran de la télé : suit l'onglet et les Besoins de l'animateur"
+                onClick={() => choisirRole('reunion')}
+              >RÉUNION</button>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -184,17 +226,26 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
           </div>
         </div>
 
-        {tab === 'admin' && <AdminView board={board} editable={editable} />}
-        {tab === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
-        {tab === '2' && <Meeting2View board={board} editable={editable} theme={prefs.theme} />}
-        {tab === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
-        {tab === 'coupes' && <CoupesView board={board} editable={editable} />}
-        {tab === 'vacances' && <VacancesView board={board} editable={editable} />}
+        {ongletAffiche === 'admin' && <AdminView board={board} editable={editable} />}
+        {ongletAffiche === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
+        {ongletAffiche === '2' && (
+          <Meeting2View
+            board={board}
+            editable={editable}
+            theme={prefs.theme}
+            besoinsOuverts={besoinsOuverts}
+            onBesoinsOuverts={majBesoins}
+          />
+        )}
+        {ongletAffiche === '3' && <TerminesView board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
+        {ongletAffiche === 'coupes' && <CoupesView board={board} editable={editable} />}
+        {ongletAffiche === 'vacances' && <VacancesView board={board} editable={editable} />}
 
         <div className="footnote">
           Donnée partagée en temps réel via Supabase entre tous ceux qui ouvrent cette page.
-          Le mode participant est en lecture seule; le mode admin demande le mot de passe, qui se
-          change dans l&apos;app Administration.
+          Participant et Réunion sont en lecture seule; le mode admin demande le mot de passe, qui se
+          change dans l&apos;app Administration. Le mode Réunion est l&apos;écran de la télé : il affiche
+          la même chose que Participant, mais il suit l&apos;onglet et les Besoins de l&apos;animateur.
         </div>
       </div>
 
