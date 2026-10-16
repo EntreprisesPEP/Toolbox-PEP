@@ -338,8 +338,9 @@ function AppAvecSession({ session }) {
           ))}
         </nav>
 
-        {/* Où mettre les filtres. Caché sur cellulaire : sous 1100 px le rail
-            redevient de toute façon une carte empilée. */}
+        {/* Où mettre les filtres. Visible partout, téléphone compris : sous
+            760 px le rail redevient une carte empilée, mais le bouton reste
+            pour que le réglage se voie et se change de n'importe où. */}
         <div className="pd-reglages">
           <span>Filtres</span>
           <button

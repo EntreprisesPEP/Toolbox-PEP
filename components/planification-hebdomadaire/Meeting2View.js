@@ -5,8 +5,8 @@ import NeedsPanel from './NeedsPanel';
 import ConfirmModal from './ConfirmModal';
 import ChampListe from '../commun/ChampListe';
 
-export default function Meeting2View({ board, editable, theme, printMode }) {
-  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments, clearMeeting2Week } = board;
+export default function Meeting2View({ board, editable, theme, printMode, besoinsOuverts, onBesoinsOuverts }) {
+  const { projects, contremaitres, settings, getAssignment, setAssignment, updateSettings, updateProject, getContremaitreName, setContremaitreNameForWeek, importPreviousWeekAssignments, clearMeeting2Week, decocherTousLesBesoins } = board;
   const dates = printMode ? twoWeekDates(settings.range_start) : weekDates(settings.range_start);
   const pal = dayCellPalette(theme);
   const activeProjects = projects.filter((p) => p.statut !== 'Termine');
@@ -184,6 +184,12 @@ export default function Meeting2View({ board, editable, theme, printMode }) {
           theme={theme}
           editable={editable}
           onTogglePlaced={(id, field, value) => updateProject(id, { [field]: value })}
+          ouvert={besoinsOuverts}
+          onOuvert={onBesoinsOuverts}
+          onDecocherTout={async () => {
+            const n = await decocherTousLesBesoins();
+            setNotice(n === 0 ? 'Aucun projet n’etait coche.' : `${n} projet(s) decoche(s).`);
+          }}
         />
       )}
 

@@ -9,11 +9,16 @@
   --vert: #2E9F58;
 }
 html[data-theme='jour'] {
+  /* --zebre : le gris du zebrage quand il doit se VOIR. --panel-2 (#F3F5F8)
+     suffit pour separer deux rangees qu'on lit de pres, pas pour suivre une
+     ligne des yeux jusqu'au bout d'un tableau large. */
+  --zebre: #E6ECF4;
   --page: #EDF2FA; --panel: #FFFFFF; --panel-2: #F3F5F8; --line: #E1E5EC;
   --ink: #1B2436; --ink-dim: #6B7280; --input-bg: #EEF0F3;
   --pill-inactive: #FFFFFF; --pill-inactive-ink: #14213D; --pill-inactive-border: #C9D0DC;
 }
 html[data-theme='nuit'] {
+  --zebre: #232F4C;
   --page: #10192E; --panel: #182238; --panel-2: #1F2B44; --line: #2B3752;
   --ink: #EDEFF4; --ink-dim: #9AA3B5; --input-bg: #1F2B44;
   --pill-inactive: transparent; --pill-inactive-ink: #C7CEDC; --pill-inactive-border: #3A4666;
@@ -425,6 +430,13 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
    rangee. Pas un fond colore — il se serait battu avec le zebrage des
    rangees paires. */
 .ph-scope .coupes-table tr.coupe-prete td:first-child { box-shadow: inset 3px 0 0 var(--vert); }
+
+/* Le tableau fait onze colonnes : pour suivre une rangee jusqu'a « Surintendant »
+   sans se tromper de ligne, il faut un zebrage qui se voie vraiment, et le nom
+   du projet en gras comme point d'ancrage a gauche. */
+.ph-scope .admin-table-wrap .coupes-table tbody tr:nth-child(odd) { background: var(--panel); }
+.ph-scope .admin-table-wrap .coupes-table tbody tr:nth-child(even) { background: var(--zebre); }
+.ph-scope .coupes-table td.cell-titre { font-weight: 700; }
 
 .ph-scope .chip-pret {
   display: inline-flex; align-items: center; gap: 4px; background: var(--vert); color: #fff;

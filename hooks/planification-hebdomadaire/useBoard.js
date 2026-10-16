@@ -211,6 +211,27 @@ export function useBoard() {
     pushHistory({ undo: () => rawUpdateProject(id, prevPatch), redo: () => rawUpdateProject(id, patch) });
     await withSync(async () => { await rawUpdateProject(id, patch); await loadAll(); });
   }
+  // Les pastilles vertes des Besoins (s1_placed / s2_placed) ne se remettent
+  // pas a zero toutes seules au changement de semaine : rien dans le schema ne
+  // les date. Le lundi suivant, l'animateur voit donc des projets verts qui
+  // racontent la semaine passee. Ce bouton remet le compteur a zero d'un coup,
+  // et reste annulable comme le reste.
+  async function decocherTousLesBesoins() {
+    const avant = projectsRef.current
+      .filter((p) => p.s1_placed || p.s2_placed)
+      .map((p) => ({ id: p.id, s1_placed: p.s1_placed, s2_placed: p.s2_placed }));
+    if (avant.length === 0) return 0;
+    const remettre = async (etats) => {
+      for (const e of etats) await rawUpdateProject(e.id, { s1_placed: e.s1_placed, s2_placed: e.s2_placed });
+    };
+    const effacer = async () => {
+      for (const e of avant) await rawUpdateProject(e.id, { s1_placed: false, s2_placed: false });
+    };
+    pushHistory({ undo: () => remettre(avant), redo: effacer });
+    await withSync(async () => { await effacer(); await loadAll(); });
+    return avant.length;
+  }
+
   async function deleteProject(id) {
     const row = projectsRef.current.find((p) => p.id === id);
     if (row) pushHistory({ undo: () => rawInsertProjectRow(row), redo: () => rawDeleteProject(id) });
@@ -522,7 +543,7 @@ export function useBoard() {
     bottin,
     projects, contremaitres, assignments, charges, surintendants, settings, loading, syncState,
     bottinEnPanne,
-    addProject, updateProject, deleteProject,
+    addProject, updateProject, deleteProject, decocherTousLesBesoins,
     addContremaitre, updateContremaitre, deleteContremaitre,
     getContremaitreName, setContremaitreNameForWeek,
     getAssignment, setAssignment,
