@@ -57,47 +57,17 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
     if (prefs.theme !== voulu) update({ theme: voulu });
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!ready || board.loading) {
-    return <div style={{ padding: 40 }}>Chargement...</div>;
-  }
-
   const editable = prefs.role === 'edit';
   const estReunion = prefs.role === 'reunion';
 
-  // -------------------------------------------------------------------------
-  // LES TROIS VUES
-  //
-  // PARTICIPANT : lecture seule, chacun navigue de son bord.
-  // ADMIN       : l'animateur. Il edite, et sa navigation commande la tele.
-  // REUNION     : l'ecran de la tele. Identique a Participant — rien de plus,
-  //               rien de moins — sauf qu'il suit l'onglet et l'ouverture des
-  //               Besoins de l'animateur. Il ne commande jamais l'inverse :
-  //               deux ecrans qui se renvoient la balle finiraient par
-  //               clignoter.
-  //
-  // L'aiguillage passe par app_settings (ecran_onglet, ecran_besoins), deja
-  // diffusee en temps reel a tous les postes par Supabase.
-  // -------------------------------------------------------------------------
-  const ongletAffiche = estReunion ? (board.settings.ecran_onglet || '1') : tab;
-  const besoinsOuverts = estReunion ? Boolean(board.settings.ecran_besoins) : besoinsLocal;
-
-  function choisirOnglet(k) {
-    setTab(k);
-    if (prefs.role === 'edit' && board.settings.ecran_onglet !== k) {
-      board.updateSettings({ ecran_onglet: k });
-    }
-  }
-
-  function majBesoins(v) {
-    if (estReunion) return; // la tele regarde, elle ne commande pas
-    setBesoinsLocal(v);
-    if (prefs.role === 'edit' && Boolean(board.settings.ecran_besoins) !== Boolean(v)) {
-      board.updateSettings({ ecran_besoins: Boolean(v) });
-    }
-  }
-
   // ---- Ce qui suit l'animateur en direct : le défilement et la frappe ------
   // Hors de la base : un canal de diffusion, sans écriture ni rechargement.
+  //
+  // ATTENTION : ces trois crochets sont AVANT le « return Chargement » plus
+  // bas, et doivent y rester. React exige le même nombre de crochets à chaque
+  // rendu; les placer après le retour anticipé fait planter toute la page dès
+  // que le chargement se termine. C'est l'erreur qui a sorti la revision 78 en
+  // production cassée, et `next lint` n'est pas configuré ici pour l'attraper.
   const { defile, frappes, emettre } = useEcranPartage({
     actif: prefs.role === 'edit' || estReunion,
     suiveur: estReunion,
@@ -130,9 +100,46 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
     window.scrollTo({ top: Math.max(0, course) * defile.fraction, behavior: 'auto' });
   }, [estReunion, defile]);
 
+  // Dernier crochet passé : à partir d'ici, on peut sortir tôt sans risque.
+  if (!ready || board.loading) {
+    return <div style={{ padding: 40 }}>Chargement...</div>;
+  }
+
   const onFrappe = prefs.role === 'edit'
     ? (cle, texte) => emettre('frappe', { cle, texte })
     : undefined;
+
+  // -------------------------------------------------------------------------
+  // LES TROIS VUES
+  //
+  // PARTICIPANT : lecture seule, chacun navigue de son bord.
+  // ADMIN       : l'animateur. Il edite, et sa navigation commande la tele.
+  // REUNION     : l'ecran de la tele. Identique a Participant — rien de plus,
+  //               rien de moins — sauf qu'il suit l'onglet et l'ouverture des
+  //               Besoins de l'animateur. Il ne commande jamais l'inverse :
+  //               deux ecrans qui se renvoient la balle finiraient par
+  //               clignoter.
+  //
+  // L'aiguillage passe par app_settings (ecran_onglet, ecran_besoins), deja
+  // diffusee en temps reel a tous les postes par Supabase.
+  // -------------------------------------------------------------------------
+  const ongletAffiche = estReunion ? (board.settings.ecran_onglet || '1') : tab;
+  const besoinsOuverts = estReunion ? Boolean(board.settings.ecran_besoins) : besoinsLocal;
+
+  function choisirOnglet(k) {
+    setTab(k);
+    if (prefs.role === 'edit' && board.settings.ecran_onglet !== k) {
+      board.updateSettings({ ecran_onglet: k });
+    }
+  }
+
+  function majBesoins(v) {
+    if (estReunion) return; // la tele regarde, elle ne commande pas
+    setBesoinsLocal(v);
+    if (prefs.role === 'edit' && Boolean(board.settings.ecran_besoins) !== Boolean(v)) {
+      board.updateSettings({ ecran_besoins: Boolean(v) });
+    }
+  }
 
   function choisirRole(r) {
     if (r === prefs.role) return;
