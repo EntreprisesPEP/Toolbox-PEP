@@ -458,6 +458,22 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
 .ph-scope .admin-table-wrap .coupes-table tbody tr:nth-child(even) { background: var(--zebre); }
 .ph-scope .coupes-table td.cell-titre { font-weight: 700; }
 
+/* Le crochet des trois permis. Il se lit de l'autre bout de la salle, sur la
+   télé comme sur le poste de l'animateur : une pastille verte pleine plutôt
+   qu'un « ✓ » de la taille du texte. Le tiret d'un document manquant reste
+   discret — c'est le document OBTENU qu'on cherche des yeux. */
+.ph-scope .coupe-case-oui {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--vert); color: #fff;
+}
+.ph-scope .coupe-case-non { color: var(--ink-dim); font-weight: 700; font-size: 15px; }
+/* En mode admin, la case à cocher elle-même grossit et passe au vert : le
+   rouge jurait avec la pastille « Prêt » verte de la même rangée. */
+.ph-scope .coupes-table input[type="checkbox"] {
+  width: 21px; height: 21px; cursor: pointer; accent-color: var(--vert);
+}
+
 .ph-scope .chip-pret {
   display: inline-flex; align-items: center; gap: 4px; background: var(--vert); color: #fff;
   border-radius: 20px; padding: 2px 9px 2px 7px; font-size: 10.5px; font-weight: 700;
@@ -713,6 +729,12 @@ html[data-theme='nuit'] .ph-scope .st-termine .d { background: #9AA0AC; }
     z-index: 4;
     background: var(--th-bg, #EEF0F4);
   }
+  /* Le fond opaque ci-dessus est obligatoire pour la colonne figée, mais il
+     écrasait le zébrage : la colonne PROJET restait blanche pendant que le
+     reste de la rangée était gris. On lui redonne la couleur de sa rangée,
+     une par parité. */
+  .ph-scope .admin-table-wrap .coupes-table tbody tr:nth-child(odd) td:first-child { background: var(--panel); }
+  .ph-scope .admin-table-wrap .coupes-table tbody tr:nth-child(even) td:first-child { background: var(--zebre); }
 }
 
 /* Les formulaires d'ajout sur téléphone — revision 74
