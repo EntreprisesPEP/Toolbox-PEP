@@ -13,6 +13,7 @@ import PrintModal from '../../components/planification-hebdomadaire/PrintModal';
 import PasswordModal from '../../components/planification-hebdomadaire/PasswordModal';
 import { usePrefs } from '../../hooks/planification-hebdomadaire/usePrefs';
 import { useBoard } from '../../hooks/planification-hebdomadaire/useBoard';
+import { useEcranPartage } from '../../hooks/planification-hebdomadaire/useEcranPartage';
 import { mondayOf, today, dateKey } from '../../lib/planification-hebdomadaire/dates';
 import { entetesAuth } from '../../lib/commun/entetesAuth';
 
@@ -94,6 +95,44 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
       board.updateSettings({ ecran_besoins: Boolean(v) });
     }
   }
+
+  // ---- Ce qui suit l'animateur en direct : le défilement et la frappe ------
+  // Hors de la base : un canal de diffusion, sans écriture ni rechargement.
+  const { defile, frappes, emettre } = useEcranPartage({
+    actif: prefs.role === 'edit' || estReunion,
+    suiveur: estReunion,
+  });
+
+  // L'animateur annonce où il est rendu. En fraction de page, pas en pixels :
+  // la télé n'a ni la même hauteur ni la même résolution que son poste.
+  useEffect(() => {
+    if (prefs.role !== 'edit') return undefined;
+    let enAttente = false;
+    function auDefilement() {
+      if (enAttente) return;
+      enAttente = true;
+      setTimeout(() => {
+        enAttente = false;
+        const course = document.documentElement.scrollHeight - window.innerHeight;
+        emettre('defile', { fraction: course > 0 ? window.scrollY / course : 0 });
+      }, 150);
+    }
+    window.addEventListener('scroll', auDefilement, { passive: true });
+    return () => window.removeEventListener('scroll', auDefilement);
+  }, [prefs.role, emettre]);
+
+  // La télé se replace. « auto » et non « smooth » : à 150 ms d'intervalle,
+  // une animation fluide n'aurait jamais le temps de finir et l'écran
+  // flotterait en permanence derrière l'animateur.
+  useEffect(() => {
+    if (!estReunion || !defile || typeof defile.fraction !== 'number') return;
+    const course = document.documentElement.scrollHeight - window.innerHeight;
+    window.scrollTo({ top: Math.max(0, course) * defile.fraction, behavior: 'auto' });
+  }, [estReunion, defile]);
+
+  const onFrappe = prefs.role === 'edit'
+    ? (cle, texte) => emettre('frappe', { cle, texte })
+    : undefined;
 
   function choisirRole(r) {
     if (r === prefs.role) return;
@@ -227,7 +266,16 @@ function PlanificationHebdomadaire({ nom, poste, email }) {
         </div>
 
         {ongletAffiche === 'admin' && <AdminView board={board} editable={editable} />}
-        {ongletAffiche === '1' && <Meeting1View board={board} editable={editable} theme={prefs.theme} nomUtilisateur={nom} />}
+        {ongletAffiche === '1' && (
+          <Meeting1View
+            board={board}
+            editable={editable}
+            theme={prefs.theme}
+            nomUtilisateur={nom}
+            onFrappe={onFrappe}
+            frappes={estReunion ? frappes : undefined}
+          />
+        )}
         {ongletAffiche === '2' && (
           <Meeting2View
             board={board}

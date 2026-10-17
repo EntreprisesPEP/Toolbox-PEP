@@ -4,29 +4,60 @@ import FilterDropdown from './FilterDropdown';
 import CommentBadge from './CommentBadge';
 import { statusColor } from '../../lib/planification-hebdomadaire/statusColors';
 
-function AutoTextarea({ value, editable, onChange }) {
+// Une demi-seconde après la dernière lettre : assez court pour que la base
+// suive le rythme d'une réunion, assez long pour ne pas écrire à chaque touche.
+const PAUSE_FRAPPE = 500;
+
+function AutoTextarea({ value, editable, onChange, cle, onFrappe, apercu }) {
   const ref = useRef(null);
+  const minuterie = useRef(null);
+
+  function ajuster(el) {
+    el.style.height = '32px';
+    el.style.height = Math.max(32, el.scrollHeight) + 'px';
+  }
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // NE JAMAIS écraser une case pendant que quelqu'un a le curseur dedans.
+    // Sans ce garde-fou, le rechargement déclenché par la sauvegarde d'un
+    // collègue effacerait le mot en cours de frappe sous les doigts.
+    if (document.activeElement === el) return;
     if (el.value !== (value || '')) el.value = value || '';
-    el.style.height = '32px';
-    el.style.height = Math.max(32, el.scrollHeight) + 'px';
+    ajuster(el);
   }, [value]);
 
-  if (!editable) return <span>{value || ''}</span>;
+  // La minuterie en vol doit partir avec le composant, sinon elle enregistre
+  // dans le vide une fois la ligne disparue de l'écran.
+  useEffect(() => () => { if (minuterie.current) clearTimeout(minuterie.current); }, []);
+
+  // En lecture : le texte en cours de frappe de l'animateur prend le dessus sur
+  // la valeur enregistrée, le temps que la base rattrape.
+  if (!editable) return <span>{(apercu != null ? apercu : value) || ''}</span>;
+
+  function enregistrer(texte) {
+    if (minuterie.current) { clearTimeout(minuterie.current); minuterie.current = null; }
+    if (texte !== (value || '')) onChange(texte);
+  }
+
   return (
     <textarea
       ref={ref}
       defaultValue={value || ''}
-      onInput={(e) => { e.target.style.height = '32px'; e.target.style.height = Math.max(32, e.target.scrollHeight) + 'px'; }}
-      onBlur={(e) => e.target.value !== (value || '') && onChange(e.target.value)}
+      onInput={(e) => {
+        ajuster(e.target);
+        const texte = e.target.value;
+        if (onFrappe && cle) onFrappe(cle, texte);
+        if (minuterie.current) clearTimeout(minuterie.current);
+        minuterie.current = setTimeout(() => { minuterie.current = null; enregistrer(texte); }, PAUSE_FRAPPE);
+      }}
+      onBlur={(e) => enregistrer(e.target.value)}
     />
   );
 }
 
-export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel, highlightedId, onHighlight, nomUtilisateur }) {
+export default function ProjectsTable({ rows, editable, theme, onUpdate, board, emptyLabel, highlightedId, onHighlight, nomUtilisateur, onFrappe, frappes }) {
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [filterCharge, setFilterCharge] = useState(null);
@@ -122,7 +153,14 @@ export default function ProjectsTable({ rows, editable, theme, onUpdate, board, 
                   <StatusCell project={p} editable={editable} onChange={(patch) => onUpdate(p.id, patch)} />
                 </td>
                 <td data-label="Commentaire" className="cell-large">
-                  <AutoTextarea value={p.commentaire} editable={editable} onChange={(v) => onUpdate(p.id, { commentaire: v })} />
+                  <AutoTextarea
+                    value={p.commentaire}
+                    editable={editable}
+                    onChange={(v) => onUpdate(p.id, { commentaire: v })}
+                    cle={`c:${p.id}`}
+                    onFrappe={onFrappe}
+                    apercu={frappes ? frappes[`c:${p.id}`] : undefined}
+                  />
                 </td>
                 <td style={{ textAlign: 'right' }} data-label="Sem 1" className="cell-sem">
                   <span
