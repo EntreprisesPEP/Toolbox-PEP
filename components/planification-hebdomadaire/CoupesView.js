@@ -35,7 +35,9 @@ function estPrete(c) {
 
 function Case({ coche, editable, onChange, aria }) {
   if (!editable) {
-    return <span style={{ color: coche ? 'var(--vert)' : 'var(--ink-dim)', fontWeight: 700 }}>{coche ? '✓' : '—'}</span>;
+    return coche
+      ? <span className="coupe-case-oui" title={aria}><Check size={15} strokeWidth={3.5} /></span>
+      : <span className="coupe-case-non" title={aria}>—</span>;
   }
   return (
     <input
@@ -43,7 +45,6 @@ function Case({ coche, editable, onChange, aria }) {
       checked={!!coche}
       onChange={(e) => onChange(e.target.checked)}
       aria-label={aria}
-      style={{ width: 17, height: 17, cursor: 'pointer', accentColor: 'var(--red)' }}
     />
   );
 }
